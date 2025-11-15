@@ -1,0 +1,80 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'nl.saxion.game'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation group: 'io.gitlab.evertduipmans', name: 'saxiongameapp', version: 'latest.release'
+}
+
+application {
+    mainClass = 'nl.saxion.game.Main'
+
+    // Set JVM args based on OS
+    applicationDefaultJvmArgs = []
+    if (System.properties['os.name'].toLowerCase().contains('mac')) {
+        applicationDefaultJvmArgs += "-XstartOnFirstThread"
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
+
+    // Include all dependencies inside this JAR (so LibGDX and SaxionGameApp are added)
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('dist') {
+    group = 'distribution'
+    description = 'Builds a runnable jar file, so that the game can be ran on any computer with the JVM'
+    dependsOn jar
+}
+
+// -------------------------
+// Generate launch scripts
+// -------------------------
+tasks.register('generateLaunchScripts') {
+    group = 'distribution'
+    description = 'Generates run.sh and run.bat to launch the runnable JAR easily'
+    dependsOn jar
+
+    doLast {
+        def jarFile = jar.archiveFile.get().asFile
+        def libDir = jarFile.parentFile
+
+        // --- Linux / macOS ---
+        def shFile = new File(libDir, 'run.sh')
+        shFile.text = """#!/bin/bash
+cd "\$(dirname "\$0")"
+java -XstartOnFirstThread -jar ${jarFile.name}
+"""
+        shFile.setExecutable(true)
+        println "Created ${shFile.absolutePath}"
+
+        // --- Windows ---
+        def batFile = new File(libDir, 'run.bat')
+        batFile.text = """@echo off
+cd /d %~dp0
+java -jar ${jarFile.name}
+pause
+"""
+        println "Created ${batFile.absolutePath}"
+    }
+}
+
+// Make dist automatically generate the launch scripts
+tasks.named('dist') {
+    dependsOn tasks.named('generateLaunchScripts')
+}
