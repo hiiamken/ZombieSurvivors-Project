@@ -12,5 +12,6 @@ public class Main {
 
         // Start game loop and show main menu screen
         GameApp.start("Your Game Name", 800, 450, 60, false, "MainMenuScreen");
+        GameApp.drawLine(10,10,100,10);
     }
 }
