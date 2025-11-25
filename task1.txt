@@ -1,0 +1,93 @@
+Set up the entire base structure of the game using Saxion GameApp.
+This task includes creating the initial Java project, integrating the Saxion GameApp library, setting up the folder architecture, creating the main game class and the first playable screen, and validating that the project runs correctly for all team members.
+This task is the foundation of Sprint 1 and must be completed before any gameplay features can be implemented.
+
+
+
+To-Do List (Checklist)
+
+Create Java Project & Add Saxion GameApp
+
+Create new Java project (IntelliJ, Java 17/21)
+
+Add Saxion GameApp dependency to Gradle/Maven
+
+Refresh project and verify build succeeds
+
+Create MainGame Class
+
+Add MainGame class extending GameApp
+
+Override init(), update(), render()
+
+Configure window settings
+
+Run project → confirm the game window opens
+
+Create PlayScreen
+
+Add screens/ package
+
+Create PlayScreen implementing ScalableGameScreen
+
+Implement enter(), update(delta), render(g), exit()
+
+Set PlayScreen as active screen in MainGame.init()
+
+Render a simple background color to test
+
+Set Up Project Folder Structure
+
+Create packages: core/, entities/, systems/, screens/, utils/
+
+Create resources folder /assets/ with subfolders:
+
+player/
+
+enemy/
+
+tiles/
+
+ui/
+
+Confirm folder structure is clean and consistent
+
+Add Placeholder Assets
+
+Add temporary PNGs (player, enemy, bullet, tiles)
+
+Test loading one texture inside PlayScreen
+
+Confirm correct resource path resolution
+
+Git Initialization
+
+Add .gitignore (Java + Gradle)
+
+Commit: “Initial project setup”
+
+Push to GitHub main branch
+
+Ensure all members can pull and run the project successfully
+
+Validation & Final Check
+
+Build and test on at least one other machine
+
+Confirm the project runs with no missing assets
+
+Confirm screen switching works
+
+Definition of Done
+
+The game window launches successfully
+
+MainGame and PlayScreen are functional
+
+Folder structure is fully established
+
+Asset loading works with at least one sample sprite
+
+GitHub repository is live and accessible
+
+Team can start implementing gameplay features without errors

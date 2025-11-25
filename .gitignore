@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LibGDX assets cache
+assets/assets.txt
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+*.swp
+*~.
