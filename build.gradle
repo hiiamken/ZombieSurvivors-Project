@@ -16,7 +16,16 @@ dependencies {
 
 application {
     mainClass = 'nl.saxion.game.Main'
+<<<<<<< HEAD
     applicationDefaultJvmArgs = ["-XstartOnFirstThread"]
+=======
+
+    // Set JVM args based on OS
+    applicationDefaultJvmArgs = []
+    if (System.properties['os.name'].toLowerCase().contains('mac')) {
+        applicationDefaultJvmArgs += "-XstartOnFirstThread"
+    }
+>>>>>>> de5e94790f6a2c31a9ca9f50ad2f06f118c35ce8
 }
 
 jar {
