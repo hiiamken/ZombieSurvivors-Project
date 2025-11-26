@@ -1,3 +1,33 @@
+<<<<<<< HEAD
+# Gradle
+.gradle/
+build/
+**/build/
+
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LibGDX assets cache
+assets/assets.txt
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+*.swp
+*~.
+=======
 ## Gradle:
 .gradle/
 gradle-app.setting
@@ -167,3 +197,4 @@ Thumbs.db
 **/build/
 
 /out/
+>>>>>>> de5e94790f6a2c31a9ca9f50ad2f06f118c35ce8
