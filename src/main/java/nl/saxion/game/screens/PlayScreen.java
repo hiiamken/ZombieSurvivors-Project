@@ -1,9 +1,12 @@
 package nl.saxion.game.screens;
 
+import nl.saxion.game.systems.InputController;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
 public class PlayScreen extends ScalableGameScreen {
+
+    private InputController input;
 
     public PlayScreen() {
         super(800, 600);
@@ -15,13 +18,14 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Load your player texture
         GameApp.addTexture("player", "assets/player/player.png");
+
+        // Input controller
+        input = new InputController();
     }
 
     @Override
     public void hide() {
         System.out.println("PlayScreen hidden");
-
-        // Dispose to free memory
         GameApp.disposeTexture("player");
     }
 
@@ -31,14 +35,19 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.clearScreen("black");
 
+        float moveX = input.getMoveX();
+        float moveY = input.getMoveY();
 
-        GameApp.startShapeRenderingFilled();
-        GameApp.drawRect(100, 100, 200, 100, "blue-500");
-        GameApp.endShapeRendering();
+        if (moveX != 0 || moveY != 0) {
+            System.out.println("MOVE: " + moveX + ", " + moveY);
+        }
 
+        if (input.isShoot()) {
+            System.out.println("SHOOT PRESSED");
+        }
 
         GameApp.startSpriteRendering();
-        GameApp.drawTexture("player", 300, 250, 64, 64); // scaled to 64x64
+        GameApp.drawTexture("player", 300, 250, 32, 32);
         GameApp.endSpriteRendering();
     }
 }
