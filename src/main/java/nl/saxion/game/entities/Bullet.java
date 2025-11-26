@@ -2,21 +2,24 @@ package nl.saxion.game.entities;
 
 import nl.saxion.gameapp.GameApp;
 
+// 🟢 ARNOLD – Task 5 & 6: bullet with movement + damage
 public class Bullet {
 
-    private float x, y;      // position
-    private float vx, vy;    // direction (normalized)
+    private float x, y;
+    private float vx, vy;
     private float speed = 400f; // units per second
+    private int damage;
 
-    public Bullet(float startX, float startY, float dirX, float dirY) {
+    public Bullet(float startX, float startY, float dirX, float dirY, int damage) {
         this.x = startX;
         this.y = startY;
 
-        // normalize direction so diagonal isn't faster
         float len = (float) Math.sqrt(dirX * dirX + dirY * dirY);
         if (len == 0) len = 1;
         this.vx = dirX / len;
         this.vy = dirY / len;
+
+        this.damage = damage;
     }
 
     public void update(float delta) {
@@ -31,11 +34,9 @@ public class Bullet {
         return x < 0 || x > w || y < 0 || y > h;
     }
 
-    public float getX() {
-        return x;
-    }
+    public float getX() { return x; }
+    public float getY() { return y; }
 
-    public float getY() {
-        return y;
-    }
+    // Task 6 – used later when hitting enemies
+    public int getDamage() { return damage; }
 }
