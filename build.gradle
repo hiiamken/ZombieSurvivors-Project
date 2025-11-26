@@ -15,17 +15,14 @@ dependencies {
 }
 
 application {
-    mainClass = 'nl.saxion.game.Main'
-<<<<<<< HEAD
-    applicationDefaultJvmArgs = ["-XstartOnFirstThread"]
-=======
+    // Main entry của game
+    mainClass = 'nl.saxion.game.MainGame'
 
-    // Set JVM args based on OS
+    // JVM args (cần cho Mac để LibGDX/SaxionGame chạy đúng)
     applicationDefaultJvmArgs = []
     if (System.properties['os.name'].toLowerCase().contains('mac')) {
         applicationDefaultJvmArgs += "-XstartOnFirstThread"
     }
->>>>>>> de5e94790f6a2c31a9ca9f50ad2f06f118c35ce8
 }
 
 jar {
