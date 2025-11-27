@@ -5,6 +5,8 @@ import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
+import nl.saxion.game.entities.Player;
+
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -15,14 +17,10 @@ public class PlayScreen extends ScalableGameScreen {
     private InputController input;
 
     // 🔵 DANIEL – future Player object (Task 3 & 4)
-    // private Player player;
+    private Player player;
+
 
     // 🟢 ARNOLD – TEMP player data so bullets can be tested
-    private float playerX = 300;
-    private float playerY = 250;
-    private final float playerWidth = 32;
-    private final float playerHeight = 32;
-    private float playerSpeed = 200f;
 
     // 🟢 ARNOLD – bullets
     private List<Bullet> bullets;
@@ -43,6 +41,13 @@ public class PlayScreen extends ScalableGameScreen {
         System.out.println("PlayScreen loaded");
         GameApp.addTexture("player", "assets/player/player.png");
         input = new InputController();
+        float startX = 300;
+        float startY = 250;
+        float speed = 200f;
+        int maxHealth = 5;
+
+        player = new Player(startX, startY, speed, maxHealth, null);
+
 
         // 🟢 ARNOLD – bullet texture + list
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
@@ -79,16 +84,12 @@ public class PlayScreen extends ScalableGameScreen {
         }
 
         // 🟢 ARNOLD – TEMP player movement (will be replaced by Daniel’s Player)
-        playerX += moveX * playerSpeed * delta;
-        playerY += moveY * playerSpeed * delta;
 
         float worldW = GameApp.getWorldWidth();
         float worldH = GameApp.getWorldHeight();
 
-        if (playerX < 0) playerX = 0;
-        if (playerY < 0) playerY = 0;
-        if (playerX > worldW - playerWidth)  playerX = worldW - playerWidth;
-        if (playerY > worldH - playerHeight) playerY = worldH - playerHeight;
+        player.update(delta, input, (int)worldW, (int)worldH);
+
 
         // 🟢 ARNOLD – Task 6: update weapon cooldown
         weapon.update(delta);
@@ -101,8 +102,14 @@ public class PlayScreen extends ScalableGameScreen {
             float dirX = 0;
             float dirY = 1; // up
 
+            float playerX = player.getX();
+            float playerY = player.getY();
+            float playerWidth = Player.SPRITE_SIZE;
+            float playerHeight = Player.SPRITE_SIZE;
+
             float bulletStartX = playerX + playerWidth / 2f - 4;
             float bulletStartY = playerY + playerHeight / 2f;
+
 
             // damage comes from Weapon
             bullets.add(new Bullet(bulletStartX, bulletStartY, dirX, dirY, weapon.getDamage()));
@@ -126,7 +133,7 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.startSpriteRendering();
 
         // draw temp player
-        GameApp.drawTexture("player", playerX, playerY, playerWidth, playerHeight);
+        player.render();
 
         // draw bullets
         for (Bullet b : bullets) {

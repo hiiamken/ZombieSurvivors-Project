@@ -1,4 +1,4 @@
-package nl.saxion.game;
+ package nl.saxion.game;
 
 import nl.saxion.game.screens.PlayScreen;
 import nl.saxion.gameapp.GameApp;
