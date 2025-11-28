@@ -47,7 +47,6 @@ public class Player {
             x = x + speed * delta;  // D
         }
 
-        // ограничения по краям
         if (x < 0) x = 0;
         if (y < 0) y = 0;
 
@@ -86,7 +85,6 @@ public class Player {
             health = maxHealth;
         }
 
-        // временный debug
         System.out.println("Player healed " + amount + ". HP: " + health + "/" + maxHealth);
     }
 

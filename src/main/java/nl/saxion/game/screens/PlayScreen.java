@@ -75,7 +75,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.clearScreen("black");
 
-        // 🔵 THUONG – read input
+        // Read input
         float moveX = input.getMoveX();
         float moveY = input.getMoveY();
 
@@ -83,7 +83,7 @@ public class PlayScreen extends ScalableGameScreen {
             System.out.println("MOVE: " + moveX + ", " + moveY);
         }
 
-        // 🟢 ARNOLD – TEMP player movement (will be replaced by Daniel’s Player)
+        // TEMP player movement (will be replaced by Daniel’s Player)
 
         float worldW = GameApp.getWorldWidth();
         float worldH = GameApp.getWorldHeight();
@@ -91,10 +91,10 @@ public class PlayScreen extends ScalableGameScreen {
         player.update(delta, input, (int)worldW, (int)worldH);
 
 
-        // 🟢 ARNOLD – Task 6: update weapon cooldown
+        // Update weapon cooldown
         weapon.update(delta);
 
-        // 🟢 ARNOLD – weapon-controlled shooting
+        // shooting
         // Hold SPACE -> isShootHeld()
         if (input.isShootHeld() && weapon.canFire()) {
             System.out.println("FIRE!");
@@ -118,7 +118,7 @@ public class PlayScreen extends ScalableGameScreen {
             weapon.onFire();
         }
 
-        // 🟢 ARNOLD – update bullets & remove off-screen
+        // Update bullets & remove off-screen
         Iterator<Bullet> it = bullets.iterator();
         while (it.hasNext()) {
             Bullet b = it.next();
@@ -129,7 +129,7 @@ public class PlayScreen extends ScalableGameScreen {
             }
         }
 
-        // 🔵 THUONG – base rendering, extended by Arnold
+        // Base rendering, extended by Arnold
         GameApp.startSpriteRendering();
 
         // draw temp player
@@ -143,5 +143,5 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.endSpriteRendering();
     }
 
-    // 🔵 DANIEL – later will add getPlayerStatus() etc. here
+    // Later will add getPlayerStatus() etc. here
 }
