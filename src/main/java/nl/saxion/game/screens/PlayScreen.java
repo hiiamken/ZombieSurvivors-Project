@@ -16,20 +16,12 @@ public class PlayScreen extends ScalableGameScreen {
 
     private InputController input;
 
-    // 🔵 DANIEL – future Player object (Task 3 & 4)
     private Player player;
 
-
-    // 🟢 ARNOLD – TEMP player data so bullets can be tested
-
-    // 🟢 ARNOLD – bullets
     private List<Bullet> bullets;
 
-    // 🟢 ARNOLD – Task 6: Weapon for player
     private Weapon weapon;
 
-
-    // 🔵 THUONG – base constructor
     public PlayScreen() {
         super(800, 600);
     }
@@ -37,7 +29,6 @@ public class PlayScreen extends ScalableGameScreen {
     @Override
     public void show() {
 
-        // 🔵 THUONG – original setup
         System.out.println("PlayScreen loaded");
         GameApp.addTexture("player", "assets/player/player.png");
         input = new InputController();
@@ -48,12 +39,9 @@ public class PlayScreen extends ScalableGameScreen {
 
         player = new Player(startX, startY, speed, maxHealth, null);
 
-
-        // 🟢 ARNOLD – bullet texture + list
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
         bullets = new ArrayList<>();
 
-        // 🟢 ARNOLD – Task 6: base weapon (pistol)
         // 3 shots per second, 10 damage
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
     }
@@ -61,11 +49,9 @@ public class PlayScreen extends ScalableGameScreen {
     @Override
     public void hide() {
 
-        // 🔵 THUONG
         System.out.println("PlayScreen hidden");
         GameApp.disposeTexture("player");
 
-        // 🟢 ARNOLD
         GameApp.disposeTexture("bullet");
     }
 
