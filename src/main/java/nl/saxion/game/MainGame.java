@@ -10,7 +10,7 @@ public class MainGame {
 
         GameApp.start(
                 "Zombie Survivors",
-                800, 600,
+                1980, 920,
                 60,
                 false,
                 "play"
