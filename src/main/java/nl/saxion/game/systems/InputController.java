@@ -5,7 +5,7 @@ import nl.saxion.gameapp.GameApp;
 
 public class InputController {
 
-    // 🔵 THUONG – movement input (Task 2)
+    // THUONG – movement input (Task 2)
     public boolean isMoveUp() {
         return GameApp.isKeyPressed(Input.Keys.W);
     }
@@ -22,17 +22,17 @@ public class InputController {
         return GameApp.isKeyPressed(Input.Keys.D);
     }
 
-    // 🔵 THUONG – original shoot (just pressed once)
+    // THUONG – original shoot (just pressed once)
     public boolean isShoot() {
         return GameApp.isKeyJustPressed(Input.Keys.SPACE);
     }
 
-    // 🟢 ARNOLD (Task 6) – shoot HELD (for fire-rate weapon system)
+    // ARNOLD (Task 6) – shoot HELD (for fire-rate weapon system)
     public boolean isShootHeld() {
         return GameApp.isKeyPressed(Input.Keys.SPACE);
     }
 
-    // 🔵 THUONG – movement as axes
+    // THUONG – movement as axes
     public float getMoveX() {
         float x = 0;
         if (isMoveRight()) x += 1;

@@ -1,11 +1,10 @@
 package nl.saxion.game.entities;
 
-// 🟢 ARNOLD – Task 6: basic weapon with fire-rate & damage
+// Basic weapon with fire-rate & damage
 public class Weapon {
 
     public enum WeaponType {
         PISTOL
-        // later: SHOTGUN, RIFLE, etc.
     }
 
     private WeaponType type;

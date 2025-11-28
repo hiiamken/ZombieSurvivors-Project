@@ -2,7 +2,7 @@ package nl.saxion.game.entities;
 
 import nl.saxion.gameapp.GameApp;
 
-// 🟢 ARNOLD – Task 5 & 6: bullet with movement + damage
+// Arnold - bullet with movement + damage
 public class Bullet {
 
     private float x, y;
@@ -37,6 +37,6 @@ public class Bullet {
     public float getX() { return x; }
     public float getY() { return y; }
 
-    // Task 6 – used later when hitting enemies
+    // Used later when hitting enemies
     public int getDamage() { return damage; }
 }
