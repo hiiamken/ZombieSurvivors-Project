@@ -21,6 +21,13 @@ public class Player {
 
     public static final int SPRITE_SIZE = 16;
 
+    private float targetShootDirX = 0f; //Target shoot direction X
+    private float targetShootDirY = -1f; //Target shoot direction Y
+    private float smoothShootDirX = 0f; //Smooth shoot direction X
+    private float smoothShootDirY = -1f; //Smooth shoot direction X
+
+    static final float SHOOT_DIRECTION_SMOOTHING = 12f;
+
     public Player(float startX, float startY, float speed, int maxHealth, Image sprite) {
         this.x = startX;
         this.y = startY;
@@ -34,17 +41,61 @@ public class Player {
 
     // movement
     public void update(float delta, InputController input, int worldWidth, int worldHeight) {
+
+        float dirX = 0f;
+        float dirY = 0f;
+
         if (input.isMoveUp()) {
-            y = y + speed * delta;  // W
+            dirY += 1f;
+            y = y + speed * delta; // W
         }
         if (input.isMoveDown()) {
+            dirY -= 1f;
             y = y - speed * delta;  // S
         }
         if (input.isMoveLeft()) {
-            x = x - speed * delta;  // A
+            dirX -= 1f;
+            x = x - speed * delta; // A
         }
         if (input.isMoveRight()) {
+            dirX += 1f;
             x = x + speed * delta;  // D
+        }
+
+        float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        if (length > 0) {
+            targetShootDirX = dirX / length;
+            targetShootDirY = dirY / length;
+        } else {
+
+        }
+
+        if (dirY == 0 && dirX != 0) {
+            targetShootDirY = 0f;
+            targetShootDirX = (dirX > 0) ? 1f : -1f;
+        }
+
+        if (dirX == 0 && dirY != 0) {
+            targetShootDirX = 0f;
+            targetShootDirY = (dirY > 0) ? 1f : -1f;
+        }
+
+        if (targetShootDirY == 0f && targetShootDirX != 0f) {
+            smoothShootDirX = targetShootDirX;
+            smoothShootDirY = 0f;
+        } else if (targetShootDirX == 0f && targetShootDirY != 0f) {
+            smoothShootDirX  = 0f;
+            smoothShootDirY = targetShootDirY;
+        } else {
+            float lerpFactor = 1f - (float) Math.exp(-SHOOT_DIRECTION_SMOOTHING * delta);
+            smoothShootDirX = smoothShootDirX + (targetShootDirX - smoothShootDirX) * lerpFactor;
+            smoothShootDirY = smoothShootDirY + (targetShootDirY - smoothShootDirY) * lerpFactor;
+        }
+
+        float smoothedLength = (float) Math.sqrt(smoothShootDirX * smoothShootDirX + smoothShootDirY * smoothShootDirY);
+        if (smoothedLength > 0.001f) {
+            smoothShootDirX = smoothShootDirX / smoothedLength;
+            smoothShootDirY = smoothShootDirY / smoothedLength;
         }
 
         if (x < 0) x = 0;
@@ -63,6 +114,14 @@ public class Player {
 
     public float getY() {
         return y;
+    }
+
+    public float getLastMoveDirectionX() {
+        return smoothShootDirX;
+    }
+
+    public float getLastMoveDirectionY() {
+        return smoothShootDirY;
     }
 
     // --- HEALTH SYSTEM ---

@@ -55,7 +55,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         // 🟢 ARNOLD – Task 6: base weapon (pistol)
         // 3 shots per second, 10 damage
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 10.0f, 10);
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
     }
 
     @Override
@@ -99,8 +99,14 @@ public class PlayScreen extends ScalableGameScreen {
         if (input.isShootHeld() && weapon.canFire()) {
             System.out.println("FIRE!");
 
-            float dirX = 0;
-            float dirY = 1; // up
+            // Bullets fire in the direction the player is moving or last moved
+            float dirX = player.getLastMoveDirectionX();
+            float dirY = player.getLastMoveDirectionY();
+
+            if (dirX == 0 && dirY == 0) {
+                dirX = 0;
+                dirY = -1;  // shoot upward if somehow direction is zero
+            }
 
             float playerX = player.getX();
             float playerY = player.getY();
