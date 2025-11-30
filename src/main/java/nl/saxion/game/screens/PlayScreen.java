@@ -1,4 +1,7 @@
 package nl.saxion.game.screens;
+import com.badlogic.gdx.Game;
+import nl.saxion.game.entities.PlayerStatus;
+
 
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Weapon;
@@ -8,9 +11,11 @@ import nl.saxion.gameapp.screens.ScalableGameScreen;
 import nl.saxion.game.entities.Player;
 
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
 
 public class PlayScreen extends ScalableGameScreen {
 
@@ -21,6 +26,8 @@ public class PlayScreen extends ScalableGameScreen {
     private List<Bullet> bullets;
 
     private Weapon weapon;
+
+    private int score = 0;
 
     public PlayScreen() {
         super(800, 600);
@@ -95,8 +102,37 @@ public class PlayScreen extends ScalableGameScreen {
             b.render();
         }
 
+        renderHUD();
+
         GameApp.endSpriteRendering();
+
     }
 
+
+    // Used by HUD/UI to draw HP, score, etc.
+    // UI should only READ this, not modify Player. etc. here
+
+    public PlayerStatus getPlayerStatus() {
+        int health = player.getHealth();
+        int maxHealth = player.getMaxHealth();
+
+        return new PlayerStatus(health, maxHealth, score);
+    }
+    // Use this when enemy dies and u need to add score
+    public void addScore(int amount) {
+        score += amount;
+        if (score < 0) {
+            score = 0;
+        }
+    }
+    private void renderHUD() {
+        PlayerStatus status = getPlayerStatus();
+
+        String hpText = "HP: " + status.health + " | " + status.maxHealth;
+        String scoreText = "Score: " + status.score;
+
+        GameApp.drawText("default", hpText, 20, 40, "white");
+        GameApp.drawText("default", scoreText, 20, 70, "white");
+    }
     // Later: getPlayerStatus(), HUD, etc.
 }
