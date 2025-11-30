@@ -67,8 +67,6 @@ public class Player {
         if (length > 0) {
             targetShootDirX = dirX / length;
             targetShootDirY = dirY / length;
-        } else {
-
         }
 
         if (dirY == 0 && dirX != 0) {
@@ -99,14 +97,12 @@ public class Player {
             smoothShootDirY = smoothShootDirY / smoothedLength;
         }
 
-        if (x < 0) x = 0;
-        if (y < 0) y = 0;
 
         float maxX = worldWidth - SPRITE_SIZE;
         float maxY = worldHeight - SPRITE_SIZE;
 
-        if (x > maxX) x = maxX;
-        if (y > maxY) y = maxY;
+        x = GameApp.clamp(x, 0, maxX);
+        y = GameApp.clamp(y, 0, maxY);
     }
 
     public float getX() {
@@ -139,9 +135,7 @@ public class Player {
     public void takeDamage(int amount) {
         health -= amount;
 
-        if (health < 0) {
-            health = 0;
-        }
+        health = (int) GameApp.clamp(health, 0, maxHealth);
 
         // Temp debug
         System.out.println("Player took " + amount + " damage. HP: " + health + "/" + maxHealth);
@@ -150,9 +144,7 @@ public class Player {
     public void heal(int amount) {
         health += amount;
 
-        if (health > maxHealth) {
-            health = maxHealth;
-        }
+        health = (int) GameApp.clamp(health, 0, maxHealth);
 
         System.out.println("Player healed " + amount + ". HP: " + health + "/" + maxHealth);
     }
