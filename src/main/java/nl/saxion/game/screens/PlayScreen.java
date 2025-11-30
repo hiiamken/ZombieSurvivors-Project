@@ -68,56 +68,22 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.clearScreen("black");
 
-        // Read input
-        float moveX = input.getMoveX();
-        float moveY = input.getMoveY();
-
-        if (moveX != 0 || moveY != 0) {
-            System.out.println("MOVE: " + moveX + ", " + moveY);
-        }
-
-        // TEMP player movement (will be replaced by Daniel’s Player)
-
+        // --- UPDATE ---
         float worldW = GameApp.getWorldWidth();
         float worldH = GameApp.getWorldHeight();
 
-        player.update(delta, input, (int)worldW, (int)worldH);
-
-
-        // Update weapon cooldown
+        player.update(delta, input, (int) worldW, (int) worldH);
         weapon.update(delta);
 
-        // shooting
-        // Hold SPACE -> isShootHeld()
-        if (input.isShootHeld() && weapon.canFire()) {
-            System.out.println("FIRE!");
-
-            // Bullets fire in the direction the player is moving or last moved
-            float dirX = player.getLastMoveDirectionX();
-            float dirY = player.getLastMoveDirectionY();
-
-            if (dirX == 0 && dirY == 0) {
-                dirX = 0;
-                dirY = -1;  // shoot upward if somehow direction is zero
+        // Shooting – Weapon handles direction + spawn position
+        if (input.isShootHeld()) {
+            Bullet newBullet = weapon.tryFire(player);
+            if (newBullet != null) {
+                bullets.add(newBullet);
             }
-
-            float playerX = player.getX();
-            float playerY = player.getY();
-            float playerWidth = Player.SPRITE_SIZE;
-            float playerHeight = Player.SPRITE_SIZE;
-
-            float bulletStartX = playerX + playerWidth / 2f - 4;
-            float bulletStartY = playerY + playerHeight / 2f;
-
-
-            // damage comes from Weapon
-            bullets.add(new Bullet(bulletStartX, bulletStartY, dirX, dirY, weapon.getDamage()));
-
-            // start cooldown
-            weapon.onFire();
         }
 
-        // Update bullets & remove off-screen
+        // Update bullets and remove off-screen ones
         Iterator<Bullet> it = bullets.iterator();
         while (it.hasNext()) {
             Bullet b = it.next();
@@ -127,16 +93,13 @@ public class PlayScreen extends ScalableGameScreen {
                 it.remove();
             }
         }
-
-        // Base rendering, extended by Arnold
+        // --- RENDER ---
         GameApp.startSpriteRendering();
 
-        // draw temp player
         player.render();
 
-        // draw bullets
         for (Bullet b : bullets) {
-            GameApp.drawTexture("bullet", b.getX(), b.getY(), 8, 8);
+            b.render();
         }
 
         renderHUD();
@@ -144,6 +107,7 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.endSpriteRendering();
 
     }
+
 
     // Used by HUD/UI to draw HP, score, etc.
     // UI should only READ this, not modify Player. etc. here
@@ -170,4 +134,5 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.drawText("default", hpText, 20, 40, "white");
         GameApp.drawText("default", scoreText, 20, 70, "white");
     }
+    // Later: getPlayerStatus(), HUD, etc.
 }
