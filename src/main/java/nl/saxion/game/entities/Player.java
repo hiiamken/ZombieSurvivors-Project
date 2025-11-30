@@ -1,5 +1,6 @@
 package nl.saxion.game.entities;
 
+
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.systems.InputController;
 import java.awt.Image;
@@ -123,6 +124,15 @@ public class Player {
     public float getLastMoveDirectionY() {
         return smoothShootDirY;
     }
+
+    public int getHealth() {
+        return health;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
 
     // --- HEALTH SYSTEM ---
 
