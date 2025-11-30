@@ -1,11 +1,11 @@
 package nl.saxion.game.screens;
-import com.badlogic.gdx.Game;
 import nl.saxion.game.entities.PlayerStatus;
 
 
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.systems.InputController;
+import nl.saxion.game.ui.HUD;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 import nl.saxion.game.entities.Player;
@@ -29,6 +29,8 @@ public class PlayScreen extends ScalableGameScreen {
 
     private int score = 0;
 
+    private HUD hud;
+
     public PlayScreen() {
         super(800, 600);
     }
@@ -36,7 +38,7 @@ public class PlayScreen extends ScalableGameScreen {
     @Override
     public void show() {
 
-        System.out.println("PlayScreen loaded");
+        GameApp.log("PlayScreen loaded");
         GameApp.addTexture("player", "assets/player/player.png");
         input = new InputController();
         float startX = 300;
@@ -51,12 +53,14 @@ public class PlayScreen extends ScalableGameScreen {
 
         // 3 shots per second, 10 damage
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
+
+        hud = new HUD();
     }
 
     @Override
     public void hide() {
 
-        System.out.println("PlayScreen hidden");
+        GameApp.log("PlayScreen hidden");
         GameApp.disposeTexture("player");
 
         GameApp.disposeTexture("bullet");
@@ -121,18 +125,12 @@ public class PlayScreen extends ScalableGameScreen {
     // Use this when enemy dies and u need to add score
     public void addScore(int amount) {
         score += amount;
-        if (score < 0) {
-            score = 0;
-        }
+        score = (int) GameApp.clamp(score, 0, Integer.MAX_VALUE);
     }
     private void renderHUD() {
         PlayerStatus status = getPlayerStatus();
 
-        String hpText = "HP: " + status.health + " | " + status.maxHealth;
-        String scoreText = "Score: " + status.score;
-
-        GameApp.drawText("default", hpText, 20, 40, "white");
-        GameApp.drawText("default", scoreText, 20, 70, "white");
+        hud.render(status);
     }
     // Later: getPlayerStatus(), HUD, etc.
 }
