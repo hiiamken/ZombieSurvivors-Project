@@ -1,6 +1,7 @@
 package nl.saxion.game.entities;
 
 import nl.saxion.gameapp.GameApp;
+import java.awt.Rectangle;
 
 // Bullet with movement, damage and rendering
 public class Bullet {
@@ -13,6 +14,10 @@ public class Bullet {
     // Size
     private float width;
     private float height;
+
+    private Rectangle hitBox;
+
+    private boolean destroyed = false;
 
     // Defaults
     private static final float DEFAULT_SPEED = 400f;
@@ -46,11 +51,16 @@ public class Bullet {
         if (len == 0) len = 1;
         this.vx = dirX / len;
         this.vy = dirY / len;
+
+        this.hitBox = new Rectangle((int) x, (int) y, (int) width, (int) height);
     }
 
     public void update(float delta) {
         x += vx * speed * delta;
         y += vy * speed * delta;
+
+        hitBox.x = (int) x;
+        hitBox.y = (int) y;
     }
 
     public boolean isOffScreen() {
@@ -66,6 +76,20 @@ public class Bullet {
 
     public float getX() { return x; }
     public float getY() { return y; }
+    public float getWidth() { return width; }
+    public float getHeight() { return height; }
 
     public int getDamage() { return damage; }
+
+    public Rectangle getHitBox() {
+        return hitBox;
+    }
+
+    public void destroy() {
+        destroyed = true;
+    }
+
+    public boolean isDestroyed() {
+        return destroyed;
+    }
 }
