@@ -48,7 +48,7 @@ public class PlayScreen extends ScalableGameScreen {
     public void show() {
 
         GameApp.log("PlayScreen loaded");
-        GameApp.addTexture("player", "assets/player/player.png");
+        GameApp.addTexture("player", "assets/player/auraRambo.png");
         input = new InputController();
         float startX = 300;
         float startY = 250;
