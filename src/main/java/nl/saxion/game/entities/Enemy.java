@@ -17,7 +17,7 @@ public class Enemy {
     private int maxHealth;
 
     // Sprite size constant
-    public static final int SPRITE_SIZE = 16;
+    public static final int SPRITE_SIZE = 100;
 
     // Hitbox for collisions with bullets
     private Rectangle hitBox;
