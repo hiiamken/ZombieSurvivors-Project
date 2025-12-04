@@ -4,6 +4,7 @@ package nl.saxion.game.entities;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.systems.InputController;
 import java.awt.Image;
+import java.awt.Rectangle;
 
 public class Player {
     // Position
@@ -29,6 +30,10 @@ public class Player {
 
     static final float SHOOT_DIRECTION_SMOOTHING = 12f;
 
+    // HitBox
+
+    private Rectangle hitbox;
+
     public Player(float startX, float startY, float speed, int maxHealth, Image sprite) {
         this.x = startX;
         this.y = startY;
@@ -38,6 +43,8 @@ public class Player {
         this.health = maxHealth;
 
         this.sprite = sprite;
+
+        hitbox = new Rectangle((int) x, (int) y, SPRITE_SIZE, SPRITE_SIZE);
     }
 
     // movement
@@ -45,6 +52,7 @@ public class Player {
 
         float dirX = 0f;
         float dirY = 0f;
+
 
         if (input.isMoveUp()) {
             dirY += 1f;
@@ -103,6 +111,9 @@ public class Player {
 
         x = GameApp.clamp(x, 0, maxX);
         y = GameApp.clamp(y, 0, maxY);
+
+        hitbox.x = (int) x;
+        hitbox.y = (int) y;
     }
 
     public float getX() {
@@ -151,6 +162,11 @@ public class Player {
 
     public boolean isDead() {
         return health <= 0;
+    }
+
+    // HitBox getter
+    public Rectangle getHitBox() {
+        return  hitbox;
     }
 
 
