@@ -1,6 +1,11 @@
 package nl.saxion.game.screens;
+import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Input;
+import nl.saxion.game.core.GameState;
 import nl.saxion.game.entities.PlayerStatus;
 
+import java.awt.*;
+import java.awt.event.KeyEvent;
 
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Weapon;
@@ -12,6 +17,7 @@ import nl.saxion.gameapp.screens.ScalableGameScreen;
 import nl.saxion.game.entities.Player;
 
 
+import java.security.Key;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -36,7 +42,13 @@ public class PlayScreen extends ScalableGameScreen {
     private float enemyBaseSpeed = 60f;
     private int enemyBaseHealth = 15;
 
+    private float playerDamageCooldown = 0f;
+    private static final float DAMAGE_COOLDOWN_DURATION = 0.5f;
+    private static final int ENEMY_TOUCH_DAMAGE = 1;
+
     private int score = 0;
+
+    private GameState currentState = GameState.MENU;
 
     private HUD hud;
 
@@ -48,38 +60,21 @@ public class PlayScreen extends ScalableGameScreen {
     public void show() {
 
         GameApp.log("PlayScreen loaded");
+
+        // Текстуры грузим один раз
         GameApp.addTexture("player", "assets/player/auraRambo.png");
-        input = new InputController();
-        float startX = 300;
-        float startY = 250;
-        float speed = 200f;
-        int maxHealth = 5;
-
-        player = new Player(startX, startY, speed, maxHealth, null);
-
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
-        bullets = new ArrayList<>();
-
-        // 3 shots per second, 10 damage
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
-
-        // Initialize enemy system
-        // For now we reuse bullet texture for enemies to avoid asset issues
         GameApp.addTexture("enemy", "assets/Bullet/bullet.png");
 
-        // Initialize enemies list
-        enemies = new ArrayList<>();
-
-        // Spawn initial enemies in the world
-        enemies.add(new Enemy(200, 400, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(400, 450, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(600, 350, enemyBaseSpeed, enemyBaseHealth));
-
-        // Reset spawn timer
-        enemySpawnTimer = enemySpawnInterval;
+        input = new InputController();
 
         hud = new HUD();
+
+        currentState = GameState.MENU;
+
+        resetGame();
     }
+
 
     @Override
     public void hide() {
@@ -97,6 +92,20 @@ public class PlayScreen extends ScalableGameScreen {
         super.render(delta);
 
         GameApp.clearScreen("black");
+
+        // STATE : MENU
+
+        if (currentState == GameState.MENU) {
+            handleMenuInput();
+            renderMenuScreen();
+            return;
+        }
+        // STATE : GAME OVER
+        if (currentState == GameState.GAME_OVER) {
+            handleGameOverInput();
+            renderGameOverScreen();
+            return;
+        }
 
         // --- UPDATE ---
         float worldW = GameApp.getWorldWidth();
@@ -136,9 +145,21 @@ public class PlayScreen extends ScalableGameScreen {
         removeDeadEnemies();
         removeDestroyedBullets();
 
-        for (Enemy e : enemies) {
-            e.update(delta);
+        // Player Damage cooldown
+        playerDamageCooldown = playerDamageCooldown - delta;
+        if (playerDamageCooldown < 0f) {
+            playerDamageCooldown = 0f;
         }
+
+        // Enemy and player collision
+        handleEnemyPlayerCollisions();
+
+        // Player death check
+        if (player.isDead()) {
+            GameApp.log("Player died!");
+            currentState = GameState.GAME_OVER;
+        }
+
         // --- RENDER ---
         GameApp.startSpriteRendering();
 
@@ -240,6 +261,28 @@ public class PlayScreen extends ScalableGameScreen {
         }
     }
 
+    private void handleEnemyPlayerCollisions() {
+        float pX = player.getX();
+        float pY = player.getY();
+        float pW = Player.SPRITE_SIZE;
+        float pH = Player.SPRITE_SIZE;
+
+        for (Enemy e : enemies) {
+            float eX = e.getX();
+            float eY = e.getY();
+            float eW = Enemy.SPRITE_SIZE;
+            float eH = Enemy.SPRITE_SIZE;
+
+            boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, eX, eY, eW, eH);
+            if (overlap) {
+                if (playerDamageCooldown <= 0f) {
+                    player.takeDamage(ENEMY_TOUCH_DAMAGE);
+                    playerDamageCooldown = DAMAGE_COOLDOWN_DURATION;
+                }
+            }
+        }
+    }
+
     private void removeDestroyedBullets() {
         Iterator<Bullet> it = bullets.iterator();
         while (it.hasNext()) {
@@ -260,6 +303,67 @@ public class PlayScreen extends ScalableGameScreen {
                 it.remove();
             }
         }
+    }
+    private void resetGame() {
+        float startX = 300;
+        float startY = 250;
+        float speed = 200f;
+        int maxHealth = 5;
+
+        player = new Player(startX, startY, speed, maxHealth, null);
+
+        bullets = new ArrayList<Bullet>();
+
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
+
+        enemies = new ArrayList<Enemy>();
+        enemies.add(new Enemy(200,400, enemyBaseSpeed,enemyBaseHealth));
+        enemies.add(new Enemy(400,450, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(600,350,enemyBaseSpeed, enemyBaseHealth));
+
+        enemySpawnInterval = 3f;
+        enemySpawnTimer = enemySpawnInterval;
+
+        score = 0;
+
+        playerDamageCooldown = 0f;
+
+        GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
+    }
+    private void handleMenuInput() {
+        boolean enterPressed = GameApp.isKeyJustPressed(Input.Keys.ENTER);
+        if (enterPressed) {
+            currentState = GameState.PLAYING;
+        }
+    }
+    private void handleGameOverInput() {
+        boolean rPressed = GameApp.isKeyJustPressed(Input.Keys.R);
+
+        if (rPressed) {
+            resetGame();
+            currentState = GameState.PLAYING;
+        }
+    }
+    private void renderMenuScreen() {
+        GameApp.startSpriteRendering();
+
+        GameApp.drawText("default", "ZOMBIE SURVIVORS", 260,200, "white");
+        GameApp.drawText("default", "Press ENTER to start", 220,260, "white");
+
+        GameApp.endSpriteRendering();
+    }
+
+    private void renderGameOverScreen() {
+        GameApp.startSpriteRendering();
+        GameApp.drawText("default", "GAME OVER", 280,220,"white");
+
+        String scoreText = "Score: " + score;
+        GameApp.drawText("default", scoreText, 300,240, "white");
+
+        GameApp.drawText("default", "Press R to restart", 240,300,"white");
+
+        GameApp.endSpriteRendering();
+
     }
     // Later: getPlayerStatus(), HUD, etc.
 }
