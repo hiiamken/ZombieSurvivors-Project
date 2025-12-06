@@ -1,37 +1,29 @@
 package nl.saxion.game.screens;
-import com.badlogic.gdx.Game;
+
 import com.badlogic.gdx.Input;
 import nl.saxion.game.core.GameState;
-import nl.saxion.game.entities.PlayerStatus;
-
-import java.awt.*;
-import java.awt.event.KeyEvent;
-
 import nl.saxion.game.entities.Bullet;
-import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.entities.Enemy;
+import nl.saxion.game.entities.Player;
+import nl.saxion.game.entities.PlayerStatus;
+import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.ui.HUD;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
-import nl.saxion.game.entities.Player;
 
-
-import java.security.Key;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
 
 public class PlayScreen extends ScalableGameScreen {
 
     private InputController input;
 
     private Player player;
+    private Weapon weapon;
 
     private List<Bullet> bullets;
-
-    private Weapon weapon;
 
     // Enemy system - List of all active enemies in the game
     private List<Enemy> enemies;
@@ -41,6 +33,12 @@ public class PlayScreen extends ScalableGameScreen {
     private float enemySpawnInterval = 3f; // spawn every 3 seconds
     private float enemyBaseSpeed = 60f;
     private int enemyBaseHealth = 15;
+
+    // Max enemies to prevent performance issues
+    private static final int MAX_ENEMIES = 50;
+
+    // Total time this run has been going (for difficulty scaling)
+    private float gameTime = 0f;
 
     private float playerDamageCooldown = 0f;
     private static final float DAMAGE_COOLDOWN_DURATION = 0.5f;
@@ -61,13 +59,12 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.log("PlayScreen loaded");
 
-        // Текстуры грузим один раз
         GameApp.addTexture("player", "assets/player/auraRambo.png");
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
+        // you can change this path to your real enemy texture
         GameApp.addTexture("enemy", "assets/Bullet/bullet.png");
 
         input = new InputController();
-
         hud = new HUD();
 
         currentState = GameState.MENU;
@@ -75,15 +72,12 @@ public class PlayScreen extends ScalableGameScreen {
         resetGame();
     }
 
-
     @Override
     public void hide() {
 
         GameApp.log("PlayScreen hidden");
         GameApp.disposeTexture("player");
-
         GameApp.disposeTexture("bullet");
-
         GameApp.disposeTexture("enemy");
     }
 
@@ -93,24 +87,29 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.clearScreen("black");
 
-        // STATE : MENU
-
+        // ----- STATE : MENU -----
         if (currentState == GameState.MENU) {
             handleMenuInput();
             renderMenuScreen();
             return;
         }
-        // STATE : GAME OVER
+
+        // ----- STATE : GAME OVER -----
         if (currentState == GameState.GAME_OVER) {
             handleGameOverInput();
             renderGameOverScreen();
             return;
         }
 
-        // --- UPDATE ---
+        // ----- GAMEPLAY STATE -----
+
+        // Difficulty time
+        gameTime += delta;
+
         float worldW = GameApp.getWorldWidth();
         float worldH = GameApp.getWorldHeight();
 
+        // Player + weapon
         player.update(delta, input, (int) worldW, (int) worldH);
         weapon.update(delta);
 
@@ -122,20 +121,20 @@ public class PlayScreen extends ScalableGameScreen {
             }
         }
 
-        // Update bullets and remove off-screen ones
+        // Update bullets
         for (Bullet b : bullets) {
             b.update(delta);
-
-            if(b.isOffScreen()) {
+            if (b.isOffScreen()) {
                 b.destroy();
             }
         }
 
+        // Enemies chase the player (Task 9)
         for (Enemy e : enemies) {
-            e.update(delta);
+            e.update(delta, player.getX(), player.getY());
         }
 
-        // Enemy spawning system - handles difficulty curve
+        // Enemy spawning system - handles difficulty curve (Task 10)
         updateEnemySpawning(delta);
 
         // Collision detection - Bullet vs Enemy
@@ -146,7 +145,7 @@ public class PlayScreen extends ScalableGameScreen {
         removeDestroyedBullets();
 
         // Player Damage cooldown
-        playerDamageCooldown = playerDamageCooldown - delta;
+        playerDamageCooldown -= delta;
         if (playerDamageCooldown < 0f) {
             playerDamageCooldown = 0f;
         }
@@ -160,7 +159,7 @@ public class PlayScreen extends ScalableGameScreen {
             currentState = GameState.GAME_OVER;
         }
 
-        // --- RENDER ---
+        // ----- RENDER -----
         GameApp.startSpriteRendering();
 
         player.render();
@@ -176,12 +175,11 @@ public class PlayScreen extends ScalableGameScreen {
         renderHUD();
 
         GameApp.endSpriteRendering();
-
     }
 
-
-    // Used by HUD/UI to draw HP, score, etc.
-    // UI should only READ this, not modify Player. etc. here
+    // =========================
+    // PLAYER STATUS / HUD
+    // =========================
 
     public PlayerStatus getPlayerStatus() {
         int health = player.getHealth();
@@ -189,73 +187,114 @@ public class PlayScreen extends ScalableGameScreen {
 
         return new PlayerStatus(health, maxHealth, score);
     }
-    // Use this when enemy dies and u need to add score
+
     public void addScore(int amount) {
         score += amount;
         score = (int) GameApp.clamp(score, 0, Integer.MAX_VALUE);
     }
+
     private void renderHUD() {
         PlayerStatus status = getPlayerStatus();
-
         hud.render(status);
     }
 
-    // ENEMY SYSTEM METHODS
+    // =========================
+    // ENEMY SPAWNING (TASK 10)
+    // =========================
 
     private void updateEnemySpawning(float delta) {
-        enemySpawnTimer -= delta;
-
-        if (enemySpawnTimer <= 0f) {
-            enemySpawnTimer = enemySpawnInterval;
-
-            float worldW = GameApp.getWorldWidth();
-            float worldH = GameApp.getWorldHeight();
-
-            // Spawn a new enemy at a random X at the top of the world
-            float spawnX = GameApp.random(0f, worldW - Enemy.SPRITE_SIZE);
-            float spawnY = worldH;
-
-            enemies.add(new Enemy(spawnX, spawnY, enemyBaseSpeed, enemyBaseHealth));
-
-            // Very simple difficulty scaling: slightly reduce spawn interval over time
-            // makes the game progressively harder as time passes
-            if (enemySpawnInterval > 1.5f) {
-                enemySpawnInterval -= delta * 0.02f;
-            }
+        // 1. Max enemy limit
+        if (enemies.size() >= MAX_ENEMIES) {
+            return;
         }
+
+        // 2. Spawn timer (count up)
+        enemySpawnTimer += delta;
+        if (enemySpawnTimer < enemySpawnInterval) {
+            return;
+        }
+
+        // Time to spawn
+        enemySpawnTimer = 0f;
+
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        // 3. Choose edge: 0 = top, 1 = right, 2 = bottom, 3 = left
+        int edge = GameApp.randomInt(0, 4);
+
+        float spawnX;
+        float spawnY;
+
+        if (edge == 0) {
+            // TOP
+            spawnX = GameApp.random(0f, worldW - Enemy.SPRITE_SIZE);
+            spawnY = worldH; // just above top
+        } else if (edge == 1) {
+            // RIGHT
+            spawnX = worldW; // just outside right
+            spawnY = GameApp.random(0f, worldH - Enemy.SPRITE_SIZE);
+        } else if (edge == 2) {
+            // BOTTOM
+            spawnX = GameApp.random(0f, worldW - Enemy.SPRITE_SIZE);
+            spawnY = -Enemy.SPRITE_SIZE; // just below bottom
+        } else {
+            // LEFT
+            spawnX = -Enemy.SPRITE_SIZE; // just outside left
+            spawnY = GameApp.random(0f, worldH - Enemy.SPRITE_SIZE);
+        }
+
+        // 4. Difficulty scaling: 1.0x → 3.0x
+        float difficultyMultiplier = 1f + (gameTime * 0.01f);
+        difficultyMultiplier = GameApp.clamp(difficultyMultiplier, 1f, 3f);
+
+        float currentSpeed = enemyBaseSpeed * difficultyMultiplier;
+        int currentHealth = (int) (enemyBaseHealth * difficultyMultiplier);
+
+        // 5. Spawn enemy
+        enemies.add(new Enemy(spawnX, spawnY, currentSpeed, currentHealth));
+
+        // 6. Spawn interval scaling (faster spawns over time, clamped)
+        if (enemySpawnInterval > 1.5f) {
+            enemySpawnInterval -= delta * 0.02f;
+        }
+        enemySpawnInterval = GameApp.clamp(enemySpawnInterval, 0.5f, 10f);
     }
+
+    // =========================
+    // COLLISIONS & CLEANUP
+    // =========================
 
     private void handleBulletEnemyCollisions() {
         for (Bullet b : bullets) {
-            // Skip bullets that are already destroyed
             if (b.isDestroyed()) {
                 continue;
             }
 
-            // Get bullet position and size for collision detection
             float bX = b.getX();
             float bY = b.getY();
             float bW = b.getWidth();
             float bH = b.getHeight();
 
             for (Enemy e : enemies) {
-                // Check if bullet hitbox intersects with enemy hitbox
+                if (e.isDead()) {
+                    continue;
+                }
+
                 float eX = e.getX();
                 float eY = e.getY();
                 float eW = Enemy.SPRITE_SIZE;
                 float eH = Enemy.SPRITE_SIZE;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
-                    // Apply damage to enemy
                     e.takeDamage(b.getDamage());
-
-                    // Destroy the bullet (it hit something)
                     b.destroy();
 
-                    // Optional: This is where a score system would be notified
-                    // Future enhancement: addScore(10); when enemy dies
+                    if (e.isDead()) {
+                        addScore(10);
+                    }
 
-                    break; // This bullet already hit an enemy, no need to check others
+                    break;
                 }
             }
         }
@@ -287,7 +326,6 @@ public class PlayScreen extends ScalableGameScreen {
         Iterator<Bullet> it = bullets.iterator();
         while (it.hasNext()) {
             Bullet b = it.next();
-            // Remove bullets that are destroyed or off-screen
             if (b.isDestroyed() || b.isOffScreen()) {
                 it.remove();
             }
@@ -298,12 +336,16 @@ public class PlayScreen extends ScalableGameScreen {
         Iterator<Enemy> it = enemies.iterator();
         while (it.hasNext()) {
             Enemy e = it.next();
-            // Remove enemies that are dead
             if (e.isDead()) {
                 it.remove();
             }
         }
     }
+
+    // =========================
+    // GAME FLOW / RESET
+    // =========================
+
     private void resetGame() {
         float startX = 300;
         float startY = 250;
@@ -312,30 +354,37 @@ public class PlayScreen extends ScalableGameScreen {
 
         player = new Player(startX, startY, speed, maxHealth, null);
 
-        bullets = new ArrayList<Bullet>();
-
+        bullets = new ArrayList<>();
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
 
-        enemies = new ArrayList<Enemy>();
-        enemies.add(new Enemy(200,400, enemyBaseSpeed,enemyBaseHealth));
-        enemies.add(new Enemy(400,450, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(600,350,enemyBaseSpeed, enemyBaseHealth));
+        enemies = new ArrayList<>();
+        enemies.add(new Enemy(200, 400, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(400, 450, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(600, 350, enemyBaseSpeed, enemyBaseHealth));
 
+        // difficulty & spawning reset
+        gameTime = 0f;
         enemySpawnInterval = 3f;
-        enemySpawnTimer = enemySpawnInterval;
+        enemySpawnTimer = 0f;
 
         score = 0;
-
         playerDamageCooldown = 0f;
 
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
     }
+
+    // =========================
+    // STATE: MENU & GAME OVER
+    // =========================
+
     private void handleMenuInput() {
         boolean enterPressed = GameApp.isKeyJustPressed(Input.Keys.ENTER);
         if (enterPressed) {
+            resetGame();
             currentState = GameState.PLAYING;
         }
     }
+
     private void handleGameOverInput() {
         boolean rPressed = GameApp.isKeyJustPressed(Input.Keys.R);
 
@@ -344,26 +393,26 @@ public class PlayScreen extends ScalableGameScreen {
             currentState = GameState.PLAYING;
         }
     }
+
     private void renderMenuScreen() {
         GameApp.startSpriteRendering();
 
-        GameApp.drawText("default", "ZOMBIE SURVIVORS", 260,200, "white");
-        GameApp.drawText("default", "Press ENTER to start", 220,260, "white");
+        GameApp.drawText("default", "ZOMBIE SURVIVORS", 260, 200, "white");
+        GameApp.drawText("default", "Press ENTER to start", 220, 260, "white");
 
         GameApp.endSpriteRendering();
     }
 
     private void renderGameOverScreen() {
         GameApp.startSpriteRendering();
-        GameApp.drawText("default", "GAME OVER", 280,220,"white");
+
+        GameApp.drawText("default", "GAME OVER", 280, 220, "white");
 
         String scoreText = "Score: " + score;
-        GameApp.drawText("default", scoreText, 300,240, "white");
+        GameApp.drawText("default", scoreText, 300, 240, "white");
 
-        GameApp.drawText("default", "Press R to restart", 240,300,"white");
+        GameApp.drawText("default", "Press R to restart", 240, 300, "white");
 
         GameApp.endSpriteRendering();
-
     }
-    // Later: getPlayerStatus(), HUD, etc.
 }
