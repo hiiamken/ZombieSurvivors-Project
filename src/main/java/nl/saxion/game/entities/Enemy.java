@@ -22,7 +22,6 @@ public class Enemy {
     // Hitbox for collisions with bullets
     private Rectangle hitBox;
 
-
     public Enemy(float startX, float startY, float speed, int maxHealth) {
         this.x = startX;
         this.y = startY;
@@ -31,20 +30,38 @@ public class Enemy {
         this.maxHealth = maxHealth;
         this.health = maxHealth;
 
-        // Initialize hitbox for collision detection
         this.hitBox = new Rectangle((int) x, (int) y, SPRITE_SIZE, SPRITE_SIZE);
     }
 
+    // ✅ NEW: enemy chases player
+    public void update(float delta, float playerX, float playerY) {
+        // Vector from enemy to player
+        float dx = playerX - x;
+        float dy = playerY - y;
 
-    public void update(float delta) {
-        // Simple zombie behaviour: move downward
-        y -= speed * delta;
+        // Distance using GameApp utility
+        float distance = GameApp.distance(x, y, playerX, playerY);
 
-        // Sync hitbox to current position
+        float dirX;
+        float dirY;
+
+        if (distance > 0f) {
+            dirX = dx / distance;
+            dirY = dy / distance;
+        } else {
+            // Already at player position
+            dirX = 0f;
+            dirY = 0f;
+        }
+
+        // Move toward player
+        x += dirX * speed * delta;
+        y += dirY * speed * delta;
+
+        // Sync hitbox
         hitBox.x = (int) x;
         hitBox.y = (int) y;
     }
-
 
     public void render() {
         GameApp.drawTexture("enemy", x, y, SPRITE_SIZE, SPRITE_SIZE);
@@ -54,13 +71,8 @@ public class Enemy {
         return hitBox;
     }
 
-    // HEALTH SYSTEM
-
-
     public void takeDamage(int amount) {
         health -= amount;
-
-        // Ensure health never goes below 0
         health = (int) GameApp.clamp(health, 0, maxHealth);
     }
 
@@ -68,13 +80,6 @@ public class Enemy {
         return health <= 0;
     }
 
-    // Getters for position
-    public float getX() {
-        return x;
-    }
-
-    public float getY() {
-        return y;
-    }
+    public float getX() { return x; }
+    public float getY() { return y; }
 }
-
