@@ -18,6 +18,7 @@ public class Enemy {
 
     // Sprite size constant
     public static final int SPRITE_SIZE = 24;
+    public static final int HITBOX_SIZE = 16;
 
     // Hitbox for collisions with bullets
     private Rectangle hitBox;
@@ -30,7 +31,9 @@ public class Enemy {
         this.maxHealth = maxHealth;
         this.health = maxHealth;
 
-        this.hitBox = new Rectangle((int) x, (int) y, SPRITE_SIZE, SPRITE_SIZE);
+        // Hitbox centered in sprite, smaller than sprite for fair collision
+        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
+        this.hitBox = new Rectangle((int) (x + hitboxOffset), (int) (y + hitboxOffset), HITBOX_SIZE, HITBOX_SIZE);
     }
 
     // ✅ NEW: enemy chases player
@@ -58,9 +61,10 @@ public class Enemy {
         x += dirX * speed * delta;
         y += dirY * speed * delta;
 
-        // Sync hitbox
-        hitBox.x = (int) x;
-        hitBox.y = (int) y;
+        // Update hitbox position (centered in sprite)
+        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
+        hitBox.x = (int) (x + hitboxOffset);
+        hitBox.y = (int) (y + hitboxOffset);
     }
 
     public void render() {

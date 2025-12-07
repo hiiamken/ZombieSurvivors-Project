@@ -12,6 +12,7 @@ import nl.saxion.game.ui.HUD;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -290,10 +291,12 @@ public class PlayScreen extends ScalableGameScreen {
                     continue;
                 }
 
-                float eX = e.getX();
-                float eY = e.getY();
-                float eW = Enemy.SPRITE_SIZE;
-                float eH = Enemy.SPRITE_SIZE;
+                // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+                Rectangle enemyHitbox = e.getHitBox();
+                float eX = enemyHitbox.x;
+                float eY = enemyHitbox.y;
+                float eW = enemyHitbox.width;
+                float eH = enemyHitbox.height;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
                     e.takeDamage(b.getDamage());
@@ -309,17 +312,21 @@ public class PlayScreen extends ScalableGameScreen {
         }
     }
 
-    private void handleEnemyPlayerCollisions() {
-        float pX = player.getX();
-        float pY = player.getY();
-        float pW = Player.SPRITE_SIZE;
-        float pH = Player.SPRITE_SIZE;
+    p
+    ) {
+        // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+        Rectangle playerHitbox = player.getHitBox();
+        float pX = playerHitbox.x;
+        float pY = playerHitbox.y;
+        float pW = playerHitbox.width;
+        float pH = playerHitbox.height;
 
         for (Enemy e : enemies) {
-            float eX = e.getX();
-            float eY = e.getY();
-            float eW = Enemy.SPRITE_SIZE;
-            float eH = Enemy.SPRITE_SIZE;
+            Rectangle enemyHitbox = e.getHitBox();
+            float eX = enemyHitbox.x;
+            float eY = enemyHitbox.y;
+            float eW = enemyHitbox.width;
+            float eH = enemyHitbox.height;
 
             boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, eX, eY, eW, eH);
             if (overlap) {
