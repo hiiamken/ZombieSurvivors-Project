@@ -31,7 +31,7 @@ public class PlayScreen extends ScalableGameScreen {
     // Enemy spawning system - Controls difficulty curve
     private float enemySpawnTimer = 0f;
     private float enemySpawnInterval = 3f; // spawn every 3 seconds
-    private float enemyBaseSpeed = 60f;
+    private float enemyBaseSpeed = 34f;
     private int enemyBaseHealth = 15;
 
     // Max enemies to prevent performance issues
@@ -358,7 +358,7 @@ public class PlayScreen extends ScalableGameScreen {
     private void resetGame() {
         float startX = 300;
         float startY = 250;
-        float speed = 200f;
+        float speed = 80f;
         int maxHealth = 5;
 
         player = new Player(startX, startY, speed, maxHealth, null);
