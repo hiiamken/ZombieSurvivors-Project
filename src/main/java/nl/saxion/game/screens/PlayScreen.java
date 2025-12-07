@@ -69,6 +69,9 @@ public class PlayScreen extends ScalableGameScreen {
 
         currentState = GameState.MENU;
 
+        // Hide cursor for better game experience
+        GameApp.hideCursor();
+
         resetGame();
     }
 
