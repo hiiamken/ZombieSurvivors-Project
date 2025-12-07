@@ -114,11 +114,17 @@ public class PlayScreen extends ScalableGameScreen {
         weapon.update(delta);
 
         // Shooting – Weapon handles direction + spawn position
-        if (input.isShootHeld()) {
-            Bullet newBullet = weapon.tryFire(player);
-            if (newBullet != null) {
-                bullets.add(newBullet);
-            }
+//        if (input.isShootHeld()) {
+//            Bullet newBullet = weapon.tryFire(player);
+//            if (newBullet != null) {
+//                bullets.add(newBullet);
+//            }
+//        }
+
+        // Auto-shooting - automatically fires when cooldown is ready
+        Bullet newBullet = weapon.tryFire(player);
+        if (newBullet != null) {
+            bullets.add(newBullet);
         }
 
         // Update bullets
