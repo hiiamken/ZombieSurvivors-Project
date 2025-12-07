@@ -21,7 +21,7 @@ public class Bullet {
 
     // Defaults
     private static final float DEFAULT_SPEED = 400f;
-    private static final float DEFAULT_SIZE  = 8f;
+    private static final float DEFAULT_SIZE  = 6f;
     private static final String TEXTURE_KEY  = "bullet";
 
     // Old-style constructor (kept for compatibility if needed)
