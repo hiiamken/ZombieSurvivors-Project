@@ -361,7 +361,7 @@ public class PlayScreen extends ScalableGameScreen {
         player = new Player(startX, startY, speed, maxHealth, null);
 
         bullets = new ArrayList<>();
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 5.0f, 10);
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10);
 
         enemies = new ArrayList<>();
         enemies.add(new Enemy(200, 400, enemyBaseSpeed, enemyBaseHealth));

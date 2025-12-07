@@ -18,7 +18,7 @@ public class Weapon {
 
     // Old constructor – still works
     public Weapon(WeaponType type, float fireRate, int damage) {
-        this(type, fireRate, damage, 400f, 8f, 8f);
+        this(type, fireRate, damage, 400f, 6f, 6f);
     }
 
     // New constructor with more control

@@ -21,7 +21,7 @@ public class Player {
     // Sprite
     private Image sprite;
 
-    public static final int SPRITE_SIZE = 64;
+    public static final int SPRITE_SIZE = 24;
 
     private float targetShootDirX = 0f; //Target shoot direction X
     private float targetShootDirY = -1f; //Target shoot direction Y
