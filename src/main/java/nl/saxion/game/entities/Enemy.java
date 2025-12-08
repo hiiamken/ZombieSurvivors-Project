@@ -1,6 +1,7 @@
 package nl.saxion.game.entities;
 
 import nl.saxion.gameapp.GameApp;
+import nl.saxion.game.utils.CollisionChecker;
 import java.awt.Rectangle;
 
 public class Enemy {
@@ -18,7 +19,8 @@ public class Enemy {
 
     // Sprite size constant
     public static final int SPRITE_SIZE = 24;
-    public static final int HITBOX_SIZE = 16;
+    public static final int HITBOX_WIDTH = 12;
+    public static final int HITBOX_HEIGHT = 16;
 
     // Animation state
     private String currentAnimation = "zombie_run"; // running animation
@@ -39,13 +41,14 @@ public class Enemy {
         this.maxHealth = maxHealth;
         this.health = maxHealth;
 
-        // Hitbox centered in sprite, smaller than sprite for fair collision
-        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
-        this.hitBox = new Rectangle((int) (x + hitboxOffset), (int) (y + hitboxOffset), HITBOX_SIZE, HITBOX_SIZE);
+        // Hitbox nhỏ hơn sprite, centered in sprite
+        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
+        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
+        this.hitBox = new Rectangle((int) (x + offsetX), (int) (y + offsetY), HITBOX_WIDTH, HITBOX_HEIGHT);
     }
 
-    // ✅ NEW: enemy chases player
-    public void update(float delta, float playerX, float playerY) {
+    // ✅ Enemy chases player with smooth sliding collision (like player)
+    public void update(float delta, float playerX, float playerY, CollisionChecker collisionChecker) {
 
         // Update animation state
         updateAnimationState(delta);
@@ -69,16 +72,75 @@ public class Enemy {
             dirY = 0f;
         }
 
-        // Move toward player
-        if (!isDying) {
-            x += dirX * speed * delta;
-            y += dirY * speed * delta;
+        // Move toward player (với smooth sliding collision như player)
+        if (!isDying && collisionChecker != null) {
+            float moveX = dirX * speed * delta;
+            float moveY = dirY * speed * delta;
+
+            // Offset for hitbox centering
+            float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
+            float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
+
+            // Move X FIRST
+            if (moveX != 0) {
+                float newX = x + moveX;
+                float hitboxX = newX + offsetX;
+                float hitboxY = y + offsetY;
+
+                boolean collX = collisionChecker.checkCollision(hitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
+                if (!collX) {
+                    x = newX;
+                } else {
+                    // Collision detected - try moving in smaller steps to get closer to wall
+                    float stepSize = Math.abs(moveX) / 4f;
+                    float stepX = (moveX > 0) ? stepSize : -stepSize;
+                    float testX = x;
+                    for (int i = 0; i < 4; i++) {
+                        float testWorldX = testX + stepX;
+                        float testHitboxX = testWorldX + offsetX;
+                        if (!collisionChecker.checkCollision(testHitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
+                            testX = testWorldX;
+                        } else {
+                            break;  // Stop when hitting wall
+                        }
+                    }
+                    x = testX;
+                }
+            }
+
+            // Move Y SECOND
+            if (moveY != 0) {
+                float newY = y + moveY;
+                float hitboxX = x + offsetX;
+                float hitboxY = newY + offsetY;
+
+                boolean collY = collisionChecker.checkCollision(hitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
+                if (!collY) {
+                    y = newY;
+                } else {
+                    // Collision detected - try moving in smaller steps to get closer to wall
+                    float stepSize = Math.abs(moveY) / 4f;
+                    float stepY = (moveY > 0) ? stepSize : -stepSize;
+                    float testY = y;
+                    for (int i = 0; i < 4; i++) {
+                        float testWorldY = testY + stepY;
+                        float testHitboxY = testWorldY + offsetY;
+                        if (!collisionChecker.checkCollision(hitboxX, testHitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
+                            testY = testWorldY;
+                        } else {
+                            break;  //  Stop when hitting wall
+                        }
+                    }
+                    y = testY;
+                }
+            }
         }
 
         // Update hitbox position (centered in sprite)
-        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
-        hitBox.x = (int) (x + hitboxOffset);
-        hitBox.y = (int) (y + hitboxOffset);
+        float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
+        float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
+        hitBox.x = (int) (x + offsetX);
+        hitBox.y = (int) (y + offsetY);
     }
 
     private void updateAnimationState(float delta) {
@@ -147,4 +209,17 @@ public class Enemy {
 
     public float getX() { return x; }
     public float getY() { return y; }
+
+    public void setPosition(float newX, float newY) {
+        this.x = newX;
+        this.y = newY;
+        // Update hitbox position
+        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
+        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
+        hitBox.x = (int) (x + offsetX);
+        hitBox.y = (int) (y + offsetY);
+    }
+
+    public float getWidth() { return SPRITE_SIZE; }
+    public float getHeight() { return SPRITE_SIZE; }
 }

@@ -3,13 +3,14 @@ package nl.saxion.game.entities;
 
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.systems.InputController;
+import nl.saxion.game.utils.CollisionChecker;
 import java.awt.Image;
 import java.awt.Rectangle;
 
 public class Player {
-    // Position
-    private float x;
-    private float y;
+    // Position - WORLD COORDINATES
+    private float worldX;
+    private float worldY;
 
     // Speed
     private float speed;
@@ -22,7 +23,8 @@ public class Player {
     private Image sprite;
 
     public static final int SPRITE_SIZE = 24;
-    public static final int HITBOX_SIZE = 16;
+    public static final int HITBOX_WIDTH = 12;
+    public static final int HITBOX_HEIGHT = 16;
 
     private float targetShootDirX = 0f; //Target shoot direction X
     private float targetShootDirY = -1f; //Target shoot direction Y
@@ -31,13 +33,12 @@ public class Player {
 
     static final float SHOOT_DIRECTION_SMOOTHING = 12f;
 
-    // HitBox
-
+    // HitBox (world coordinates)
     private Rectangle hitbox;
 
-    public Player(float startX, float startY, float speed, int maxHealth, Image sprite) {
-        this.x = startX;
-        this.y = startY;
+    public Player(float startWorldX, float startWorldY, float speed, int maxHealth, Image sprite) {
+        this.worldX = startWorldX;
+        this.worldY = startWorldY;
         this.speed = speed;
 
         this.maxHealth = maxHealth;
@@ -45,33 +46,76 @@ public class Player {
 
         this.sprite = sprite;
 
-        // Hitbox centered in sprite, smaller than sprite for fair collision
-        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
-        hitbox = new Rectangle((int) (x + hitboxOffset), (int) (y + hitboxOffset), HITBOX_SIZE, HITBOX_SIZE);
+        // Hitbox nhỏ hơn sprite, centered in sprite (world coordinates)
+        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
+        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
+        hitbox = new Rectangle((int) (worldX + offsetX), (int) (worldY + offsetY), HITBOX_WIDTH, HITBOX_HEIGHT);
     }
 
     // movement
-    public void update(float delta, InputController input, int worldWidth, int worldHeight) {
+    public void update(float delta, InputController input, int worldWidth, int worldHeight, CollisionChecker collisionChecker) {
 
         float dirX = 0f;
         float dirY = 0f;
+        if (input.isMoveUp()) dirY += 1f;
+        if (input.isMoveDown()) dirY -= 1f;
+        if (input.isMoveLeft()) dirX -= 1f;
+        if (input.isMoveRight()) dirX += 1f;
+        float dx = dirX * speed * delta;
+        float dy = dirY * speed * delta;
+        float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
+        float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
+        if (dx != 0 && collisionChecker != null) {
+            float newWorldX = worldX + dx;
+            float hitboxWorldX = newWorldX + offsetX;
+            float hitboxWorldY = worldY + offsetY;
+            boolean collX = collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
+            if (!collX) {
+                worldX = newWorldX;
+            } else {
+                float stepSize = Math.abs(dx) / 4f;
+                float stepX = (dx > 0) ? stepSize : -stepSize;
+                float testX = worldX;
+                for (int i = 0; i < 4; i++) {
+                    float testWorldX = testX + stepX;
+                    float testHitboxX = testWorldX + offsetX;
+                    if (!collisionChecker.checkCollision(testHitboxX, worldY + offsetY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
+                        testX = testWorldX;
+                    } else {
+                        break;
+                    }
+                }
+                worldX = testX;
+            }
+        } else if (dx != 0) {
+            worldX = worldX + dx;
+        }
+        if (dy != 0 && collisionChecker != null) {
+            float newWorldY = worldY + dy;
+            float hitboxWorldX = worldX + offsetX;
+            float hitboxWorldY = newWorldY + offsetY;
+            boolean collY = collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
+            if (!collY) {
+                worldY = newWorldY;
+            } else {
 
+                float stepSize = Math.abs(dy) / 4f;
+                float stepY = (dy > 0) ? stepSize : -stepSize;
+                float testY = worldY;
+                for (int i = 0; i < 4; i++) {
+                    float testWorldY = testY + stepY;
+                    float testHitboxY = testWorldY + offsetY;
 
-        if (input.isMoveUp()) {
-            dirY += 1f;
-            y = y + speed * delta; // W
-        }
-        if (input.isMoveDown()) {
-            dirY -= 1f;
-            y = y - speed * delta;  // S
-        }
-        if (input.isMoveLeft()) {
-            dirX -= 1f;
-            x = x - speed * delta; // A
-        }
-        if (input.isMoveRight()) {
-            dirX += 1f;
-            x = x + speed * delta;  // D
+                    if (!collisionChecker.checkCollision(worldX + offsetX, testHitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
+                        testY = testWorldY;
+                    } else {
+                        break;
+                    }
+                }
+                worldY = testY;
+            }
+        } else if (dy != 0) {
+            worldY = worldY + dy;
         }
 
         float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
@@ -108,25 +152,34 @@ public class Player {
             smoothShootDirY = smoothShootDirY / smoothedLength;
         }
 
+        if (worldWidth < Integer.MAX_VALUE / 2 && worldHeight < Integer.MAX_VALUE / 2) {
+            float maxX = worldWidth - SPRITE_SIZE;
+            float maxY = worldHeight - SPRITE_SIZE;
+            worldX = GameApp.clamp(worldX, 0, maxX);
+            worldY = GameApp.clamp(worldY, 0, maxY);
+        }
 
-        float maxX = worldWidth - SPRITE_SIZE;
-        float maxY = worldHeight - SPRITE_SIZE;
-
-        x = GameApp.clamp(x, 0, maxX);
-        y = GameApp.clamp(y, 0, maxY);
-
-        // Update hitbox position (centered in sprite)
-        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
-        hitbox.x = (int) (x + hitboxOffset);
-        hitbox.y = (int) (y + hitboxOffset);
+        // Update hitbox position (centered in sprite, world coordinates)
+        hitbox.x = (int) (worldX + offsetX);
+        hitbox.y = (int) (worldY + offsetY);
     }
 
     public float getX() {
-        return x;
+        return worldX;
     }
 
     public float getY() {
-        return y;
+        return worldY;
+    }
+
+    public void setPosition(float newWorldX, float newWorldY) {
+        this.worldX = newWorldX;
+        this.worldY = newWorldY;
+        // Update hitbox position (world coordinates)
+        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
+        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
+        hitbox.x = (int) (worldX + offsetX);
+        hitbox.y = (int) (worldY + offsetY);
     }
 
     public float getLastMoveDirectionX() {
@@ -177,7 +230,6 @@ public class Player {
 
     // render
     public void render() {
-        GameApp.drawTexture("player", x, y, SPRITE_SIZE, SPRITE_SIZE);
+        GameApp.drawTexture("player", worldX, worldY, SPRITE_SIZE, SPRITE_SIZE);
     }
 }
-
