@@ -22,6 +22,7 @@ public class Player {
     private Image sprite;
 
     public static final int SPRITE_SIZE = 24;
+    public static final int HITBOX_SIZE = 16;
 
     private float targetShootDirX = 0f; //Target shoot direction X
     private float targetShootDirY = -1f; //Target shoot direction Y
@@ -44,7 +45,9 @@ public class Player {
 
         this.sprite = sprite;
 
-        hitbox = new Rectangle((int) x, (int) y, SPRITE_SIZE, SPRITE_SIZE);
+        // Hitbox centered in sprite, smaller than sprite for fair collision
+        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
+        hitbox = new Rectangle((int) (x + hitboxOffset), (int) (y + hitboxOffset), HITBOX_SIZE, HITBOX_SIZE);
     }
 
     // movement
@@ -112,8 +115,10 @@ public class Player {
         x = GameApp.clamp(x, 0, maxX);
         y = GameApp.clamp(y, 0, maxY);
 
-        hitbox.x = (int) x;
-        hitbox.y = (int) y;
+        // Update hitbox position (centered in sprite)
+        float hitboxOffset = (SPRITE_SIZE - HITBOX_SIZE) / 2f;
+        hitbox.x = (int) (x + hitboxOffset);
+        hitbox.y = (int) (y + hitboxOffset);
     }
 
     public float getX() {

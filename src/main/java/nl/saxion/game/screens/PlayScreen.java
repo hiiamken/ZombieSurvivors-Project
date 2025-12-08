@@ -12,6 +12,7 @@ import nl.saxion.game.ui.HUD;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -61,7 +62,21 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.addTexture("player", "assets/player/auraRambo.png");
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
-        // you can change this path to your real enemy texture
+
+        GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_run.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32, 32);
+
+        GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
+
+        GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
+
+        GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
+
+        GameApp.addAnimationFromSpritesheet("zombie_death", "zombie_death1_sheet", 0.2f, false);
+
         GameApp.addTexture("enemy", "assets/Bullet/bullet.png");
 
         input = new InputController();
@@ -82,6 +97,17 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeTexture("player");
         GameApp.disposeTexture("bullet");
         GameApp.disposeTexture("enemy");
+
+        GameApp.disposeAnimation("zombie_idle");
+        GameApp.disposeAnimation("zombie_run");
+        GameApp.disposeAnimation("zombie_hit");
+        GameApp.disposeAnimation("zombie_death");
+
+        GameApp.disposeSpritesheet("zombie_idle_sheet");
+        GameApp.disposeSpritesheet("zombie_run_sheet");
+        GameApp.disposeSpritesheet("zombie_hit_sheet");
+        GameApp.disposeSpritesheet("zombie_death1_sheet");
+        GameApp.disposeSpritesheet("zombie_death2_sheet");
     }
 
     @Override
@@ -142,6 +168,12 @@ public class PlayScreen extends ScalableGameScreen {
         for (Enemy e : enemies) {
             e.update(delta, player.getX(), player.getY());
         }
+
+        // Update zombie animations
+        GameApp.updateAnimation("zombie_idle");
+        GameApp.updateAnimation("zombie_run");
+        GameApp.updateAnimation("zombie_hit");
+        GameApp.updateAnimation("zombie_death");
 
         // Enemy spawning system - handles difficulty curve (Task 10)
         updateEnemySpawning(delta);
@@ -290,10 +322,12 @@ public class PlayScreen extends ScalableGameScreen {
                     continue;
                 }
 
-                float eX = e.getX();
-                float eY = e.getY();
-                float eW = Enemy.SPRITE_SIZE;
-                float eH = Enemy.SPRITE_SIZE;
+                // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+                Rectangle enemyHitbox = e.getHitBox();
+                float eX = enemyHitbox.x;
+                float eY = enemyHitbox.y;
+                float eW = enemyHitbox.width;
+                float eH = enemyHitbox.height;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
                     e.takeDamage(b.getDamage());
@@ -310,16 +344,19 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     private void handleEnemyPlayerCollisions() {
-        float pX = player.getX();
-        float pY = player.getY();
-        float pW = Player.SPRITE_SIZE;
-        float pH = Player.SPRITE_SIZE;
+        // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+        Rectangle playerHitbox = player.getHitBox();
+        float pX = playerHitbox.x;
+        float pY = playerHitbox.y;
+        float pW = playerHitbox.width;
+        float pH = playerHitbox.height;
 
         for (Enemy e : enemies) {
-            float eX = e.getX();
-            float eY = e.getY();
-            float eW = Enemy.SPRITE_SIZE;
-            float eH = Enemy.SPRITE_SIZE;
+            Rectangle enemyHitbox = e.getHitBox();
+            float eX = enemyHitbox.x;
+            float eY = enemyHitbox.y;
+            float eW = enemyHitbox.width;
+            float eH = enemyHitbox.height;
 
             boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, eX, eY, eW, eH);
             if (overlap) {
@@ -345,7 +382,8 @@ public class PlayScreen extends ScalableGameScreen {
         Iterator<Enemy> it = enemies.iterator();
         while (it.hasNext()) {
             Enemy e = it.next();
-            if (e.isDead()) {
+            // Remove enemy
+            if (e.isDead() && e.isDeathAnimationFinished()) {
                 it.remove();
             }
         }
