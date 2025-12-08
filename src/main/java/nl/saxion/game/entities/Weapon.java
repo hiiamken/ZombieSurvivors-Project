@@ -51,11 +51,6 @@ public class Weapon {
     private void startCooldown() {
         fireCooldown = 1f / fireRate;
     }
-
-    /**
-     * Tries to fire a bullet from the given player.
-     * Returns a new Bullet if fired, or null if still on cooldown.
-     */
     public Bullet tryFire(Player player) {
         if (!canFire()) {
             return null;

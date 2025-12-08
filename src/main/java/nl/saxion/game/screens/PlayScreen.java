@@ -9,13 +9,21 @@ import nl.saxion.game.entities.PlayerStatus;
 import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.ui.HUD;
+import nl.saxion.game.utils.CollisionChecker;
+import nl.saxion.game.utils.TMXMapData;
+import nl.saxion.game.utils.TMXParser;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Iterator;
 import java.util.List;
+
+import static nl.saxion.game.utils.TMXMapObjects.PolygonObject;
+import static nl.saxion.game.utils.TMXMapObjects.RectangleObject;
 
 public class PlayScreen extends ScalableGameScreen {
 
@@ -51,6 +59,21 @@ public class PlayScreen extends ScalableGameScreen {
 
     private HUD hud;
 
+    // Map system constants
+    private static final int MAP_TILE_WIDTH = 960;   // 30 tiles * 32px
+    private static final int MAP_TILE_HEIGHT = 640;  // 20 tiles * 32px
+    private static final int MAPS_TO_RENDER = 3;     // 3x3 grid around player
+
+    // Multi-map collision system
+    private Map<Integer, TMXMapData> tmxMapDataByRoomIndex;
+
+    // Player world position tracking
+    private float playerWorldX;
+    private float playerWorldY;
+
+    // Debug flag
+    private boolean debugCollision = false;
+
     public PlayScreen() {
         super(800, 600);
     }
@@ -79,6 +102,37 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.addTexture("enemy", "assets/Bullet/bullet.png");
 
+        // Load 16 individual map textures
+        int loadedCount = 0;
+        for (int i = 0; i < 16; i++) {
+            String roomKey = getRoomTextureKey(i);
+            String roomPath = "assets/maps/room_" + String.format("%02d", i) + ".png";
+            try {
+                GameApp.addTexture(roomKey, roomPath);
+                loadedCount++;
+            } catch (Exception e) {
+                GameApp.log("Warning: Could not load " + roomPath + " - " + e.getMessage());
+            }
+        }
+
+        GameApp.log("Loaded " + loadedCount + " map textures (room_00.png to room_15.png)");
+
+        // Load 16 TMX maps for collision detection
+        tmxMapDataByRoomIndex = new HashMap<>();
+        int loadedMaps = 0;
+        for (int i = 0; i < 16; i++) {
+            int mapNumber = i + 1; // map1, map2, ..., map16
+            String tmxPath = "assets/maps/map" + mapNumber + ".tmx";
+            TMXMapData mapData = TMXParser.loadFromTMX(tmxPath);
+            if (mapData != null) {
+                tmxMapDataByRoomIndex.put(i, mapData); // room index i tương ứng với map(i+1)
+                loadedMaps++;
+            } else {
+                GameApp.log("❌ Warning: Could not load " + tmxPath);
+            }
+        }
+        GameApp.log("✅ Successfully loaded " + loadedMaps + "/16 TMX maps for collision");
+
         input = new InputController();
         hud = new HUD();
 
@@ -92,7 +146,6 @@ public class PlayScreen extends ScalableGameScreen {
 
     @Override
     public void hide() {
-
         GameApp.log("PlayScreen hidden");
         GameApp.disposeTexture("player");
         GameApp.disposeTexture("bullet");
@@ -108,6 +161,12 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeSpritesheet("zombie_hit_sheet");
         GameApp.disposeSpritesheet("zombie_death1_sheet");
         GameApp.disposeSpritesheet("zombie_death2_sheet");
+
+        // Dispose all map textures
+        for (int i = 0; i < 16; i++) {
+            String roomKey = getRoomTextureKey(i);
+            GameApp.disposeTexture(roomKey);
+        }
     }
 
     @Override
@@ -135,20 +194,26 @@ public class PlayScreen extends ScalableGameScreen {
         // Difficulty time
         gameTime += delta;
 
-        float worldW = GameApp.getWorldWidth();
-        float worldH = GameApp.getWorldHeight();
+        float oldPlayerWorldX = playerWorldX;
+        float oldPlayerWorldY = playerWorldY;
 
-        // Player + weapon
-        player.update(delta, input, (int) worldW, (int) worldH);
+        CollisionChecker collisionChecker = this::checkWallCollision;
+        player.update(delta, input, Integer.MAX_VALUE, Integer.MAX_VALUE, collisionChecker);
+
+        // Update player world position
+        float newPlayerWorldX = player.getX();
+        float newPlayerWorldY = player.getY();
+
+        // Debug log player movement
+        if (oldPlayerWorldX != newPlayerWorldX || oldPlayerWorldY != newPlayerWorldY) {
+        }
+
+        playerWorldX = newPlayerWorldX;
+        playerWorldY = newPlayerWorldY;
+
+        // Player can move, so update weapon
+
         weapon.update(delta);
-
-        // Shooting – Weapon handles direction + spawn position
-//        if (input.isShootHeld()) {
-//            Bullet newBullet = weapon.tryFire(player);
-//            if (newBullet != null) {
-//                bullets.add(newBullet);
-//            }
-//        }
 
         // Auto-shooting - automatically fires when cooldown is ready
         Bullet newBullet = weapon.tryFire(player);
@@ -158,15 +223,25 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Update bullets
         for (Bullet b : bullets) {
+            if (b.isDestroyed()) {
+                continue;
+            }
+
             b.update(delta);
+
+            // Check wall collision
+            if (checkWallCollision(b.getX(), b.getY(), b.getWidth(), b.getHeight())) {
+                b.destroy();
+            }
+
             if (b.isOffScreen()) {
                 b.destroy();
             }
         }
 
-        // Enemies chase the player (Task 9)
+        // Enemies chase the player (Task 9) - với smooth sliding collision (dùng cùng CollisionChecker như player)
         for (Enemy e : enemies) {
-            e.update(delta, player.getX(), player.getY());
+            e.update(delta, player.getX(), player.getY(), collisionChecker);
         }
 
         // Update zombie animations
@@ -201,21 +276,363 @@ public class PlayScreen extends ScalableGameScreen {
         }
 
         // ----- RENDER -----
-        GameApp.startSpriteRendering();
+        // Render map background first
+        renderMap();
 
-        player.render();
-
-        for (Enemy e : enemies) {
-            e.render();
+        // DEBUG: Render collision overlay
+        if (debugCollision) {
+            renderFullDebugOverlay();   // Full debug overlay with wall tiles
         }
 
+        GameApp.startSpriteRendering();
+
+        // Render player relative to viewport
+        renderPlayerRelativeToViewport();
+
+        // Render enemies relative to viewport
+        for (Enemy e : enemies) {
+            renderEnemyRelativeToViewport(e);
+        }
+
+        // Render bullets relative to viewport
         for (Bullet b : bullets) {
-            b.render();
+            if (!b.isDestroyed()) {
+                renderBulletRelativeToViewport(b);
+            }
         }
 
         renderHUD();
 
         GameApp.endSpriteRendering();
+    }
+
+    // =========================
+    // MAP RENDERING - VAMPIRE SURVIVORS STYLE
+    // =========================
+
+    private void renderMap() {
+        GameApp.startSpriteRendering();
+
+        // Calculate which map player is currently in
+        int centerMapRow = getMapRowFromWorldY(playerWorldY);
+        int centerMapCol = getMapColFromWorldX(playerWorldX);
+
+        // Render 3x3 grid around player
+        int offset = MAPS_TO_RENDER / 2;
+
+        for (int rowOffset = -offset; rowOffset <= offset; rowOffset++) {
+            for (int colOffset = -offset; colOffset <= offset; colOffset++) {
+                int mapRow = centerMapRow + rowOffset;
+                int mapCol = centerMapCol + colOffset;
+
+                // Wrap around for infinite map
+                mapRow = wrapMapCoordinate(mapRow, 4);
+                mapCol = wrapMapCoordinate(mapCol, 4);
+
+                // Calculate screen position (world → screen)
+                float mapWorldX = (centerMapCol + colOffset) * MAP_TILE_WIDTH;
+                float mapWorldY = (centerMapRow + rowOffset) * MAP_TILE_HEIGHT;
+
+                float cameraOffsetX = mapWorldX - playerWorldX;
+                float cameraOffsetY = mapWorldY - playerWorldY;
+
+                float screenX = (GameApp.getWorldWidth() / 2f) + cameraOffsetX;
+                float screenY = (GameApp.getWorldHeight() / 2f) + cameraOffsetY;
+
+                // Only render if in viewport
+                if (isMapInViewport(screenX, screenY)) {
+                    renderSingleMap(mapRow, mapCol, screenX, screenY);
+                }
+            }
+        }
+
+        GameApp.endSpriteRendering();
+    }
+
+    private void renderSingleMap(int mapRow, int mapCol, float screenX, float screenY) {
+        int mapIndex = mapRow * 4 + mapCol;
+        mapIndex = wrapMapCoordinate(mapIndex, 16);
+        String roomKey = getRoomTextureKey(mapIndex);
+
+        if (GameApp.hasTexture(roomKey)) {
+            GameApp.drawTexture(roomKey, screenX, screenY, MAP_TILE_WIDTH, MAP_TILE_HEIGHT);
+        }
+    }
+
+    private String getRoomTextureKey(int mapIndex) {
+        return "room_" + String.format("%02d", mapIndex);
+    }
+
+    private int getMapRowFromWorldY(float worldY) {
+        return (int) Math.floor(worldY / MAP_TILE_HEIGHT);
+    }
+
+    private int getMapColFromWorldX(float worldX) {
+        return (int) Math.floor(worldX / MAP_TILE_WIDTH);
+    }
+
+    private int wrapMapCoordinate(int coord, int max) {
+        coord = coord % max;
+        if (coord < 0) {
+            coord += max;
+        }
+        return coord;
+    }
+
+    private boolean isMapInViewport(float mapWorldX, float mapWorldY) {
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        return !(mapWorldX + MAP_TILE_WIDTH < 0 ||
+                mapWorldX > worldW ||
+                mapWorldY + MAP_TILE_HEIGHT < 0 ||
+                mapWorldY > worldH);
+    }
+
+    private TMXMapData getTMXDataForPosition(float worldX, float worldY) {
+        int mapRowUnwrapped = getMapRowFromWorldY(worldY);
+        int mapColUnwrapped = getMapColFromWorldX(worldX);
+
+        // Wrap mapRow and mapCol to 0-3 range
+        int mapRow = wrapMapCoordinate(mapRowUnwrapped, 4);
+        int mapCol = wrapMapCoordinate(mapColUnwrapped, 4);
+        int mapIndex = mapRow * 4 + mapCol;
+
+        return tmxMapDataByRoomIndex.get(mapIndex);
+    }
+
+    private void renderPlayerRelativeToViewport() {
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        // Player always at center of viewport
+        float playerScreenX = worldW / 2f;
+        float playerScreenY = worldH / 2f;
+
+        GameApp.drawTexture("player",
+                playerScreenX - Player.SPRITE_SIZE / 2f,
+                playerScreenY - Player.SPRITE_SIZE / 2f,
+                Player.SPRITE_SIZE,
+                Player.SPRITE_SIZE
+        );
+    }
+
+    private void renderEnemyRelativeToViewport(Enemy enemy) {
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        // Calculate screen position (world → screen)
+        float offsetX = enemy.getX() - playerWorldX;
+        float offsetY = enemy.getY() - playerWorldY;
+        float screenX = worldW / 2f + offsetX;
+        float screenY = worldH / 2f + offsetY;
+
+        // Only render if in viewport
+        if (screenX + Enemy.SPRITE_SIZE > 0 && screenX < worldW &&
+                screenY + Enemy.SPRITE_SIZE > 0 && screenY < worldH) {
+
+            if (GameApp.hasAnimation("zombie_run")) {
+                GameApp.drawAnimation("zombie_run", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
+            } else {
+                GameApp.drawTexture("enemy", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
+            }
+        }
+    }
+
+    private void renderBulletRelativeToViewport(Bullet bullet) {
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        // Calculate screen position (world → screen)
+        float offsetX = bullet.getX() - playerWorldX;
+        float offsetY = bullet.getY() - playerWorldY;
+        float screenX = worldW / 2f + offsetX;
+        float screenY = worldH / 2f + offsetY;
+
+        // Only render if in viewport
+        if (screenX + bullet.getWidth() > 0 && screenX < worldW &&
+                screenY + bullet.getHeight() > 0 && screenY < worldH) {
+
+            GameApp.drawTexture("bullet", screenX, screenY, bullet.getWidth(), bullet.getHeight());
+        }
+    }
+
+    public int getCurrentMapRow() {
+        return getMapRowFromWorldY(playerWorldY);
+    }
+
+    public int getCurrentMapCol() {
+        return getMapColFromWorldX(playerWorldX);
+    }
+
+    private void drawPolygonObject(float screenX, float screenY, PolygonObject poly) {
+        List<float[]> pts = poly.points;
+        if (pts.size() < 3) return;
+
+        float baseYGameApp = MAP_TILE_HEIGHT - poly.y;  // flipY equivalent
+
+        float[] vertices = new float[pts.size() * 2];
+        int pointCount = pts.size();
+        for (int i = 0; i < pointCount; i++) {
+
+            int idx = pointCount - 1 - i;
+            float px = poly.x + pts.get(idx)[0];
+            float py = baseYGameApp - pts.get(idx)[1];  // base (flipped) - relative offset
+
+            vertices[i * 2]     = screenX + px;
+            vertices[i * 2 + 1] = screenY + py;
+        }
+
+        GameApp.drawPolygon(vertices);
+    }
+
+    // =========================
+    // FULL DEBUG OVERLAY SYSTEM
+    // =========================
+
+    private void renderFullDebugOverlay() {
+        // Calculate which maps are in viewport (same logic as renderMap)
+        int centerMapRow = getMapRowFromWorldY(playerWorldY);
+        int centerMapCol = getMapColFromWorldX(playerWorldX);
+
+        // Render 3x3 grid around player
+        int offset = MAPS_TO_RENDER / 2;
+
+        for (int rowOffset = -offset; rowOffset <= offset; rowOffset++) {
+            for (int colOffset = -offset; colOffset <= offset; colOffset++) {
+                int mapRow = centerMapRow + rowOffset;
+                int mapCol = centerMapCol + colOffset;
+
+                // Wrap around for infinite map
+                mapRow = wrapMapCoordinate(mapRow, 4);
+                mapCol = wrapMapCoordinate(mapCol, 4);
+
+                // Calculate screen position (world → screen)
+                float mapWorldX = (centerMapCol + colOffset) * MAP_TILE_WIDTH;
+                float mapWorldY = (centerMapRow + rowOffset) * MAP_TILE_HEIGHT;
+
+                float cameraOffsetX = mapWorldX - playerWorldX;
+                float cameraOffsetY = mapWorldY - playerWorldY;
+
+                float screenX = (GameApp.getWorldWidth() / 2f) + cameraOffsetX;
+                float screenY = (GameApp.getWorldHeight() / 2f) + cameraOffsetY;
+
+                // Only render if in viewport
+                if (isMapInViewport(screenX, screenY)) {
+                    // Get map index và TMX data
+                    int mapIndex = mapRow * 4 + mapCol;
+                    mapIndex = wrapMapCoordinate(mapIndex, 16);
+                    TMXMapData mapData = tmxMapDataByRoomIndex.get(mapIndex);
+
+                    if (mapData != null) {
+                        drawWallObjects(screenX, screenY, mapData);
+                        drawOtherObjects(screenX, screenY, mapData);
+                    }
+                }
+            }
+        }
+    }
+
+    private float tmxToWorldY(float y, float height) {
+        return MAP_TILE_HEIGHT - y - height;
+    }
+
+    private void drawWallObjects(float screenX, float screenY, TMXMapData mapData) {
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(255, 0, 0, 120);
+
+        // Render rectangles
+        for (RectangleObject rect : mapData.getWallRectangles()) {
+            float wx = screenX + rect.x;
+            float wy = screenY + tmxToWorldY(rect.y, rect.height);
+            GameApp.drawRect(wx, wy, rect.width, rect.height);
+        }
+
+        // Render polygons
+        for (PolygonObject poly : mapData.getWallPolygons()) {
+            // Convert absolute TMX Y to GameApp Y for each point
+            List<float[]> tempPts = new ArrayList<>();
+
+            for (float[] p : poly.points) {
+                float px = poly.x + p[0];
+                float absoluteTmxY = poly.y + p[1];
+                float py = MAP_TILE_HEIGHT - absoluteTmxY;
+                tempPts.add(new float[]{px, py});
+            }
+
+            // Convert to vertex array for rendering
+            float[] verts = new float[tempPts.size() * 2];
+            for (int i = 0; i < tempPts.size(); i++) {
+                float[] p = tempPts.get(i);
+                verts[i*2]   = screenX + p[0];
+                verts[i*2+1] = screenY + p[1];
+            }
+
+            GameApp.drawPolygon(verts);
+        }
+
+        GameApp.endShapeRendering();
+    }
+
+    private void drawOtherObjects(float screenX, float screenY, TMXMapData mapData) {
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(255, 140, 0, 120);
+
+        for (RectangleObject rect : mapData.getObjectRectangles()) {
+            float rx = screenX + rect.x;
+            float ry = screenY + tmxToWorldY(rect.y, rect.height);
+            GameApp.drawRect(rx, ry, rect.width, rect.height);
+        }
+
+        for (PolygonObject poly : mapData.getObjectPolygons()) {
+            drawPolygonObject(screenX, screenY, poly);
+        }
+
+        GameApp.endShapeRendering();
+    }
+
+    // =========================
+    // WALL COLLISION DETECTION
+    // =========================
+
+    private boolean checkWallCollision(float worldX, float worldY, float width, float height) {
+        // Get map indices (unwrapped)
+        int mapColUnwrapped = getMapColFromWorldX(worldX);
+        int mapRowUnwrapped = getMapRowFromWorldY(worldY);
+
+        // Wrap mapRow và mapCol riêng biệt TRƯỚC KHI tính mapIndex
+        int mapRow = wrapMapCoordinate(mapRowUnwrapped, 4);
+        int mapCol = wrapMapCoordinate(mapColUnwrapped, 4);
+        int mapIndex = mapRow * 4 + mapCol;
+
+        // Get TMX data for the map at this position
+        TMXMapData mapData = tmxMapDataByRoomIndex.get(mapIndex);
+        if (mapData == null) {
+            return false; // No TMX data for this map
+        }
+
+        float localX = worldX % MAP_TILE_WIDTH;
+        if (localX < 0) {
+            localX += MAP_TILE_WIDTH;
+        }
+
+        float localY = worldY % MAP_TILE_HEIGHT;
+        if (localY < 0) {
+            localY += MAP_TILE_HEIGHT;
+        }
+
+        localX = GameApp.clamp(localX, 0, MAP_TILE_WIDTH - 1);
+        localY = GameApp.clamp(localY, 0, MAP_TILE_HEIGHT - 1);
+
+        float checkW = GameApp.clamp(width, 0, MAP_TILE_WIDTH - localX);
+        float checkH = GameApp.clamp(height, 0, MAP_TILE_HEIGHT - localY);
+
+        // Check collision using TMX data
+        if (checkW > 0 && checkH > 0) {
+            return mapData.checkCollision(localX, localY, checkW, checkH);
+        }
+
+        return false;
     }
 
     // =========================
@@ -405,9 +822,6 @@ public class PlayScreen extends ScalableGameScreen {
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10);
 
         enemies = new ArrayList<>();
-        enemies.add(new Enemy(200, 400, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(400, 450, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(600, 350, enemyBaseSpeed, enemyBaseHealth));
 
         // difficulty & spawning reset
         gameTime = 0f;
@@ -417,7 +831,50 @@ public class PlayScreen extends ScalableGameScreen {
         score = 0;
         playerDamageCooldown = 0f;
 
+        playerWorldX = MAP_TILE_WIDTH / 2f; // 480
+        playerWorldY = MAP_TILE_HEIGHT / 2f; // 320
+
+        // Kiểm tra và điều chỉnh nếu spawn position có wall
+        TMXMapData spawnMapData = getTMXDataForPosition(playerWorldX, playerWorldY);
+        if (spawnMapData != null) {
+            Rectangle testHitbox = new Rectangle((int)playerWorldX, (int)playerWorldY, 16, 16);
+            if (checkWallCollision(testHitbox.x, testHitbox.y, testHitbox.width, testHitbox.height)) {
+
+                for (int offset = 50; offset < 300; offset += 50) {
+
+                    for (int dx = -offset; dx <= offset; dx += 50) {
+                        for (int dy = -offset; dy <= offset; dy += 50) {
+                            float testX = playerWorldX + dx;
+                            float testY = playerWorldY + dy;
+                            if (testX >= 0 && testX < MAP_TILE_WIDTH &&
+                                    testY >= 0 && testY < MAP_TILE_HEIGHT) {
+                                if (!checkWallCollision(testX, testY, 16, 16)) {
+                                    playerWorldX = testX;
+                                    playerWorldY = testY;
+                                    GameApp.log("Adjusted player spawn to safe position: (" + playerWorldX + ", " + playerWorldY + ")");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!checkWallCollision(playerWorldX, playerWorldY, 16, 16)) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Set player position
+        player.setPosition(playerWorldX, playerWorldY);
+
+        // Reset enemies - spawn a few around the player
+        enemies.clear();
+        enemies.add(new Enemy(playerWorldX + 200, playerWorldY + 150, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(playerWorldX + 400, playerWorldY + 200, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(playerWorldX + 600, playerWorldY + 100, enemyBaseSpeed, enemyBaseHealth));
+
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
+        GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");
     }
 
     // =========================
