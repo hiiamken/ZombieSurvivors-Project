@@ -15,13 +15,17 @@ public class Bullet {
     private float width;
     private float height;
 
+    // Track spawn position to calculate travel distance
+    private float spawnX, spawnY;
+    private static final float MAX_TRAVEL_DISTANCE = 2000f; // Max distance bullet can travel
+
     private Rectangle hitBox;
 
     private boolean destroyed = false;
 
     // Defaults
     private static final float DEFAULT_SPEED = 400f;
-    private static final float DEFAULT_SIZE  = 6f;
+    private static final float DEFAULT_SIZE  = 8f;
     private static final String TEXTURE_KEY  = "bullet";
 
     // Old-style constructor (kept for compatibility if needed)
@@ -41,6 +45,8 @@ public class Bullet {
 
         this.x = startX;
         this.y = startY;
+        this.spawnX = startX;
+        this.spawnY = startY;
         this.damage = damage;
         this.speed = speed;
         this.width = width;
@@ -64,11 +70,10 @@ public class Bullet {
     }
 
     public boolean isOffScreen() {
-        float w = GameApp.getWorldWidth();
-        float h = GameApp.getWorldHeight();
-
-        return x + width < 0 || x > w || y + height < 0 || y > h;
+        float distance = GameApp.distance(x, y, spawnX, spawnY);
+        return distance > MAX_TRAVEL_DISTANCE;
     }
+
 
     public void render() {
         GameApp.drawTexture(TEXTURE_KEY, x, y, width, height);

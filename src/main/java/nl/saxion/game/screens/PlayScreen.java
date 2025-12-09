@@ -675,8 +675,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Time to spawn
         enemySpawnTimer = 0f;
 
-        float worldW = GameApp.getWorldWidth();
-        float worldH = GameApp.getWorldHeight();
+        float spawnDistance = 400f;
 
         // 3. Choose edge: 0 = top, 1 = right, 2 = bottom, 3 = left
         int edge = GameApp.randomInt(0, 4);
@@ -685,21 +684,25 @@ public class PlayScreen extends ScalableGameScreen {
         float spawnY;
 
         if (edge == 0) {
-            // TOP
-            spawnX = GameApp.random(0f, worldW - Enemy.SPRITE_SIZE);
-            spawnY = worldH; // just above top
+            // TOP - spawn above player
+            float offsetX = GameApp.random(-spawnDistance, spawnDistance);
+            spawnX = playerWorldX + offsetX;
+            spawnY = playerWorldY + spawnDistance;
         } else if (edge == 1) {
-            // RIGHT
-            spawnX = worldW; // just outside right
-            spawnY = GameApp.random(0f, worldH - Enemy.SPRITE_SIZE);
+            // RIGHT - spawn to the right of player
+            spawnX = playerWorldX + spawnDistance;
+            float offsetY = GameApp.random(-spawnDistance, spawnDistance);
+            spawnY = playerWorldY + offsetY;
         } else if (edge == 2) {
-            // BOTTOM
-            spawnX = GameApp.random(0f, worldW - Enemy.SPRITE_SIZE);
-            spawnY = -Enemy.SPRITE_SIZE; // just below bottom
+            // BOTTOM - spawn below player
+            float offsetX = GameApp.random(-spawnDistance, spawnDistance);
+            spawnX = playerWorldX + offsetX;
+            spawnY = playerWorldY - spawnDistance;
         } else {
-            // LEFT
-            spawnX = -Enemy.SPRITE_SIZE; // just outside left
-            spawnY = GameApp.random(0f, worldH - Enemy.SPRITE_SIZE);
+            // LEFT - spawn to the left of player
+            spawnX = playerWorldX - spawnDistance;
+            float offsetY = GameApp.random(-spawnDistance, spawnDistance);
+            spawnY = playerWorldY + offsetY;
         }
 
         // 4. Difficulty scaling: 1.0x → 3.0x
@@ -735,11 +738,12 @@ public class PlayScreen extends ScalableGameScreen {
             float bH = b.getHeight();
 
             for (Enemy e : enemies) {
-                if (e.isDead()) {
+                // Skip enemies that are dead or already dying
+                if (e.isDead() || e.isDying()) {
                     continue;
                 }
 
-                // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+                // Use hitbox instead of sprite size for fair collision
                 Rectangle enemyHitbox = e.getHitBox();
                 float eX = enemyHitbox.x;
                 float eY = enemyHitbox.y;
@@ -769,6 +773,11 @@ public class PlayScreen extends ScalableGameScreen {
         float pH = playerHitbox.height;
 
         for (Enemy e : enemies) {
+
+            if (e.isDying()) {
+                continue;
+            }
+
             Rectangle enemyHitbox = e.getHitBox();
             float eX = enemyHitbox.x;
             float eY = enemyHitbox.y;
@@ -819,7 +828,7 @@ public class PlayScreen extends ScalableGameScreen {
         player = new Player(startX, startY, speed, maxHealth, null);
 
         bullets = new ArrayList<>();
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10);
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 8f, 8f);
 
         enemies = new ArrayList<>();
 
