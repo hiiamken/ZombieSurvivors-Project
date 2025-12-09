@@ -25,10 +25,11 @@ public class Enemy {
     // Animation state
     private String currentAnimation = "zombie_run"; // running animation
     private boolean isDying = false;
+    private boolean deathAnimationStarted = false;
     private float deathAnimationTimer = 0f;
     private float hitAnimationTimer = 0f;
     private static final float HIT_ANIMATION_DURATION = 0.3f; // Show hit animation for 0.3 seconds
-    private static final float DEATH_ANIMATION_DURATION = 1.0f; // Death animation duration (approximate)
+    private static final float DEATH_ANIMATION_DURATION = 1.5f; // Death animation duration (approximate)
 
     // Hitbox for collisions with bullets
     private Rectangle hitBox;
@@ -148,6 +149,9 @@ public class Enemy {
             currentAnimation = "zombie_death";
             // Track death animation timer
             deathAnimationTimer += delta;
+
+            if (GameApp.hasAnimation("zombie_death") && GameApp.isAnimationFinished("zombie_death")) {
+            }
         } else if (hitAnimationTimer > 0f) {
             // Show hit animation
             currentAnimation = "zombie_hit";
@@ -164,6 +168,10 @@ public class Enemy {
     }
 
     public void render() {
+        if (isDying && !deathAnimationStarted && GameApp.hasAnimation("zombie_death")) {
+            GameApp.resetAnimation("zombie_death");
+            deathAnimationStarted = true;
+        }
         if (GameApp.hasAnimation(currentAnimation)) {
             GameApp.drawAnimation(currentAnimation, x, y, SPRITE_SIZE, SPRITE_SIZE);
         } else {
@@ -190,7 +198,7 @@ public class Enemy {
         if (health <= 0 && !isDying) {
             isDying = true;
             deathAnimationTimer = 0f; // Reset timer
-            GameApp.resetAnimation("zombie_death");
+            deathAnimationStarted = false;
         }
     }
 
@@ -203,8 +211,21 @@ public class Enemy {
     }
 
     public boolean isDeathAnimationFinished() {
-        // Death animation finished if dying and timer exceeds duration
-        return isDying && deathAnimationTimer >= DEATH_ANIMATION_DURATION;
+
+        if (!isDying) {
+            return false;
+        }
+
+        if (deathAnimationTimer >= DEATH_ANIMATION_DURATION) {
+            return true;
+        }
+
+        if (GameApp.hasAnimation("zombie_death") && GameApp.isAnimationFinished("zombie_death")) {
+
+            return deathAnimationTimer >= 0.3f;
+        }
+
+        return false;
     }
 
     public float getX() { return x; }

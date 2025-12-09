@@ -63,15 +63,24 @@ public class Weapon {
         // default: shoot upward if standing still
         if (dirX == 0 && dirY == 0) {
             dirX = 0f;
-            dirY = -1f;
+            dirY = 1f;
         }
 
         float playerX = player.getX();
         float playerY = player.getY();
         float playerSize = Player.SPRITE_SIZE;
 
-        float bulletStartX = playerX + playerSize / 2f - bulletWidth / 2f;
-        float bulletStartY = playerY + playerSize / 2f;
+        // Hitbox offset
+        float hitboxOffsetX = (Player.SPRITE_SIZE - Player.HITBOX_WIDTH) / 2f;
+        float hitboxOffsetY = (Player.SPRITE_SIZE - Player.HITBOX_HEIGHT) / 2f;
+
+        // Hitbox center
+        float hitboxCenterX = playerX + hitboxOffsetX + Player.HITBOX_WIDTH / 2f;
+        float hitboxCenterY = playerY + hitboxOffsetY + Player.HITBOX_HEIGHT / 2f;
+
+        // Spawn bullet
+        float bulletStartX = hitboxCenterX - bulletWidth / 2f;
+        float bulletStartY = hitboxCenterY - bulletHeight / 2f;
 
         Bullet bullet = new Bullet(
                 bulletStartX,

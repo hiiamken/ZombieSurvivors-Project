@@ -738,11 +738,12 @@ public class PlayScreen extends ScalableGameScreen {
             float bH = b.getHeight();
 
             for (Enemy e : enemies) {
-                if (e.isDead()) {
+                // Skip enemies that are dead or already dying
+                if (e.isDead() || e.isDying()) {
                     continue;
                 }
 
-                // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
+                // Use hitbox instead of sprite size for fair collision
                 Rectangle enemyHitbox = e.getHitBox();
                 float eX = enemyHitbox.x;
                 float eY = enemyHitbox.y;
@@ -772,6 +773,11 @@ public class PlayScreen extends ScalableGameScreen {
         float pH = playerHitbox.height;
 
         for (Enemy e : enemies) {
+
+            if (e.isDying()) {
+                continue;
+            }
+
             Rectangle enemyHitbox = e.getHitBox();
             float eX = enemyHitbox.x;
             float eY = enemyHitbox.y;
@@ -822,7 +828,7 @@ public class PlayScreen extends ScalableGameScreen {
         player = new Player(startX, startY, speed, maxHealth, null);
 
         bullets = new ArrayList<>();
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10);
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 8f, 8f);
 
         enemies = new ArrayList<>();
 
