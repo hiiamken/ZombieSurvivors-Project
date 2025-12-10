@@ -25,7 +25,7 @@ public class Bullet {
 
     // Defaults
     private static final float DEFAULT_SPEED = 400f;
-    private static final float DEFAULT_SIZE  = 8f;
+    private static final float DEFAULT_SIZE  = 10f;
     private static final String TEXTURE_KEY  = "bullet";
 
     // Old-style constructor (kept for compatibility if needed)
@@ -73,7 +73,6 @@ public class Bullet {
         float distance = GameApp.distance(x, y, spawnX, spawnY);
         return distance > MAX_TRAVEL_DISTANCE;
     }
-
 
     public void render() {
         GameApp.drawTexture(TEXTURE_KEY, x, y, width, height);

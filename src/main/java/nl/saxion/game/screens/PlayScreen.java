@@ -22,9 +22,6 @@ import java.util.Map;
 import java.util.Iterator;
 import java.util.List;
 
-import static nl.saxion.game.utils.TMXMapObjects.PolygonObject;
-import static nl.saxion.game.utils.TMXMapObjects.RectangleObject;
-
 public class PlayScreen extends ScalableGameScreen {
 
     private InputController input;
@@ -71,9 +68,6 @@ public class PlayScreen extends ScalableGameScreen {
     private float playerWorldX;
     private float playerWorldY;
 
-    // Debug flag
-    private boolean debugCollision = false;
-
     public PlayScreen() {
         super(800, 600);
     }
@@ -87,10 +81,10 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
 
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_run.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_run.png", 32,32);
+        GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
+        GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
+        GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
 
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
 
@@ -125,7 +119,7 @@ public class PlayScreen extends ScalableGameScreen {
             String tmxPath = "assets/maps/map" + mapNumber + ".tmx";
             TMXMapData mapData = TMXParser.loadFromTMX(tmxPath);
             if (mapData != null) {
-                tmxMapDataByRoomIndex.put(i, mapData); // room index i tương ứng với map(i+1)
+                tmxMapDataByRoomIndex.put(i, mapData); // room index i corresponds to map(i+1)
                 loadedMaps++;
             } else {
                 GameApp.log("❌ Warning: Could not load " + tmxPath);
@@ -239,9 +233,10 @@ public class PlayScreen extends ScalableGameScreen {
             }
         }
 
-        // Enemies chase the player (Task 9) - với smooth sliding collision (dùng cùng CollisionChecker như player)
+        // Enemies chase the player with smooth sliding collision
+        // Pass enemies list for separation (prevent overlapping)
         for (Enemy e : enemies) {
-            e.update(delta, player.getX(), player.getY(), collisionChecker);
+            e.update(delta, player.getX(), player.getY(), collisionChecker, enemies);
         }
 
         // Update zombie animations
@@ -278,11 +273,6 @@ public class PlayScreen extends ScalableGameScreen {
         // ----- RENDER -----
         // Render map background first
         renderMap();
-
-        // DEBUG: Render collision overlay
-        if (debugCollision) {
-            renderFullDebugOverlay();   // Full debug overlay with wall tiles
-        }
 
         GameApp.startSpriteRendering();
 
@@ -431,9 +421,13 @@ public class PlayScreen extends ScalableGameScreen {
         if (screenX + Enemy.SPRITE_SIZE > 0 && screenX < worldW &&
                 screenY + Enemy.SPRITE_SIZE > 0 && screenY < worldH) {
 
-            if (GameApp.hasAnimation("zombie_run")) {
-                GameApp.drawAnimation("zombie_run", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
+            // Get the current animation from enemy (handles hit/death/run states)
+            String animationKey = enemy.getCurrentAnimation();
+
+            if (GameApp.hasAnimation(animationKey)) {
+                GameApp.drawAnimation(animationKey, screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
             } else {
+                // Fallback to static texture
                 GameApp.drawTexture("enemy", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
             }
         }
@@ -465,132 +459,6 @@ public class PlayScreen extends ScalableGameScreen {
         return getMapColFromWorldX(playerWorldX);
     }
 
-    private void drawPolygonObject(float screenX, float screenY, PolygonObject poly) {
-        List<float[]> pts = poly.points;
-        if (pts.size() < 3) return;
-
-        float baseYGameApp = MAP_TILE_HEIGHT - poly.y;  // flipY equivalent
-
-        float[] vertices = new float[pts.size() * 2];
-        int pointCount = pts.size();
-        for (int i = 0; i < pointCount; i++) {
-
-            int idx = pointCount - 1 - i;
-            float px = poly.x + pts.get(idx)[0];
-            float py = baseYGameApp - pts.get(idx)[1];  // base (flipped) - relative offset
-
-            vertices[i * 2]     = screenX + px;
-            vertices[i * 2 + 1] = screenY + py;
-        }
-
-        GameApp.drawPolygon(vertices);
-    }
-
-    // =========================
-    // FULL DEBUG OVERLAY SYSTEM
-    // =========================
-
-    private void renderFullDebugOverlay() {
-        // Calculate which maps are in viewport (same logic as renderMap)
-        int centerMapRow = getMapRowFromWorldY(playerWorldY);
-        int centerMapCol = getMapColFromWorldX(playerWorldX);
-
-        // Render 3x3 grid around player
-        int offset = MAPS_TO_RENDER / 2;
-
-        for (int rowOffset = -offset; rowOffset <= offset; rowOffset++) {
-            for (int colOffset = -offset; colOffset <= offset; colOffset++) {
-                int mapRow = centerMapRow + rowOffset;
-                int mapCol = centerMapCol + colOffset;
-
-                // Wrap around for infinite map
-                mapRow = wrapMapCoordinate(mapRow, 4);
-                mapCol = wrapMapCoordinate(mapCol, 4);
-
-                // Calculate screen position (world → screen)
-                float mapWorldX = (centerMapCol + colOffset) * MAP_TILE_WIDTH;
-                float mapWorldY = (centerMapRow + rowOffset) * MAP_TILE_HEIGHT;
-
-                float cameraOffsetX = mapWorldX - playerWorldX;
-                float cameraOffsetY = mapWorldY - playerWorldY;
-
-                float screenX = (GameApp.getWorldWidth() / 2f) + cameraOffsetX;
-                float screenY = (GameApp.getWorldHeight() / 2f) + cameraOffsetY;
-
-                // Only render if in viewport
-                if (isMapInViewport(screenX, screenY)) {
-                    // Get map index và TMX data
-                    int mapIndex = mapRow * 4 + mapCol;
-                    mapIndex = wrapMapCoordinate(mapIndex, 16);
-                    TMXMapData mapData = tmxMapDataByRoomIndex.get(mapIndex);
-
-                    if (mapData != null) {
-                        drawWallObjects(screenX, screenY, mapData);
-                        drawOtherObjects(screenX, screenY, mapData);
-                    }
-                }
-            }
-        }
-    }
-
-    private float tmxToWorldY(float y, float height) {
-        return MAP_TILE_HEIGHT - y - height;
-    }
-
-    private void drawWallObjects(float screenX, float screenY, TMXMapData mapData) {
-        GameApp.startShapeRenderingFilled();
-        GameApp.setColor(255, 0, 0, 120);
-
-        // Render rectangles
-        for (RectangleObject rect : mapData.getWallRectangles()) {
-            float wx = screenX + rect.x;
-            float wy = screenY + tmxToWorldY(rect.y, rect.height);
-            GameApp.drawRect(wx, wy, rect.width, rect.height);
-        }
-
-        // Render polygons
-        for (PolygonObject poly : mapData.getWallPolygons()) {
-            // Convert absolute TMX Y to GameApp Y for each point
-            List<float[]> tempPts = new ArrayList<>();
-
-            for (float[] p : poly.points) {
-                float px = poly.x + p[0];
-                float absoluteTmxY = poly.y + p[1];
-                float py = MAP_TILE_HEIGHT - absoluteTmxY;
-                tempPts.add(new float[]{px, py});
-            }
-
-            // Convert to vertex array for rendering
-            float[] verts = new float[tempPts.size() * 2];
-            for (int i = 0; i < tempPts.size(); i++) {
-                float[] p = tempPts.get(i);
-                verts[i*2]   = screenX + p[0];
-                verts[i*2+1] = screenY + p[1];
-            }
-
-            GameApp.drawPolygon(verts);
-        }
-
-        GameApp.endShapeRendering();
-    }
-
-    private void drawOtherObjects(float screenX, float screenY, TMXMapData mapData) {
-        GameApp.startShapeRenderingFilled();
-        GameApp.setColor(255, 140, 0, 120);
-
-        for (RectangleObject rect : mapData.getObjectRectangles()) {
-            float rx = screenX + rect.x;
-            float ry = screenY + tmxToWorldY(rect.y, rect.height);
-            GameApp.drawRect(rx, ry, rect.width, rect.height);
-        }
-
-        for (PolygonObject poly : mapData.getObjectPolygons()) {
-            drawPolygonObject(screenX, screenY, poly);
-        }
-
-        GameApp.endShapeRendering();
-    }
-
     // =========================
     // WALL COLLISION DETECTION
     // =========================
@@ -600,7 +468,7 @@ public class PlayScreen extends ScalableGameScreen {
         int mapColUnwrapped = getMapColFromWorldX(worldX);
         int mapRowUnwrapped = getMapRowFromWorldY(worldY);
 
-        // Wrap mapRow và mapCol riêng biệt TRƯỚC KHI tính mapIndex
+        // Wrap mapRow and mapCol separately BEFORE calculating mapIndex
         int mapRow = wrapMapCoordinate(mapRowUnwrapped, 4);
         int mapCol = wrapMapCoordinate(mapColUnwrapped, 4);
         int mapIndex = mapRow * 4 + mapCol;
@@ -624,8 +492,11 @@ public class PlayScreen extends ScalableGameScreen {
         localX = GameApp.clamp(localX, 0, MAP_TILE_WIDTH - 1);
         localY = GameApp.clamp(localY, 0, MAP_TILE_HEIGHT - 1);
 
-        float checkW = GameApp.clamp(width, 0, MAP_TILE_WIDTH - localX);
-        float checkH = GameApp.clamp(height, 0, MAP_TILE_HEIGHT - localY);
+        // Don't clamp checkW and checkH for more accurate collision detection
+        // This allows enemy to get close to walls
+        // TMXMapData.checkCollision handles bounds checking internally
+        float checkW = width;
+        float checkH = height;
 
         // Check collision using TMX data
         if (checkW > 0 && checkH > 0) {
@@ -675,7 +546,9 @@ public class PlayScreen extends ScalableGameScreen {
         // Time to spawn
         enemySpawnTimer = 0f;
 
-        float spawnDistance = 400f;
+        // Spawn enemy at world coordinates, relative to player position
+        // Spawn at a distance from player (off-screen) so enemies come from all directions
+        float spawnDistance = 400f; // Distance from player to spawn enemy
 
         // 3. Choose edge: 0 = top, 1 = right, 2 = bottom, 3 = left
         int edge = GameApp.randomInt(0, 4);
@@ -683,6 +556,7 @@ public class PlayScreen extends ScalableGameScreen {
         float spawnX;
         float spawnY;
 
+        // Spawn enemy ở world coordinates, offset từ player position
         if (edge == 0) {
             // TOP - spawn above player
             float offsetX = GameApp.random(-spawnDistance, spawnDistance);
@@ -743,12 +617,12 @@ public class PlayScreen extends ScalableGameScreen {
                     continue;
                 }
 
-                // Use hitbox instead of sprite size for fair collision
-                Rectangle enemyHitbox = e.getHitBox();
-                float eX = enemyHitbox.x;
-                float eY = enemyHitbox.y;
-                float eW = enemyHitbox.width;
-                float eH = enemyHitbox.height;
+                // Use DAMAGE hitbox (larger, covers body) for bullet collision
+                Rectangle enemyDamageHitbox = e.getDamageHitBox();
+                float eX = enemyDamageHitbox.x;
+                float eY = enemyDamageHitbox.y;
+                float eW = enemyDamageHitbox.width;
+                float eH = enemyDamageHitbox.height;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
                     e.takeDamage(b.getDamage());
@@ -765,24 +639,25 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     private void handleEnemyPlayerCollisions() {
-        // Use hitbox instead of sprite size for fair collision (Vampire Survivors style)
-        Rectangle playerHitbox = player.getHitBox();
-        float pX = playerHitbox.x;
-        float pY = playerHitbox.y;
-        float pW = playerHitbox.width;
-        float pH = playerHitbox.height;
+        // Use damage hitbox instead of wall hitbox for player-enemy interaction
+        Rectangle playerDamageHitbox = player.getDamageHitBox();
+        float pX = playerDamageHitbox.x;
+        float pY = playerDamageHitbox.y;
+        float pW = playerDamageHitbox.width;
+        float pH = playerDamageHitbox.height;
 
         for (Enemy e : enemies) {
-
+            // Skip enemies that are dying
             if (e.isDying()) {
                 continue;
             }
 
-            Rectangle enemyHitbox = e.getHitBox();
-            float eX = enemyHitbox.x;
-            float eY = enemyHitbox.y;
-            float eW = enemyHitbox.width;
-            float eH = enemyHitbox.height;
+            // Use damage hitbox for enemy-player interaction
+            Rectangle enemyDamageHitbox = e.getDamageHitBox();
+            float eX = enemyDamageHitbox.x;
+            float eY = enemyDamageHitbox.y;
+            float eW = enemyDamageHitbox.width;
+            float eH = enemyDamageHitbox.height;
 
             boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, eX, eY, eW, eH);
             if (overlap) {
@@ -828,7 +703,7 @@ public class PlayScreen extends ScalableGameScreen {
         player = new Player(startX, startY, speed, maxHealth, null);
 
         bullets = new ArrayList<>();
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 8f, 8f);
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 10f, 10f);  // Explicit size 10x10
 
         enemies = new ArrayList<>();
 
@@ -843,7 +718,7 @@ public class PlayScreen extends ScalableGameScreen {
         playerWorldX = MAP_TILE_WIDTH / 2f; // 480
         playerWorldY = MAP_TILE_HEIGHT / 2f; // 320
 
-        // Kiểm tra và điều chỉnh nếu spawn position có wall
+        // Check and adjust if spawn position has wall
         TMXMapData spawnMapData = getTMXDataForPosition(playerWorldX, playerWorldY);
         if (spawnMapData != null) {
             Rectangle testHitbox = new Rectangle((int)playerWorldX, (int)playerWorldY, 16, 16);

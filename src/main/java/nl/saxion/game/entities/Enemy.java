@@ -6,7 +6,7 @@ import java.awt.Rectangle;
 
 public class Enemy {
 
-    // Position
+    // Sprite origin position (same as Player worldX/worldY)
     private float x;
     private float y;
 
@@ -19,20 +19,42 @@ public class Enemy {
 
     // Sprite size constant
     public static final int SPRITE_SIZE = 24;
-    public static final int HITBOX_WIDTH = 12;
-    public static final int HITBOX_HEIGHT = 16;
+    // Wall hitbox (small, for wall collision)
+    public static final int HITBOX_WIDTH = 8;
+    public static final int HITBOX_HEIGHT = 8;
+    // Damage hitbox (larger, covers body and head for player-enemy collision)
+    public static final int DAMAGE_HITBOX_WIDTH = 18;
+    public static final int DAMAGE_HITBOX_HEIGHT = 20;
+
+    // Wall hitbox offset: adjusted to match sprite position
+    private static final float WALL_OFFSET_X = 20f;
+    private static final float WALL_OFFSET_Y = 16f;
+
+    // Damage hitbox offset: centered to cover sprite
+    private static final float DAMAGE_OFFSET_X = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f + 3f;
+    private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f - 1f;
+
+    // Collision constants (for smooth movement near walls)
+    private static final float EPSILON = 2.0f;
+    private static final float SLIDE_MARGIN = 1.0f;
+
+    // Separation constants (to prevent zombies from overlapping - like Vampire Survivors)
+    private static final float SEPARATION_RADIUS = 20f;  // Minimum distance between zombies
+    private static final float SEPARATION_FORCE = 80f;   // Push force strength
+
 
     // Animation state
-    private String currentAnimation = "zombie_run"; // running animation
+    private String currentAnimation = "zombie_run";
     private boolean isDying = false;
-    private boolean deathAnimationStarted = false;
     private float deathAnimationTimer = 0f;
     private float hitAnimationTimer = 0f;
-    private static final float HIT_ANIMATION_DURATION = 0.3f; // Show hit animation for 0.3 seconds
-    private static final float DEATH_ANIMATION_DURATION = 1.5f; // Death animation duration (approximate)
+    private static final float HIT_ANIMATION_DURATION = 0.3f;
+    private static final float DEATH_ANIMATION_DURATION = 1.5f;
 
-    // Hitbox for collisions with bullets
-    private Rectangle hitBox;
+    // Wall hitbox: for wall collision
+    private Rectangle wallHitBox;
+    // Damage hitbox: for player interaction
+    private Rectangle damageHitBox;
 
     public Enemy(float startX, float startY, float speed, int maxHealth) {
         this.x = startX;
@@ -42,146 +64,214 @@ public class Enemy {
         this.maxHealth = maxHealth;
         this.health = maxHealth;
 
-        // Hitbox nhỏ hơn sprite, centered in sprite
-        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
-        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
-        this.hitBox = new Rectangle((int) (x + offsetX), (int) (y + offsetY), HITBOX_WIDTH, HITBOX_HEIGHT);
+        // Wall hitbox position = sprite position + offset
+        this.wallHitBox = new Rectangle((int) (x + WALL_OFFSET_X), (int) (y + WALL_OFFSET_Y), HITBOX_WIDTH, HITBOX_HEIGHT);
+
+        // Damage hitbox position - larger to cover body and head
+        this.damageHitBox = new Rectangle((int) (x + DAMAGE_OFFSET_X), (int) (y + DAMAGE_OFFSET_Y), DAMAGE_HITBOX_WIDTH, DAMAGE_HITBOX_HEIGHT);
     }
 
-    // ✅ Enemy chases player with smooth sliding collision (like player)
-    public void update(float delta, float playerX, float playerY, CollisionChecker collisionChecker) {
+    // Enemy chases player with collision detection
+    public void update(float delta, float playerX, float playerY, CollisionChecker collisionChecker, java.util.List<Enemy> allEnemies) {
 
-        // Update animation state
         updateAnimationState(delta);
 
-        // Vector from enemy to player
-        float dx = playerX - x;
-        float dy = playerY - y;
-
-        // Distance using GameApp utility
-        float distance = GameApp.distance(x, y, playerX, playerY);
-
-        float dirX;
-        float dirY;
-
-        if (distance > 0f) {
-            dirX = dx / distance;
-            dirY = dy / distance;
-        } else {
-            // Already at player position
-            dirX = 0f;
-            dirY = 0f;
+        if (isDying || collisionChecker == null) {
+            // Update hitboxes even when not moving
+            wallHitBox.x = (int)(x + WALL_OFFSET_X);
+            wallHitBox.y = (int)(y + WALL_OFFSET_Y);
+            damageHitBox.x = (int)(x + DAMAGE_OFFSET_X);
+            damageHitBox.y = (int)(y + DAMAGE_OFFSET_Y);
+            return;
         }
 
-        // Move toward player (với smooth sliding collision như player)
-        if (!isDying && collisionChecker != null) {
-            float moveX = dirX * speed * delta;
-            float moveY = dirY * speed * delta;
+        // Direction vector to player
+        float dirX = playerX - x;
+        float dirY = playerY - y;
+        float dist = (float)Math.sqrt(dirX*dirX + dirY*dirY);
 
-            // Offset for hitbox centering
-            float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
-            float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
+        if (dist > 0.001f) {
+            dirX /= dist;
+            dirY /= dist;
+        }
 
-            // Move X FIRST
-            if (moveX != 0) {
-                float newX = x + moveX;
-                float hitboxX = newX + offsetX;
-                float hitboxY = y + offsetY;
+        float dx = dirX * speed * delta;
+        float dy = dirY * speed * delta;
+        float offsetX = WALL_OFFSET_X;
+        float offsetY = WALL_OFFSET_Y;
 
-                boolean collX = collisionChecker.checkCollision(hitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
-                if (!collX) {
-                    x = newX;
-                } else {
-                    // Collision detected - try moving in smaller steps to get closer to wall
-                    float stepSize = Math.abs(moveX) / 4f;
-                    float stepX = (moveX > 0) ? stepSize : -stepSize;
-                    float testX = x;
-                    for (int i = 0; i < 4; i++) {
-                        float testWorldX = testX + stepX;
-                        float testHitboxX = testWorldX + offsetX;
-                        if (!collisionChecker.checkCollision(testHitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
-                            testX = testWorldX;
-                        } else {
-                            break;  // Stop when hitting wall
-                        }
-                    }
-                    x = testX;
+        // Save original position
+        float originalX = x;
+        float originalY = y;
+
+        // Normalize diagonal movement for consistent speed
+        if (dx != 0 && dy != 0) {
+            float length = (float) Math.sqrt(dx * dx + dy * dy);
+            float normalizedDx = dx / length;
+            float normalizedDy = dy / length;
+            dx = normalizedDx * speed * delta;
+            dy = normalizedDy * speed * delta;
+        }
+
+        // Move X first (standard 2D game approach)
+        if (dx != 0 && collisionChecker != null) {
+            float newX = originalX + dx;
+            float hitboxWorldX = newX + offsetX;
+            float hitboxWorldY = originalY + offsetY;
+
+            // When moving horizontal, shrink height to avoid friction with ceiling/floor
+            float checkWidth = (float)HITBOX_WIDTH - EPSILON;
+            float checkHeight = (float)HITBOX_HEIGHT - EPSILON - SLIDE_MARGIN;
+            float checkX = hitboxWorldX + EPSILON / 2f;
+            float checkY = hitboxWorldY + (EPSILON + SLIDE_MARGIN) / 2f;
+
+            boolean collisionX = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
+
+            if (!collisionX) {
+                x = newX;
+            }
+            // Enemy doesn't need corner correction - it chases player and finds path naturally
+        } else if (dx != 0) {
+            x = originalX + dx;
+        }
+
+        // Move Y (using updated X position)
+        if (dy != 0 && collisionChecker != null) {
+            float newY = originalY + dy;
+            float hitboxWorldX = x + offsetX;
+            float hitboxWorldY = newY + offsetY;
+
+            // When moving vertical, shrink width to avoid friction with left/right walls
+            float checkWidth = (float)HITBOX_WIDTH - EPSILON - SLIDE_MARGIN;
+            float checkHeight = (float)HITBOX_HEIGHT - EPSILON;
+            float checkX = hitboxWorldX + (EPSILON + SLIDE_MARGIN) / 2f;
+            float checkY = hitboxWorldY + EPSILON / 2f;
+
+            boolean collisionY = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
+
+            if (!collisionY) {
+                y = newY;
+            }
+        } else if (dy != 0) {
+            y = originalY + dy;
+        }
+
+        // ===== SEPARATION: Push each other to prevent overlapping (like Vampire Survivors) =====
+        if (allEnemies != null) {
+            float separationX = 0f;
+            float separationY = 0f;
+
+            for (Enemy other : allEnemies) {
+                if (other == this || other.isDying || other.isDead()) {
+                    continue;
+                }
+
+                // Calculate distance between 2 enemies (center to center)
+                float centerX = x + SPRITE_SIZE / 2f;
+                float centerY = y + SPRITE_SIZE / 2f;
+                float otherCenterX = other.x + SPRITE_SIZE / 2f;
+                float otherCenterY = other.y + SPRITE_SIZE / 2f;
+
+                float distX = centerX - otherCenterX;
+                float distY = centerY - otherCenterY;
+                float distance = (float) Math.sqrt(distX * distX + distY * distY);
+
+                // If too close, push apart
+                if (distance < SEPARATION_RADIUS && distance > 0.001f) {
+                    // Normalize direction
+                    float normX = distX / distance;
+                    float normY = distY / distance;
+
+                    // Push strength inversely proportional to distance (closer = stronger push)
+                    float pushStrength = (SEPARATION_RADIUS - distance) / SEPARATION_RADIUS;
+                    separationX += normX * pushStrength * SEPARATION_FORCE * delta;
+                    separationY += normY * pushStrength * SEPARATION_FORCE * delta;
                 }
             }
 
-            // Move Y SECOND
-            if (moveY != 0) {
-                float newY = y + moveY;
-                float hitboxX = x + offsetX;
-                float hitboxY = newY + offsetY;
+            // Apply separation force (with wall collision check)
+            if (separationX != 0 || separationY != 0) {
+                float newX = x + separationX;
+                float newY = y + separationY;
 
-                boolean collY = collisionChecker.checkCollision(hitboxX, hitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT);
-                if (!collY) {
-                    y = newY;
-                } else {
-                    // Collision detected - try moving in smaller steps to get closer to wall
-                    float stepSize = Math.abs(moveY) / 4f;
-                    float stepY = (moveY > 0) ? stepSize : -stepSize;
-                    float testY = y;
-                    for (int i = 0; i < 4; i++) {
-                        float testWorldY = testY + stepY;
-                        float testHitboxY = testWorldY + offsetY;
-                        if (!collisionChecker.checkCollision(hitboxX, testHitboxY, (float)HITBOX_WIDTH, (float)HITBOX_HEIGHT)) {
-                            testY = testWorldY;
-                        } else {
-                            break;  //  Stop when hitting wall
-                        }
+                // Check wall collision for separation X
+                if (separationX != 0) {
+                    float hitboxWorldX = newX + offsetX;
+                    float hitboxWorldY = y + offsetY;
+                    if (!collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, HITBOX_WIDTH - EPSILON, HITBOX_HEIGHT - EPSILON)) {
+                        x = newX;
                     }
-                    y = testY;
+                }
+
+                // Check wall collision for separation Y
+                if (separationY != 0) {
+                    float hitboxWorldX = x + offsetX;
+                    float hitboxWorldY = newY + offsetY;
+                    if (!collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, HITBOX_WIDTH - EPSILON, HITBOX_HEIGHT - EPSILON)) {
+                        y = newY;
+                    }
                 }
             }
         }
 
-        // Update hitbox position (centered in sprite)
-        float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
-        float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
-        hitBox.x = (int) (x + offsetX);
-        hitBox.y = (int) (y + offsetY);
+        // Update hitboxes after movement
+        wallHitBox.x = (int)(x + WALL_OFFSET_X);
+        wallHitBox.y = (int)(y + WALL_OFFSET_Y);
+        damageHitBox.x = (int)(x + DAMAGE_OFFSET_X);
+        damageHitBox.y = (int)(y + DAMAGE_OFFSET_Y);
     }
 
+    // Track previous animation to detect state changes
+    private String previousAnimation = "zombie_run";
+
     private void updateAnimationState(float delta) {
+        previousAnimation = currentAnimation;
+
         if (isDying) {
             currentAnimation = "zombie_death";
-            // Track death animation timer
             deathAnimationTimer += delta;
 
-            if (GameApp.hasAnimation("zombie_death") && GameApp.isAnimationFinished("zombie_death")) {
+            // Reset animation when first entering death state
+            if (!previousAnimation.equals("zombie_death") && GameApp.hasAnimation("zombie_death")) {
+                GameApp.resetAnimation("zombie_death");
             }
         } else if (hitAnimationTimer > 0f) {
-            // Show hit animation
             currentAnimation = "zombie_hit";
             hitAnimationTimer -= delta;
-            // Reset hit animation when timer ends
-            if (hitAnimationTimer <= 0f) {
-                hitAnimationTimer = 0f;
+
+            // Reset animation when first entering hit state
+            if (!previousAnimation.equals("zombie_hit") && GameApp.hasAnimation("zombie_hit")) {
                 GameApp.resetAnimation("zombie_hit");
             }
+
+            if (hitAnimationTimer <= 0f) {
+                hitAnimationTimer = 0f;
+            }
         } else {
-            // run animation by default
             currentAnimation = "zombie_run";
         }
     }
 
     public void render() {
-        if (isDying && !deathAnimationStarted && GameApp.hasAnimation("zombie_death")) {
-            GameApp.resetAnimation("zombie_death");
-            deathAnimationStarted = true;
-        }
         if (GameApp.hasAnimation(currentAnimation)) {
             GameApp.drawAnimation(currentAnimation, x, y, SPRITE_SIZE, SPRITE_SIZE);
         } else {
-            // Fallback to static texture
             GameApp.drawTexture("enemy", x, y, SPRITE_SIZE, SPRITE_SIZE);
         }
     }
 
+    public String getCurrentAnimation() {
+        return currentAnimation;
+    }
+
+    // Wall HitBox getter (for wall collision and bullets)
     public Rectangle getHitBox() {
-        return hitBox;
+        return wallHitBox;
+    }
+
+    // Damage HitBox getter (for player interaction)
+    public Rectangle getDamageHitBox() {
+        return damageHitBox;
     }
 
     public void takeDamage(int amount) {
@@ -191,14 +281,12 @@ public class Enemy {
         // Trigger hit animation
         if (!isDying && health > 0) {
             hitAnimationTimer = HIT_ANIMATION_DURATION;
-            GameApp.resetAnimation("zombie_hit");
         }
 
         // Trigger death animation if health drops to 0
         if (health <= 0 && !isDying) {
             isDying = true;
-            deathAnimationTimer = 0f; // Reset timer
-            deathAnimationStarted = false;
+            deathAnimationTimer = 0f;
         }
     }
 
@@ -211,36 +299,40 @@ public class Enemy {
     }
 
     public boolean isDeathAnimationFinished() {
-
         if (!isDying) {
             return false;
         }
 
+        // Check by timer (ensure animation has played long enough)
         if (deathAnimationTimer >= DEATH_ANIMATION_DURATION) {
             return true;
         }
 
+        // Check by GameApp API (if animation is finished)
         if (GameApp.hasAnimation("zombie_death") && GameApp.isAnimationFinished("zombie_death")) {
-
             return deathAnimationTimer >= 0.3f;
         }
 
         return false;
     }
 
-    public float getX() { return x; }
-    public float getY() { return y; }
+    public float getX() {
+        return x;
+    }
+    public float getY() {
+        return y;
+    }
 
     public void setPosition(float newX, float newY) {
         this.x = newX;
         this.y = newY;
-        // Update hitbox position
-        int offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
-        int offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
-        hitBox.x = (int) (x + offsetX);
-        hitBox.y = (int) (y + offsetY);
+        wallHitBox.x = (int) (x + WALL_OFFSET_X);
+        wallHitBox.y = (int) (y + WALL_OFFSET_Y);
+        damageHitBox.x = (int) (x + DAMAGE_OFFSET_X);
+        damageHitBox.y = (int) (y + DAMAGE_OFFSET_Y);
     }
 
     public float getWidth() { return SPRITE_SIZE; }
     public float getHeight() { return SPRITE_SIZE; }
+
 }
