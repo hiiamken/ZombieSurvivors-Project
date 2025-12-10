@@ -3,7 +3,7 @@
 > A Top-Down Survival Shooter Game inspired by Vampire Survivors
 
 <p align="center">
-  <img src="https://files.catbox.moe/rch77b.png" alt="Zombie Survivors Banner" width="800">
+  <img src="https://files.catbox.moe/e65vgj.png" alt="Zombie Survivors Banner" width="800">
 </p>
 
 <p align="center">
