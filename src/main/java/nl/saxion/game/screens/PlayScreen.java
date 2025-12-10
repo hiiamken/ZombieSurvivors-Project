@@ -5,7 +5,7 @@ import nl.saxion.game.core.GameState;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.Player;
-import nl.saxion.game.entities.PlayerStatus;
+import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.ui.HUD;

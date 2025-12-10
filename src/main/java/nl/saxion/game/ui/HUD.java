@@ -1,6 +1,6 @@
 package nl.saxion.game.ui;
 
-import nl.saxion.game.entities.PlayerStatus;
+import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.gameapp.GameApp;
 
 

@@ -1,4 +1,4 @@
-package nl.saxion.game.entities;
+package nl.saxion.game.core;
 
 import nl.saxion.gameapp.GameApp;
 
