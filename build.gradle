@@ -15,8 +15,10 @@ dependencies {
 }
 
 application {
+    // Main entry của game
     mainClass = 'nl.saxion.game.MainGame'
 
+    // JVM args (cần cho Mac để LibGDX/SaxionGame chạy đúng)
     applicationDefaultJvmArgs = []
     if (System.properties['os.name'].toLowerCase().contains('mac')) {
         applicationDefaultJvmArgs += "-XstartOnFirstThread"
@@ -28,6 +30,7 @@ jar {
         attributes 'Main-Class': application.mainClass
     }
 
+    // Include all dependencies inside this JAR (so LibGDX and SaxionGameApp are added)
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
@@ -75,4 +78,30 @@ pause
 // Make dist automatically generate the launch scripts
 tasks.named('dist') {
     dependsOn tasks.named('generateLaunchScripts')
+}
+
+// -------------------------
+// Create native EXE installer
+// -------------------------
+tasks.register('packageExe', Exec) {
+    group = 'distribution'
+    description = 'Creates a native Windows EXE installer using jpackage'
+    dependsOn jar
+
+    doFirst {
+        def jarFile = jar.archiveFile.get().asFile
+        def outputDir = file("${buildDir}/installer")
+        outputDir.mkdirs()
+
+        commandLine 'jpackage',
+                '--input', jarFile.parentFile.absolutePath,
+                '--main-jar', jarFile.name,
+                '--main-class', 'nl.saxion.game.MainGame',
+                '--name', 'ZombieSurvivors',
+                '--app-version', '1.0.0',
+                '--dest', outputDir.absolutePath,
+                '--type', 'exe',
+                '--win-shortcut',
+                '--win-menu'
+    }
 }

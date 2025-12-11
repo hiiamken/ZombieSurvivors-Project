@@ -13,10 +13,10 @@ public class ResourceLoader {
         GameApp.log("PlayScreen loaded");
 
         GameApp.addTexture("player", "assets/player/auraRambo.png");
-        GameApp.addTexture("bullet", "assets/Bullet/bullet.png");
+        GameApp.addTexture("bullet", "assets/Bullet/Bullet.png");
 
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_run.png", 32,32);
+        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32,32);
         GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
         GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
         GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
@@ -26,7 +26,7 @@ public class ResourceLoader {
         GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
         GameApp.addAnimationFromSpritesheet("zombie_death", "zombie_death1_sheet", 0.2f, false);
 
-        GameApp.addTexture("enemy", "assets/Bullet/bullet.png");
+        GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");
 
         // Load 16 individual map textures
         int loadedCount = 0;
