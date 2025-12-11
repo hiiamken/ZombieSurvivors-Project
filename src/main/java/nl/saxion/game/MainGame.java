@@ -4,8 +4,13 @@ import nl.saxion.game.screens.MainMenuScreen;
 import nl.saxion.game.screens.PlayScreen;
 import nl.saxion.game.screens.SettingsScreen;
 import nl.saxion.gameapp.GameApp;
+import nl.saxion.game.config.GameConfig;
+import nl.saxion.game.config.ConfigManager;
 
 public class MainGame {
+
+    public static GameConfig config;
+
     public static void main(String[] args) {
 
         // Register all game screens
@@ -18,6 +23,10 @@ public class MainGame {
 
         // Start game with main menu
 
+        config = ConfigManager.loadConfig();
+        GameApp.log("Loaded config. masterVolume = " + config.masterVolume);
+
+
         GameApp.start(
                 "Zombie Survivors",
                 1200, 800,
@@ -25,5 +34,10 @@ public class MainGame {
                 false,
                 "menu"
         );
+
     }
+    public static GameConfig getConfig() {
+        return config;
+    }
+
 }

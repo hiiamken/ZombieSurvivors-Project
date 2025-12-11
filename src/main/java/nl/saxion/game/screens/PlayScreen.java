@@ -1,5 +1,7 @@
 package nl.saxion.game.screens;
 
+
+import nl.saxion.game.MainGame;
 import nl.saxion.game.core.GameState;
 import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.game.entities.Bullet;
@@ -65,7 +67,7 @@ public class PlayScreen extends ScalableGameScreen {
         gameRenderer = new GameRenderer();
         gameStateManager = new GameStateManager();
 
-        input = new InputController();
+        input = new InputController(MainGame.getConfig());
         hud = new HUD();
 
         gameStateManager.setCurrentState(GameState.MENU);
