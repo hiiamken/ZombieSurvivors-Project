@@ -1,30 +1,38 @@
 package nl.saxion.game.systems;
 
+import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Input;
+import nl.saxion.game.config.GameConfig;
 import nl.saxion.gameapp.GameApp;
 
 public class InputController {
 
+    private GameConfig config;
+
+    public InputController(GameConfig config) {
+        this.config = config;
+    }
+
     // THUONG – movement input (Task 2)
     public boolean isMoveUp() {
-        return GameApp.isKeyPressed(Input.Keys.W);
+        return GameApp.isKeyPressed(config.keyMoveUp);
     }
 
     public boolean isMoveDown() {
-        return GameApp.isKeyPressed(Input.Keys.S);
+        return GameApp.isKeyPressed(config.keyMoveDown);
     }
 
     public boolean isMoveLeft() {
-        return GameApp.isKeyPressed(Input.Keys.A);
+        return GameApp.isKeyPressed(config.keyMoveLeft);
     }
 
     public boolean isMoveRight() {
-        return GameApp.isKeyPressed(Input.Keys.D);
+        return GameApp.isKeyPressed(config.keyMoveRight);
     }
 
     // THUONG – original shoot (just pressed once)
     public boolean isShoot() {
-        return GameApp.isKeyJustPressed(Input.Keys.SPACE);
+        return GameApp.isKeyJustPressed(config.keyShoot);
     }
 
     // ARNOLD (Task 6) – shoot HELD (for fire-rate weapon system)
