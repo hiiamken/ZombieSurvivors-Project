@@ -116,11 +116,13 @@ public class PlayScreen extends ScalableGameScreen {
         playerWorldY = player.getY();
         gameRenderer.setPlayerWorldPosition(playerWorldX, playerWorldY);
 
-        // Update weapon and shooting
+        // Update weapon and shooting (only if player is alive)
         weapon.update(delta);
-        Bullet newBullet = weapon.tryFire(player);
-        if (newBullet != null) {
-            bullets.add(newBullet);
+        if (!player.isDying()) {
+            Bullet newBullet = weapon.tryFire(player);
+            if (newBullet != null) {
+                bullets.add(newBullet);
+            }
         }
 
         // Update bullets
@@ -146,6 +148,13 @@ public class PlayScreen extends ScalableGameScreen {
             e.update(delta, player.getX(), player.getY(), collisionChecker, enemies);
         }
 
+        // Update player animations
+        GameApp.updateAnimation("player_idle");
+        GameApp.updateAnimation("player_run_left");
+        GameApp.updateAnimation("player_run_right");
+        GameApp.updateAnimation("player_hit");
+        GameApp.updateAnimation("player_death");
+
         // Update zombie animations
         GameApp.updateAnimation("zombie_idle");
         GameApp.updateAnimation("zombie_run");
@@ -164,11 +173,14 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler.removeDeadEnemies(enemies);
         collisionHandler.removeDestroyedBullets(bullets);
 
-        // Player death check
-        if (player.isDead()) {
-            GameApp.log("Player died!");
-            gameStateManager.setCurrentState(GameState.GAME_OVER);
-            gameStateManager.setScore(score);
+        // Player death check - wait for death animation to finish
+        if (player.isDying()) {
+            // Only transition to game over after death animation completes
+            if (player.isDeathAnimationFinished()) {
+                GameApp.log("Death animation finished - showing game over");
+                gameStateManager.setCurrentState(GameState.GAME_OVER);
+                gameStateManager.setScore(score);
+            }
         }
 
         // ----- RENDER -----
@@ -268,6 +280,9 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Set player position
         player.setPosition(playerWorldX, playerWorldY);
+
+        // Pass player reference to renderer
+        gameRenderer.setPlayer(player);
 
         // Reset enemies - spawn a few around the player
         enemies.clear();

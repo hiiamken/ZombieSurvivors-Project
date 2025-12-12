@@ -11,10 +11,15 @@ import java.util.List;
 public class GameRenderer {
     private float playerWorldX;
     private float playerWorldY;
+    private Player player;
 
     public void setPlayerWorldPosition(float x, float y) {
         playerWorldX = x;
         playerWorldY = y;
+    }
+
+    public void setPlayer(Player player) {
+        this.player = player;
     }
 
     public void renderPlayer() {
@@ -25,7 +30,10 @@ public class GameRenderer {
         float playerScreenX = worldW / 2f;
         float playerScreenY = worldH / 2f;
 
-        GameApp.drawTexture("player",
+        // Get current animation from player state
+        String animKey = (player != null) ? player.getCurrentAnimation() : "player_idle";
+
+        GameApp.drawAnimation(animKey,
                 playerScreenX - Player.SPRITE_SIZE / 2f,
                 playerScreenY - Player.SPRITE_SIZE / 2f,
                 Player.SPRITE_SIZE,

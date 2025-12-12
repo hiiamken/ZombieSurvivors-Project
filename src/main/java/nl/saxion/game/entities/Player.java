@@ -8,6 +8,11 @@ import java.awt.Image;
 import java.awt.Rectangle;
 
 public class Player {
+    // Animation states
+    public enum AnimationState {
+        IDLE, RUNNING_LEFT, RUNNING_RIGHT, HIT, DEAD
+    }
+
     // Position - WORLD COORDINATES
     private float worldX;
     private float worldY;
@@ -19,8 +24,14 @@ public class Player {
     private int health;
     private int maxHealth;
 
-    // Sprite
-    private Image sprite;
+    // Animation
+    private AnimationState animationState = AnimationState.IDLE;
+    private float hitAnimationTimer = 0f;
+    private boolean facingRight = true;
+    private static final float HIT_ANIMATION_DURATION = 0.3f;
+
+    // Death state
+    private boolean isDying = false;
 
     public static final int SPRITE_SIZE = 24;
     // Wall hitbox (small, for wall collision)
@@ -55,22 +66,29 @@ public class Player {
         this.maxHealth = maxHealth;
         this.health = maxHealth;
 
-        this.sprite = sprite;
-
         // Wall hitbox: smaller than sprite, centered (world coordinates)
         int wallOffsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
         int wallOffsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
         wallHitbox = new Rectangle((int) (worldX + wallOffsetX), (int) (worldY + wallOffsetY), HITBOX_WIDTH, HITBOX_HEIGHT);
 
         // Damage hitbox: larger to cover body and head
-        // Adjusted left (-12) and down (-12)
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2 - 12;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2 - 12;
+        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
+        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
         damageHitbox = new Rectangle((int) (worldX + damageOffsetX), (int) (worldY + damageOffsetY), DAMAGE_HITBOX_WIDTH, DAMAGE_HITBOX_HEIGHT);
     }
 
     // Movement update
     public void update(float delta, InputController input, int worldWidth, int worldHeight, CollisionChecker collisionChecker) {
+        // Don't update movement if dying - just update animation state
+        if (isDying) {
+            animationState = AnimationState.DEAD;
+            return;
+        }
+
+        // Update hit animation timer
+        if (hitAnimationTimer > 0) {
+            hitAnimationTimer -= delta;
+        }
 
         float dirX = 0f;
         float dirY = 0f;
@@ -202,10 +220,43 @@ public class Player {
         wallHitbox.y = (int) (worldY + offsetY);
 
         // Update damage hitbox position (larger, covers body and head)
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2 - 12;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2 - 12;
+        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
+        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
         damageHitbox.x = (int) (worldX + damageOffsetX);
         damageHitbox.y = (int) (worldY + damageOffsetY);
+
+        // Update animation state
+        updateAnimationState(dirX, dirY);
+    }
+
+    // Determine which animation to play based on state
+    private void updateAnimationState(float dirX, float dirY) {
+        // Dead state has highest priority
+        if (isDead()) {
+            animationState = AnimationState.DEAD;
+            return;
+        }
+
+        // Hit animation plays while timer is active
+        if (hitAnimationTimer > 0) {
+            animationState = AnimationState.HIT;
+            return;
+        }
+
+        // Track facing direction
+        if (dirX < 0) {
+            facingRight = false;
+        } else if (dirX > 0) {
+            facingRight = true;
+        }
+
+        // Running or idle based on movement
+        boolean isMoving = (dirX != 0 || dirY != 0);
+        if (isMoving) {
+            animationState = facingRight ? AnimationState.RUNNING_RIGHT : AnimationState.RUNNING_LEFT;
+        } else {
+            animationState = AnimationState.IDLE;
+        }
     }
 
     public float getX() {
@@ -226,8 +277,8 @@ public class Player {
         wallHitbox.y = (int) (worldY + wallOffsetY);
 
         // Update damage hitbox position
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2 - 12;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2 - 12;
+        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
+        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
         damageHitbox.x = (int) (worldX + damageOffsetX);
         damageHitbox.y = (int) (worldY + damageOffsetY);
     }
@@ -252,9 +303,23 @@ public class Player {
     // --- HEALTH SYSTEM ---
 
     public void takeDamage(int amount) {
+        // Don't take damage if already dying
+        if (isDying) return;
+
         health -= amount;
         health = (int) GameApp.clamp(health, 0, maxHealth);
-        System.out.println("Player took " + amount + " damage. HP: " + health + "/" + maxHealth);
+
+        if (health <= 0) {
+            // Start death sequence
+            isDying = true;
+            GameApp.resetAnimation("player_death");
+            System.out.println("Player died! Starting death animation...");
+        } else {
+            // Trigger hit animation and reset to first frame
+            hitAnimationTimer = HIT_ANIMATION_DURATION;
+            GameApp.resetAnimation("player_hit");
+            System.out.println("Player took " + amount + " damage. HP: " + health + "/" + maxHealth);
+        }
     }
 
     public void heal(int amount) {
@@ -265,6 +330,38 @@ public class Player {
 
     public boolean isDead() {
         return health <= 0;
+    }
+
+    // Check if player is in dying state (health <= 0)
+    public boolean isDying() {
+        return isDying;
+    }
+
+    // Check if death animation has finished playing
+    public boolean isDeathAnimationFinished() {
+        if (!isDying) return false;
+        return GameApp.isAnimationFinished("player_death");
+    }
+
+    // Get current animation key for rendering
+    public String getCurrentAnimation() {
+        switch (animationState) {
+            case DEAD:
+                return "player_death";
+            case HIT:
+                return "player_hit";
+            case RUNNING_LEFT:
+                return "player_run_left";
+            case RUNNING_RIGHT:
+                return "player_run_right";
+            case IDLE:
+            default:
+                return "player_idle";
+        }
+    }
+
+    public AnimationState getAnimationState() {
+        return animationState;
     }
 
     // Wall HitBox getter (for wall collision)
@@ -278,9 +375,10 @@ public class Player {
     }
 
 
-    // Render
+    // Render (now uses animations)
     public void render() {
-        GameApp.drawTexture("player", worldX, worldY, SPRITE_SIZE, SPRITE_SIZE);
+        String animKey = getCurrentAnimation();
+        GameApp.drawAnimation(animKey, worldX, worldY, SPRITE_SIZE, SPRITE_SIZE);
     }
 
     // Helper: Binary search X to find closest safe position
