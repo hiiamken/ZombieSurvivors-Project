@@ -64,8 +64,11 @@ public class GameRenderer {
             // Get the current animation from enemy (handles hit/death/run states)
             String animationKey = enemy.getCurrentAnimation();
 
+            // Flip sprite based on facing direction (flip when facing left)
+            boolean flipX = !enemy.isFacingRight();
+
             if (GameApp.hasAnimation(animationKey)) {
-                GameApp.drawAnimation(animationKey, screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
+                GameApp.drawAnimation(animationKey, screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE, 0, flipX, false);
             } else {
                 // Fallback to static texture
                 GameApp.drawTexture("enemy", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
