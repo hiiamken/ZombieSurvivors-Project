@@ -12,15 +12,30 @@ public class ResourceLoader {
     public void loadGameResources() {
         GameApp.log("PlayScreen loaded");
 
-        GameApp.addTexture("player", "assets/player/auraRambo.png");
         GameApp.addTexture("bullet", "assets/Bullet/Bullet.png");
 
+        // Load player sprite sheets (32x32 frames)
+        GameApp.addSpriteSheet("player_idle_sheet", "assets/player/Rambo_Idle.png", 32, 32);
+        GameApp.addSpriteSheet("player_run_left_sheet", "assets/player/Rambo_Run(Left).png", 32, 32);
+        GameApp.addSpriteSheet("player_run_right_sheet", "assets/player/Rambo_Run(Right).png", 32, 32);
+        GameApp.addSpriteSheet("player_death_sheet", "assets/player/Rambo_Death.png", 32, 32);
+        GameApp.addSpriteSheet("player_hit_sheet", "assets/player/Player_Hit.png", 32, 32);
+
+        // Create player animations
+        GameApp.addAnimationFromSpritesheet("player_idle", "player_idle_sheet", 0.15f, true);
+        GameApp.addAnimationFromSpritesheet("player_run_left", "player_run_left_sheet", 0.1f, true);
+        GameApp.addAnimationFromSpritesheet("player_run_right", "player_run_right_sheet", 0.1f, true);
+        GameApp.addAnimationFromSpritesheet("player_death", "player_death_sheet", 0.2f, false);
+        GameApp.addAnimationFromSpritesheet("player_hit", "player_hit_sheet", 0.1f, false);
+
+        // Load zombie sprite sheets
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
         GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32,32);
         GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
         GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
         GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
 
+        // Create zombie animations
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
         GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
@@ -68,10 +83,23 @@ public class ResourceLoader {
 
     public void disposeGameResources() {
         GameApp.log("PlayScreen hidden");
-        GameApp.disposeTexture("player");
         GameApp.disposeTexture("bullet");
         GameApp.disposeTexture("enemy");
 
+        // Dispose player animations
+        GameApp.disposeAnimation("player_idle");
+        GameApp.disposeAnimation("player_run_left");
+        GameApp.disposeAnimation("player_run_right");
+        GameApp.disposeAnimation("player_death");
+        GameApp.disposeAnimation("player_hit");
+
+        GameApp.disposeSpritesheet("player_idle_sheet");
+        GameApp.disposeSpritesheet("player_run_left_sheet");
+        GameApp.disposeSpritesheet("player_run_right_sheet");
+        GameApp.disposeSpritesheet("player_death_sheet");
+        GameApp.disposeSpritesheet("player_hit_sheet");
+
+        // Dispose zombie animations
         GameApp.disposeAnimation("zombie_idle");
         GameApp.disposeAnimation("zombie_run");
         GameApp.disposeAnimation("zombie_hit");
