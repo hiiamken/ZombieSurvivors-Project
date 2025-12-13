@@ -360,6 +360,11 @@ public class Player {
         }
     }
 
+    // Get facing direction for sprite flipping
+    public boolean isFacingRight() {
+        return facingRight;
+    }
+
     public AnimationState getAnimationState() {
         return animationState;
     }

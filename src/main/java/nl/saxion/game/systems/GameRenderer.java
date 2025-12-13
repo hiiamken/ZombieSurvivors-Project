@@ -33,11 +33,21 @@ public class GameRenderer {
         // Get current animation from player state
         String animKey = (player != null) ? player.getCurrentAnimation() : "player_idle";
 
+        // Flip idle animation based on last facing direction
+        // player_idle default faces right, so flip when facing left
+        boolean flipX = false;
+        if (player != null && animKey.equals("player_idle")) {
+            flipX = !player.isFacingRight();
+        }
+
         GameApp.drawAnimation(animKey,
                 playerScreenX - Player.SPRITE_SIZE / 2f,
                 playerScreenY - Player.SPRITE_SIZE / 2f,
                 Player.SPRITE_SIZE,
-                Player.SPRITE_SIZE
+                Player.SPRITE_SIZE,
+                0,
+                flipX,
+                false
         );
     }
 
@@ -64,8 +74,11 @@ public class GameRenderer {
             // Get the current animation from enemy (handles hit/death/run states)
             String animationKey = enemy.getCurrentAnimation();
 
+            // Flip sprite based on facing direction (flip when facing left)
+            boolean flipX = !enemy.isFacingRight();
+
             if (GameApp.hasAnimation(animationKey)) {
-                GameApp.drawAnimation(animationKey, screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);
+                GameApp.drawAnimation(animationKey, screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE, 0, flipX, false);
             } else {
                 // Fallback to static texture
                 GameApp.drawTexture("enemy", screenX, screenY, Enemy.SPRITE_SIZE, Enemy.SPRITE_SIZE);

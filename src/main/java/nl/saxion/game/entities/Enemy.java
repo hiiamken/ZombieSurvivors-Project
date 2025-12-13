@@ -51,6 +51,9 @@ public class Enemy {
     private static final float HIT_ANIMATION_DURATION = 0.3f;
     private static final float DEATH_ANIMATION_DURATION = 1.5f;
 
+    // Facing direction: true = facing right, false = facing left
+    private boolean facingRight = true;
+
     // Wall hitbox: for wall collision
     private Rectangle wallHitBox;
     // Damage hitbox: for player interaction
@@ -94,6 +97,16 @@ public class Enemy {
             dirX /= dist;
             dirY /= dist;
         }
+
+        // Update facing direction based on movement
+        // Update direction whenever there's horizontal movement
+        if (dirX < 0) {
+            facingRight = true;
+
+        } else if (dirX > 0) {
+            facingRight = false;
+        }
+        // Keep current direction if dirX == 0 (moving purely vertical)
 
         float dx = dirX * speed * delta;
         float dy = dirY * speed * delta;
@@ -334,5 +347,10 @@ public class Enemy {
 
     public float getWidth() { return SPRITE_SIZE; }
     public float getHeight() { return SPRITE_SIZE; }
+
+    // Get facing direction for sprite flipping
+    public boolean isFacingRight() {
+        return facingRight;
+    }
 
 }
