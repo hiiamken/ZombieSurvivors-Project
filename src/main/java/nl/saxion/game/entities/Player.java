@@ -38,8 +38,8 @@ public class Player {
     public static final int HITBOX_WIDTH = 8;
     public static final int HITBOX_HEIGHT = 8;
     // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 18;
-    public static final int DAMAGE_HITBOX_HEIGHT = 20;
+    public static final int DAMAGE_HITBOX_WIDTH = 12;
+    public static final int DAMAGE_HITBOX_HEIGHT = 14;
 
     private float targetShootDirX = 0f;
     private float targetShootDirY = -1f;

@@ -23,16 +23,16 @@ public class Enemy {
     public static final int HITBOX_WIDTH = 8;
     public static final int HITBOX_HEIGHT = 8;
     // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 18;
-    public static final int DAMAGE_HITBOX_HEIGHT = 20;
+    public static final int DAMAGE_HITBOX_WIDTH = 12;
+    public static final int DAMAGE_HITBOX_HEIGHT = 14;
 
     // Wall hitbox offset: adjusted to match sprite position
     private static final float WALL_OFFSET_X = 20f;
     private static final float WALL_OFFSET_Y = 16f;
 
     // Damage hitbox offset: centered to cover sprite
-    private static final float DAMAGE_OFFSET_X = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f + 3f;
-    private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f - 1f;
+    private static final float DAMAGE_OFFSET_X = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f;
+    private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f;
 
     // Collision constants (for smooth movement near walls)
     private static final float EPSILON = 2.0f;
