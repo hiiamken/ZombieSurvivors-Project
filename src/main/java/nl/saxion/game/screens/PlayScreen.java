@@ -166,7 +166,9 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Collision detection
         collisionHandler.update(delta);
-        collisionHandler.handleBulletEnemyCollisions(bullets, enemies, this::addScore);
+        // Pass wall collision checker to prevent bullets hitting enemies through walls
+        CollisionChecker wallChecker = mapRenderer::checkWallCollision;
+        collisionHandler.handleBulletEnemyCollisions(bullets, enemies, this::addScore, wallChecker);
         collisionHandler.handleEnemyPlayerCollisions(player, enemies);
 
         // Cleanup

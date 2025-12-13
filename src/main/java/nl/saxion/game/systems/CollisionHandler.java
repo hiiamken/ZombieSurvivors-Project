@@ -3,6 +3,7 @@ package nl.saxion.game.systems;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.Player;
+import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.gameapp.GameApp;
 
 import java.awt.*;
@@ -24,7 +25,7 @@ public class CollisionHandler {
         }
     }
 
-    public void handleBulletEnemyCollisions(List<Bullet> bullets, List<Enemy> enemies, java.util.function.Consumer<Integer> onEnemyKilled) {
+    public void handleBulletEnemyCollisions(List<Bullet> bullets, List<Enemy> enemies, java.util.function.Consumer<Integer> onEnemyKilled, CollisionChecker wallCollisionChecker) {
         for (Bullet b : bullets) {
             if (b.isDestroyed()) {
                 continue;
@@ -35,13 +36,19 @@ public class CollisionHandler {
             float bW = b.getWidth();
             float bH = b.getHeight();
 
+            // Check wall collision first - bullet can't hit enemy through wall
+            if (wallCollisionChecker != null && wallCollisionChecker.checkCollision(bX, bY, bW, bH)) {
+                b.destroy();
+                continue;
+            }
+
             for (Enemy e : enemies) {
                 // Skip enemies that are dead or already dying
                 if (e.isDead() || e.isDying()) {
                     continue;
                 }
 
-                // Use DAMAGE hitbox (larger, covers body) for bullet collision
+                // Use DAMAGE hitbox for bullet collision
                 Rectangle enemyDamageHitbox = e.getDamageHitBox();
                 float eX = enemyDamageHitbox.x;
                 float eY = enemyDamageHitbox.y;
