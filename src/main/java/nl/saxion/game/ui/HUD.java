@@ -3,58 +3,41 @@ package nl.saxion.game.ui;
 import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.gameapp.GameApp;
 
-
 public class HUD {
 
-    int HP_BAR_X = 20;
-    int HP_BAR_Y = 20;
+    public void render(PlayerStatus s) {
 
-    int SCORE_X = 20;
-    int SCORE_Y = 60;
+        // ---- TEXT (PlayScreen already started sprite rendering) ----
+        GameApp.drawText("default",
+                "HP: " + s.health + "/" + s.maxHealth,
+                20, 20, "white");
 
-    String TEXT_COLOR = "white";
+        GameApp.drawText("default",
+                "LVL " + s.level,
+                20, 45, "white");
 
-    float HP_LOW_THRESHOLD = 0.3f;   // Below 30% = use different character
-    float HP_MEDIUM_THRESHOLD = 0.6f; // Below 60% = use different character
+        GameApp.drawText("default",
+                "Score: " + s.score,
+                20, 70, "white");
 
-    public void render(PlayerStatus status) {
-        renderHPBar(status);
-        renderScore(status);
+
+        // ---- XP BAR (shapes must be inside shape rendering begin/end) ----
+        float barX = 20f;
+        float barY = 95f;
+        float barW = 200f;
+        float barH = 10f;
+
+        float pct = s.getXPPercentage();
+        float fillW = barW * pct;
+
+        // background + fill
+        GameApp.endSpriteRendering();              // close sprite batch BEFORE shapes
+        GameApp.startShapeRenderingFilled();
+
+        GameApp.drawRect(barX, barY, barW, barH, "gray");
+        GameApp.drawRect(barX, barY, fillW, barH, "green");
+
+        GameApp.endShapeRendering();
+        GameApp.startSpriteRendering();            // reopen sprite batch after shapes
     }
-
-    private void renderHPBar(PlayerStatus status) {
-
-        float hpPercent = status.getHealthPercentage();
-
-
-        int barLength = (int) (20 * hpPercent); // 20 characters max
-        StringBuilder barBuilder = new StringBuilder();
-        for (int i = 0; i < 20; i++) {
-            if (i < barLength) {
-
-                if (hpPercent <= HP_LOW_THRESHOLD) {
-                    barBuilder.append("▒"); // Low HP - medium block
-                } else if (hpPercent <= HP_MEDIUM_THRESHOLD) {
-                    barBuilder.append("▓"); // Medium HP - dark block
-                } else {
-                    barBuilder.append("█"); // Full HP - full block
-                }
-            } else {
-                barBuilder.append("░"); // Empty - light block
-            }
-        }
-        String barVisual = barBuilder.toString();
-
-        GameApp.drawText("default", barVisual, HP_BAR_X, HP_BAR_Y, TEXT_COLOR);
-
-        String hpText = String.format("HP: %d / %d", status.health, status.maxHealth);
-        GameApp.drawText("default", hpText, HP_BAR_X, HP_BAR_Y + 25, TEXT_COLOR);
-    }
-
-    void renderScore(PlayerStatus status) {
-        String scoreText = "Score: " + status.score;
-        GameApp.drawText("default", scoreText, SCORE_X, SCORE_Y, TEXT_COLOR);
-    }
-
 }
-

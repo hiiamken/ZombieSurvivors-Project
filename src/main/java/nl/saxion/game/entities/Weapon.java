@@ -1,5 +1,7 @@
 package nl.saxion.game.entities;
 
+import nl.saxion.gameapp.GameApp;
+
 public class Weapon {
 
     public enum WeaponType {
@@ -29,11 +31,15 @@ public class Weapon {
                   float bulletWidth,
                   float bulletHeight) {
         this.type = type;
-        this.fireRate = fireRate;
-        this.damage = damage;
-        this.bulletSpeed = bulletSpeed;
-        this.bulletWidth = bulletWidth;
-        this.bulletHeight = bulletHeight;
+
+        // safety clamps
+        this.fireRate = Math.max(0.1f, fireRate);
+        this.damage = Math.max(1, damage);
+
+        this.bulletSpeed = Math.max(50f, bulletSpeed);
+        this.bulletWidth = Math.max(2f, bulletWidth);
+        this.bulletHeight = Math.max(2f, bulletHeight);
+
         this.fireCooldown = 0f;
     }
 
@@ -41,6 +47,7 @@ public class Weapon {
     public void update(float delta) {
         if (fireCooldown > 0f) {
             fireCooldown -= delta;
+            if (fireCooldown < 0f) fireCooldown = 0f;
         }
     }
 
@@ -49,8 +56,9 @@ public class Weapon {
     }
 
     private void startCooldown() {
-        fireCooldown = 1f / fireRate;
+        fireCooldown = 1f / Math.max(0.1f, fireRate);
     }
+
     public Bullet tryFire(Player player) {
         if (!canFire()) {
             return null;
@@ -94,6 +102,35 @@ public class Weapon {
         return bullet;
     }
 
+    // =========================
+    // Upgrades support (used by Player level-up)
+    // =========================
+
+    public void addDamage(int amount) {
+        if (amount <= 0) return;
+        damage += amount;
+        damage = Math.max(1, damage);
+    }
+
+    public void multiplyFireRate(float multiplier) {
+        if (multiplier <= 0f) return;
+        fireRate *= multiplier;
+        fireRate = GameApp.clamp(fireRate, 0.1f, 50f);
+
+        // optional: prevent weird negative cooldown when upgrading mid-cooldown
+        fireCooldown = GameApp.clamp(fireCooldown, 0f, 10f);
+    }
+
+    public void multiplyBulletSpeed(float multiplier) {
+        if (multiplier <= 0f) return;
+        bulletSpeed *= multiplier;
+        bulletSpeed = GameApp.clamp(bulletSpeed, 50f, 2000f);
+    }
+
+    // =========================
+    // Getters
+    // =========================
+
     public int getDamage() {
         return damage;
     }
@@ -104,5 +141,17 @@ public class Weapon {
 
     public WeaponType getType() {
         return type;
+    }
+
+    public float getBulletSpeed() {
+        return bulletSpeed;
+    }
+
+    public float getBulletWidth() {
+        return bulletWidth;
+    }
+
+    public float getBulletHeight() {
+        return bulletHeight;
     }
 }

@@ -1,4 +1,4 @@
-package nl.saxion.game.systems;
+package assets.xp;
 
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;

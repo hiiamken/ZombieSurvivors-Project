@@ -3,6 +3,7 @@ package nl.saxion.game.systems;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.Player;
+import nl.saxion.game.entities.XPOrb;
 import nl.saxion.gameapp.GameApp;
 
 import java.util.List;
@@ -46,6 +47,15 @@ public class GameRenderer {
             renderEnemy(e);
         }
     }
+
+    public void renderXPOrbs(List<XPOrb> xpOrbs) {
+        for (XPOrb orb : xpOrbs) {
+            float sx = GameApp.getWorldWidth() / 2f + (orb.getX() - playerWorldX);
+            float sy = GameApp.getWorldHeight() / 2f + (orb.getY() - playerWorldY);
+            orb.render(sx, sy);
+        }
+    }
+
 
     private void renderEnemy(Enemy enemy) {
         float worldW = GameApp.getWorldWidth();

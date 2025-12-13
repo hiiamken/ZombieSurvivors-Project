@@ -1,466 +1,254 @@
 package nl.saxion.game.entities;
 
-
-import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.utils.CollisionChecker;
-import java.awt.Image;
+import nl.saxion.gameapp.GameApp;
+
 import java.awt.Rectangle;
 
 public class Player {
-    // Animation states
-    public enum AnimationState {
-        IDLE, RUNNING_LEFT, RUNNING_RIGHT, HIT, DEAD
-    }
-
-    // Position - WORLD COORDINATES
-    private float worldX;
-    private float worldY;
-
-    // Speed
-    private float speed;
-
-    // Health
-    private int health;
-    private int maxHealth;
-
-    // Animation
-    private AnimationState animationState = AnimationState.IDLE;
-    private float hitAnimationTimer = 0f;
-    private boolean facingRight = true;
-    private static final float HIT_ANIMATION_DURATION = 0.3f;
-
-    // Death state
-    private boolean isDying = false;
 
     public static final int SPRITE_SIZE = 24;
-    // Wall hitbox (small, for wall collision)
-    public static final int HITBOX_WIDTH = 8;
-    public static final int HITBOX_HEIGHT = 8;
-    // Damage hitbox (larger, covers body and head for player-enemy collision)
     public static final int DAMAGE_HITBOX_WIDTH = 18;
     public static final int DAMAGE_HITBOX_HEIGHT = 20;
 
-    private float targetShootDirX = 0f;
-    private float targetShootDirY = -1f;
-    private float smoothShootDirX = 0f;
-    private float smoothShootDirY = -1f;
+    private float x, y;
+    private float speed;
 
-    static final float SHOOT_DIRECTION_SMOOTHING = 12f;
+    private int health;
+    private int maxHealth;
 
-    // Corner Correction constants
-    private static final float CORNER_CHECK_DIST = 6.0f;  // Distance to check for gaps beside wall
-    private static final float NUDGE_SPEED = 60.0f;       // Speed to auto-slide around corners
+    // XP SYSTEM
+    private int level = 1;
+    private int xp = 0;
+    private int xpToNext = 20;
 
-    // HitBox (world coordinates)
-    // wallHitbox: for wall collision
-    private Rectangle wallHitbox;
-    // damageHitbox: for enemy interaction
-    private Rectangle damageHitbox;
+    // Level-up state
+    private boolean levelUpPending = false;
+    private Upgrade[] currentChoices = null;
 
-    public Player(float startWorldX, float startWorldY, float speed, int maxHealth, Image sprite) {
-        this.worldX = startWorldX;
-        this.worldY = startWorldY;
+    private Rectangle damageHitBox;
+
+    private String currentAnimation = "player_idle";
+    private boolean dying = false;
+    private float deathTimer = 0f;
+
+    private float lastMoveX = 0;
+    private float lastMoveY = 1;
+
+    public Player(float x, float y, float speed, int maxHealth, Object unused) {
+        this.x = x;
+        this.y = y;
         this.speed = speed;
 
-        this.maxHealth = maxHealth;
-        this.health = maxHealth;
+        this.maxHealth = Math.max(1, maxHealth);
+        this.health = this.maxHealth;
 
-        // Wall hitbox: smaller than sprite, centered (world coordinates)
-        int wallOffsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
-        int wallOffsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
-        wallHitbox = new Rectangle((int) (worldX + wallOffsetX), (int) (worldY + wallOffsetY), HITBOX_WIDTH, HITBOX_HEIGHT);
-
-        // Damage hitbox: larger to cover body and head
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
-        damageHitbox = new Rectangle((int) (worldX + damageOffsetX), (int) (worldY + damageOffsetY), DAMAGE_HITBOX_WIDTH, DAMAGE_HITBOX_HEIGHT);
+        damageHitBox = new Rectangle(
+                (int) x,
+                (int) y,
+                DAMAGE_HITBOX_WIDTH,
+                DAMAGE_HITBOX_HEIGHT
+        );
     }
 
-    // Movement update
-    public void update(float delta, InputController input, int worldWidth, int worldHeight, CollisionChecker collisionChecker) {
-        // Don't update movement if dying - just update animation state
-        if (isDying) {
-            animationState = AnimationState.DEAD;
+    public void update(float delta, InputController input, int w, int h, CollisionChecker checker) {
+        if (dying) {
+            deathTimer += delta;
             return;
         }
 
-        // Update hit animation timer
-        if (hitAnimationTimer > 0) {
-            hitAnimationTimer -= delta;
+        // If level-up is pending, we usually PAUSE movement in PlayScreen.
+        // But even if you forget to pause, player won't break.
+        float dx = input.getMoveX();
+        float dy = input.getMoveY();
+
+        if (dx != 0 || dy != 0) {
+            lastMoveX = dx;
+            lastMoveY = dy;
         }
 
-        float dirX = 0f;
-        float dirY = 0f;
-        if (input.isMoveUp()) dirY += 1f;
-        if (input.isMoveDown()) dirY -= 1f;
-        if (input.isMoveLeft()) dirX -= 1f;
-        if (input.isMoveRight()) dirX += 1f;
-        float dx = dirX * speed * delta;
-        float dy = dirY * speed * delta;
-        float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
-        float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
+        x += dx * speed * delta;
+        y += dy * speed * delta;
 
-        // Save original position
-        float originalWorldX = worldX;
-        float originalWorldY = worldY;
+        damageHitBox.x = (int) x;
+        damageHitBox.y = (int) y;
 
-        // Normalize diagonal movement to maintain consistent speed
-        if (dx != 0 && dy != 0) {
-            float length = (float) Math.sqrt(dx * dx + dy * dy);
-            float normalizedDx = dx / length;
-            float normalizedDy = dy / length;
-            dx = normalizedDx * speed * delta;
-            dy = normalizedDy * speed * delta;
-        }
+        if (dx != 0) currentAnimation = dx < 0 ? "player_run_left" : "player_run_right";
+        else currentAnimation = "player_idle";
+    }
 
-        // Simple collision check with epsilon for smooth movement near walls
-        final float EPSILON = 2.0f;
-        final float SLIDE_MARGIN = 1.0f;
+    // =========================
+    // XP + LEVELING
+    // =========================
 
-        // Move X first (standard 2D game approach)
-        if (dx != 0 && collisionChecker != null) {
-            float newWorldX = originalWorldX + dx;
-            float hitboxWorldX = newWorldX + offsetX;
-            float hitboxWorldY = originalWorldY + offsetY;
+    public void addXP(int amount) {
+        if (amount <= 0) return;
 
-            // When moving horizontal (X), keep width standard but shrink HEIGHT
-            // to avoid friction with ceiling or floor
-            float checkWidth = (float)HITBOX_WIDTH - EPSILON;
-            float checkHeight = (float)HITBOX_HEIGHT - EPSILON - SLIDE_MARGIN;
-            float checkX = hitboxWorldX + EPSILON / 2f;
-            float checkY = hitboxWorldY + (EPSILON + SLIDE_MARGIN) / 2f;
+        xp += amount;
 
-            boolean collisionX = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
+        // Queue exactly one "level up screen" at a time
+        while (xp >= xpToNext) {
+            xp -= xpToNext;
+            level++;
+            xpToNext = (int) Math.max(10, xpToNext * 1.5f);
 
-            if (!collisionX) {
-                worldX = newWorldX;
-            } else {
-                // === CORNER CORRECTION X ===
-                // Moving horizontal and hit wall -> Check if can slide up/down
-                boolean nudgeUp = !collisionChecker.checkCollision(checkX, checkY + CORNER_CHECK_DIST, checkWidth, checkHeight);
-                boolean nudgeDown = !collisionChecker.checkCollision(checkX, checkY - CORNER_CHECK_DIST, checkWidth, checkHeight);
-
-                // Smart Nudge: Prioritize player's intended direction
-                if (nudgeUp && nudgeDown) {
-                    // Both directions clear -> Prioritize based on Y input
-                    if (dirY > 0) {
-                        worldY += NUDGE_SPEED * delta;
-                    } else if (dirY < 0) {
-                        worldY -= NUDGE_SPEED * delta;
-                    } else {
-                        // No Y input -> Binary search to find safe position
-                        doBinarySearchX(dx, originalWorldX, checkY, checkWidth, checkHeight, offsetX, collisionChecker, EPSILON);
-                    }
-                } else if (nudgeUp && dirY >= 0) {
-                    worldY += NUDGE_SPEED * delta;
-                } else if (nudgeDown && dirY <= 0) {
-                    worldY -= NUDGE_SPEED * delta;
-                } else {
-                    // Real collision -> Binary search to stop at safe position
-                    doBinarySearchX(dx, originalWorldX, checkY, checkWidth, checkHeight, offsetX, collisionChecker, EPSILON);
-                }
+            // If a level-up is already waiting, we just keep stacking levels silently
+            // but we still want ONE upgrade screen.
+            if (!levelUpPending) {
+                levelUpPending = true;
+                currentChoices = roll3Upgrades();
             }
-        } else if (dx != 0) {
-            worldX = originalWorldX + dx;
-        }
-
-        // Move Y (using updated worldX position) - standard 2D approach
-        if (dy != 0 && collisionChecker != null) {
-            float newWorldY = originalWorldY + dy;
-            float hitboxWorldX = worldX + offsetX;
-            float hitboxWorldY = newWorldY + offsetY;
-
-            // When moving vertical (Y), keep height standard but shrink WIDTH
-            // to avoid friction with left/right walls
-            float checkWidth = (float)HITBOX_WIDTH - EPSILON - SLIDE_MARGIN;
-            float checkHeight = (float)HITBOX_HEIGHT - EPSILON;
-            float checkX = hitboxWorldX + (EPSILON + SLIDE_MARGIN) / 2f;
-            float checkY = hitboxWorldY + EPSILON / 2f;
-
-            boolean collisionY = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
-
-            if (!collisionY) {
-                worldY = newWorldY;
-            } else {
-                // === CORNER CORRECTION Y ===
-                // Moving vertical and hit wall -> Check if can slide left/right
-                boolean nudgeRight = !collisionChecker.checkCollision(checkX + CORNER_CHECK_DIST, checkY, checkWidth, checkHeight);
-                boolean nudgeLeft = !collisionChecker.checkCollision(checkX - CORNER_CHECK_DIST, checkY, checkWidth, checkHeight);
-
-                // Smart Nudge: Prioritize player's intended direction
-                if (nudgeRight && nudgeLeft) {
-                    if (dirX > 0) {
-                        worldX += NUDGE_SPEED * delta;
-                    } else if (dirX < 0) {
-                        worldX -= NUDGE_SPEED * delta;
-                    } else {
-                        doBinarySearchY(dy, originalWorldY, checkX, checkWidth, checkHeight, offsetY, collisionChecker, EPSILON);
-                    }
-                } else if (nudgeRight && dirX >= 0) {
-                    worldX += NUDGE_SPEED * delta;
-                } else if (nudgeLeft && dirX <= 0) {
-                    worldX -= NUDGE_SPEED * delta;
-                } else {
-                    doBinarySearchY(dy, originalWorldY, checkX, checkWidth, checkHeight, offsetY, collisionChecker, EPSILON);
-                }
-            }
-        } else if (dy != 0) {
-            worldY = originalWorldY + dy;
-        }
-
-        // Update shooting direction
-        updateShootingDirection(dirX, dirY, delta);
-
-        // Clamp world bounds
-        clampPosition(worldWidth, worldHeight);
-
-        // Update wall hitbox position
-        wallHitbox.x = (int) (worldX + offsetX);
-        wallHitbox.y = (int) (worldY + offsetY);
-
-        // Update damage hitbox position (larger, covers body and head)
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
-        damageHitbox.x = (int) (worldX + damageOffsetX);
-        damageHitbox.y = (int) (worldY + damageOffsetY);
-
-        // Update animation state
-        updateAnimationState(dirX, dirY);
-    }
-
-    // Determine which animation to play based on state
-    private void updateAnimationState(float dirX, float dirY) {
-        // Dead state has highest priority
-        if (isDead()) {
-            animationState = AnimationState.DEAD;
-            return;
-        }
-
-        // Hit animation plays while timer is active
-        if (hitAnimationTimer > 0) {
-            animationState = AnimationState.HIT;
-            return;
-        }
-
-        // Track facing direction
-        if (dirX < 0) {
-            facingRight = false;
-        } else if (dirX > 0) {
-            facingRight = true;
-        }
-
-        // Running or idle based on movement
-        boolean isMoving = (dirX != 0 || dirY != 0);
-        if (isMoving) {
-            animationState = facingRight ? AnimationState.RUNNING_RIGHT : AnimationState.RUNNING_LEFT;
-        } else {
-            animationState = AnimationState.IDLE;
         }
     }
 
-    public float getX() {
-        return worldX;
+    public boolean isLevelUpPending() {
+        return levelUpPending;
     }
 
-    public float getY() {
-        return worldY;
+    public Upgrade[] getLevelUpChoices() {
+        return currentChoices;
     }
 
-    public void setPosition(float newWorldX, float newWorldY) {
-        this.worldX = newWorldX;
-        this.worldY = newWorldY;
-        // Update wall hitbox position
-        int wallOffsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2;
-        int wallOffsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2;
-        wallHitbox.x = (int) (worldX + wallOffsetX);
-        wallHitbox.y = (int) (worldY + wallOffsetY);
+    // Call this from PlayScreen when player selects 1/2/3
+    public void pickUpgrade(int index, Weapon weapon) {
+        if (!levelUpPending || currentChoices == null) return;
+        if (index < 0 || index >= currentChoices.length) return;
 
-        // Update damage hitbox position
-        int damageOffsetX = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2;
-        int damageOffsetY = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2;
-        damageHitbox.x = (int) (worldX + damageOffsetX);
-        damageHitbox.y = (int) (worldY + damageOffsetY);
+        Upgrade chosen = currentChoices[index];
+        applyUpgrade(chosen, weapon);
+
+        // clear pending
+        levelUpPending = false;
+        currentChoices = null;
     }
 
-    public float getLastMoveDirectionX() {
-        return smoothShootDirX;
+    private Upgrade[] roll3Upgrades() {
+        Upgrade[] all = Upgrade.values();
+        Upgrade[] picked = new Upgrade[3];
+
+        // pick 3 distinct
+        int a = GameApp.randomInt(0, all.length);
+        int b = GameApp.randomInt(0, all.length);
+        while (b == a) b = GameApp.randomInt(0, all.length);
+
+        int c = GameApp.randomInt(0, all.length);
+        while (c == a || c == b) c = GameApp.randomInt(0, all.length);
+
+        picked[0] = all[a];
+        picked[1] = all[b];
+        picked[2] = all[c];
+        return picked;
     }
 
-    public float getLastMoveDirectionY() {
-        return smoothShootDirY;
+    private void applyUpgrade(Upgrade up, Weapon weapon) {
+        switch (up) {
+            case MOVE_SPEED_UP:
+                speed *= 1.10f; // +10%
+                break;
+
+            case MAX_HP_UP:
+                maxHealth += 1;
+                health += 1; // also heal 1
+                health = (int) GameApp.clamp(health, 0, maxHealth);
+                break;
+
+            case HEAL_NOW:
+                health += 2;
+                health = (int) GameApp.clamp(health, 0, maxHealth);
+                break;
+
+            case DAMAGE_UP:
+                if (weapon != null) weapon.addDamage(2);
+                break;
+
+            case FIRE_RATE_UP:
+                if (weapon != null) weapon.multiplyFireRate(1.15f); // +15%
+                break;
+
+            case BULLET_SPEED_UP:
+                if (weapon != null) weapon.multiplyBulletSpeed(1.15f); // +15%
+                break;
+        }
     }
 
-    public int getHealth() {
-        return health;
+    public enum Upgrade {
+        MOVE_SPEED_UP("Move Speed +10%"),
+        MAX_HP_UP("Max HP +1"),
+        HEAL_NOW("Heal +2"),
+        DAMAGE_UP("Damage +2"),
+        FIRE_RATE_UP("Fire Rate +15%"),
+        BULLET_SPEED_UP("Bullet Speed +15%");
+
+        public final String label;
+        Upgrade(String label) { this.label = label; }
     }
 
-    public int getMaxHealth() {
-        return maxHealth;
-    }
+    // =========================
+    // DAMAGE / DEATH
+    // =========================
 
+    public void takeDamage(int dmg) {
+        if (dying) return;
 
-    // --- HEALTH SYSTEM ---
-
-    public void takeDamage(int amount) {
-        // Don't take damage if already dying
-        if (isDying) return;
-
-        health -= amount;
+        health -= dmg;
         health = (int) GameApp.clamp(health, 0, maxHealth);
 
         if (health <= 0) {
-            // Start death sequence
-            isDying = true;
-            GameApp.resetAnimation("player_death");
-            System.out.println("Player died! Starting death animation...");
-        } else {
-            // Trigger hit animation and reset to first frame
-            hitAnimationTimer = HIT_ANIMATION_DURATION;
-            GameApp.resetAnimation("player_hit");
-            System.out.println("Player took " + amount + " damage. HP: " + health + "/" + maxHealth);
+            dying = true;
+            deathTimer = 0f;
+            if (GameApp.hasAnimation("player_death")) {
+                GameApp.resetAnimation("player_death");
+            }
         }
-    }
-
-    public void heal(int amount) {
-        health += amount;
-        health = (int) GameApp.clamp(health, 0, maxHealth);
-        System.out.println("Player healed " + amount + ". HP: " + health + "/" + maxHealth);
     }
 
     public boolean isDead() {
         return health <= 0;
     }
 
-    // Check if player is in dying state (health <= 0)
     public boolean isDying() {
-        return isDying;
+        return dying;
     }
 
-    // Check if death animation has finished playing
     public boolean isDeathAnimationFinished() {
-        if (!isDying) return false;
-        return GameApp.isAnimationFinished("player_death");
-    }
-
-    // Get current animation key for rendering
-    public String getCurrentAnimation() {
-        switch (animationState) {
-            case DEAD:
-                return "player_death";
-            case HIT:
-                return "player_hit";
-            case RUNNING_LEFT:
-                return "player_run_left";
-            case RUNNING_RIGHT:
-                return "player_run_right";
-            case IDLE:
-            default:
-                return "player_idle";
+        // Prefer real animation finish if available
+        if (GameApp.hasAnimation("player_death")) {
+            return GameApp.isAnimationFinished("player_death");
         }
+        // Fallback timer
+        return deathTimer > 1.5f;
     }
 
-    public AnimationState getAnimationState() {
-        return animationState;
-    }
+    // =========================
+    // GETTERS / HELPERS
+    // =========================
 
-    // Wall HitBox getter (for wall collision)
-    public Rectangle getHitBox() {
-        return wallHitbox;
-    }
-
-    // Damage HitBox getter (for enemy interaction)
     public Rectangle getDamageHitBox() {
-        return damageHitbox;
+        return damageHitBox;
     }
 
-
-    // Render (now uses animations)
-    public void render() {
-        String animKey = getCurrentAnimation();
-        GameApp.drawAnimation(animKey, worldX, worldY, SPRITE_SIZE, SPRITE_SIZE);
+    public String getCurrentAnimation() {
+        return dying ? "player_death" : currentAnimation;
     }
 
-    // Helper: Binary search X to find closest safe position
-    private void doBinarySearchX(float dx, float originalX, float checkY, float w, float h, float offsetX, CollisionChecker checker, float epsilon) {
-        float minX = dx > 0 ? originalX : originalX + dx;
-        float maxX = dx > 0 ? originalX + dx : originalX;
-        float bestX = originalX;
+    public float getX() { return x; }
+    public float getY() { return y; }
 
-        for (int i = 0; i < 8; i++) {
-            float midX = (minX + maxX) / 2f;
-            float midCheckX = (midX + offsetX) + epsilon / 2f;
-            if (!checker.checkCollision(midCheckX, checkY, w, h)) {
-                bestX = midX;
-                if (dx > 0) minX = midX; else maxX = midX;
-            } else {
-                if (dx > 0) maxX = midX; else minX = midX;
-            }
-        }
-        worldX = bestX;
+    public void setPosition(float x, float y) {
+        this.x = x;
+        this.y = y;
+        damageHitBox.x = (int) x;
+        damageHitBox.y = (int) y;
     }
 
-    // Helper: Binary search Y to find closest safe position
-    private void doBinarySearchY(float dy, float originalY, float checkX, float w, float h, float offsetY, CollisionChecker checker, float epsilon) {
-        float minY = dy > 0 ? originalY : originalY + dy;
-        float maxY = dy > 0 ? originalY + dy : originalY;
-        float bestY = originalY;
+    public int getHealth() { return health; }
+    public int getMaxHealth() { return maxHealth; }
 
-        for (int i = 0; i < 8; i++) {
-            float midY = (minY + maxY) / 2f;
-            float midCheckY = (midY + offsetY) + epsilon / 2f;
-            if (!checker.checkCollision(checkX, midCheckY, w, h)) {
-                bestY = midY;
-                if (dy > 0) minY = midY; else maxY = midY;
-            } else {
-                if (dy > 0) maxY = midY; else minY = midY;
-            }
-        }
-        worldY = bestY;
-    }
+    public int getLevel() { return level; }
+    public int getXP() { return xp; }
+    public int getXPToNext() { return xpToNext; }
 
-    private void updateShootingDirection(float dirX, float dirY, float delta) {
-        float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
-        if (length > 0) {
-            targetShootDirX = dirX / length;
-            targetShootDirY = dirY / length;
-        }
-
-        if (dirY == 0 && dirX != 0) {
-            targetShootDirY = 0f;
-            targetShootDirX = (dirX > 0) ? 1f : -1f;
-        }
-
-        if (dirX == 0 && dirY != 0) {
-            targetShootDirX = 0f;
-            targetShootDirY = (dirY > 0) ? 1f : -1f;
-        }
-
-        if (targetShootDirY == 0f && targetShootDirX != 0f) {
-            smoothShootDirX = targetShootDirX;
-            smoothShootDirY = 0f;
-        } else if (targetShootDirX == 0f && targetShootDirY != 0f) {
-            smoothShootDirX  = 0f;
-            smoothShootDirY = targetShootDirY;
-        } else {
-            float lerpFactor = 1f - (float) Math.exp(-SHOOT_DIRECTION_SMOOTHING * delta);
-            smoothShootDirX = smoothShootDirX + (targetShootDirX - smoothShootDirX) * lerpFactor;
-            smoothShootDirY = smoothShootDirY + (targetShootDirY - smoothShootDirY) * lerpFactor;
-        }
-
-        float smoothedLength = (float) Math.sqrt(smoothShootDirX * smoothShootDirX + smoothShootDirY * smoothShootDirY);
-        if (smoothedLength > 0.001f) {
-            smoothShootDirX = smoothShootDirX / smoothedLength;
-            smoothShootDirY = smoothShootDirY / smoothedLength;
-        }
-    }
-
-    private void clampPosition(int worldWidth, int worldHeight) {
-        if (worldWidth < Integer.MAX_VALUE / 2 && worldHeight < Integer.MAX_VALUE / 2) {
-            float maxX = worldWidth - SPRITE_SIZE;
-            float maxY = worldHeight - SPRITE_SIZE;
-            worldX = GameApp.clamp(worldX, 0, maxX);
-            worldY = GameApp.clamp(worldY, 0, maxY);
-        }
-    }
+    public float getLastMoveDirectionX() { return lastMoveX; }
+    public float getLastMoveDirectionY() { return lastMoveY; }
 }

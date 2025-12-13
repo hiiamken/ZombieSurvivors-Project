@@ -7,43 +7,54 @@ import nl.saxion.gameapp.GameApp;
 import java.util.HashMap;
 import java.util.Map;
 
-// Handles loading and disposing of game resources
 public class ResourceLoader {
+
     public void loadGameResources() {
         GameApp.log("PlayScreen loaded");
 
+        // ---------- COLORS (fix: Color 'darkgray' not found) ----------
+        // Only add if missing, so it won't spam / re-add every time
+        if (!GameApp.hasColor("darkgray")) GameApp.addColor("darkgray", 80, 80, 80);
+        if (!GameApp.hasColor("gray"))     GameApp.addColor("gray", 140, 140, 140);
+        if (!GameApp.hasColor("green"))    GameApp.addColor("green", 0, 200, 0);
+        if (!GameApp.hasColor("white"))    GameApp.addColor("white", 255, 255, 255);
+        if (!GameApp.hasColor("black"))    GameApp.addColor("black", 0, 0, 0);
+
+        // ---------- TEXTURES ----------
         GameApp.addTexture("bullet", "assets/Bullet/Bullet.png");
 
-        // Load player sprite sheets (32x32 frames)
+        // XP orb texture (make sure the file exists at: src/main/resources/assets/xp/xp_orb.png)
+        GameApp.addTexture("xp_orb", "assets/xp/xp_orb.png");
+
+        // ---------- PLAYER SPRITESHEETS ----------
         GameApp.addSpriteSheet("player_idle_sheet", "assets/player/Rambo_Idle.png", 32, 32);
         GameApp.addSpriteSheet("player_run_left_sheet", "assets/player/Rambo_Run(Left).png", 32, 32);
         GameApp.addSpriteSheet("player_run_right_sheet", "assets/player/Rambo_Run(Right).png", 32, 32);
         GameApp.addSpriteSheet("player_death_sheet", "assets/player/Rambo_Death.png", 32, 32);
         GameApp.addSpriteSheet("player_hit_sheet", "assets/player/Player_Hit.png", 32, 32);
 
-        // Create player animations
         GameApp.addAnimationFromSpritesheet("player_idle", "player_idle_sheet", 0.15f, true);
         GameApp.addAnimationFromSpritesheet("player_run_left", "player_run_left_sheet", 0.1f, true);
         GameApp.addAnimationFromSpritesheet("player_run_right", "player_run_right_sheet", 0.1f, true);
         GameApp.addAnimationFromSpritesheet("player_death", "player_death_sheet", 0.2f, false);
         GameApp.addAnimationFromSpritesheet("player_hit", "player_hit_sheet", 0.1f, false);
 
-        // Load zombie sprite sheets
+        // ---------- ZOMBIE SPRITESHEETS ----------
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32,32);
-        GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
-        GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
-        GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
+        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32, 32);
+        GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32, 32);
 
-        // Create zombie animations
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
         GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
         GameApp.addAnimationFromSpritesheet("zombie_death", "zombie_death1_sheet", 0.2f, false);
 
-        GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");
+        // Optional fallback texture (not required if you always use animations)
+        GameApp.addTexture("enemy", "assets/enemy/Zombie_Idle.png");
 
-        // Load 16 individual map textures
+        // ---------- MAP TEXTURES ----------
         int loadedCount = 0;
         for (int i = 0; i < 16; i++) {
             String roomKey = getRoomTextureKey(i);
@@ -57,36 +68,37 @@ public class ResourceLoader {
         }
 
         GameApp.log("Loaded " + loadedCount + " map textures (room_00.png to room_15.png)");
-
-        // Hide cursor for better game experience
         GameApp.hideCursor();
     }
 
     public Map<Integer, TMXMapData> loadTMXMaps() {
-        // Load 16 TMX maps for collision detection
         Map<Integer, TMXMapData> tmxMapDataByRoomIndex = new HashMap<>();
         int loadedMaps = 0;
+
         for (int i = 0; i < 16; i++) {
-            int mapNumber = i + 1; // map1, map2, ..., map16
+            int mapNumber = i + 1;
             String tmxPath = "assets/maps/map" + mapNumber + ".tmx";
             TMXMapData mapData = TMXParser.loadFromTMX(tmxPath);
+
             if (mapData != null) {
-                tmxMapDataByRoomIndex.put(i, mapData); // room index i corresponds to map(i+1)
+                tmxMapDataByRoomIndex.put(i, mapData);
                 loadedMaps++;
             } else {
                 GameApp.log("❌ Warning: Could not load " + tmxPath);
             }
         }
+
         GameApp.log("✅ Successfully loaded " + loadedMaps + "/16 TMX maps for collision");
         return tmxMapDataByRoomIndex;
     }
 
     public void disposeGameResources() {
         GameApp.log("PlayScreen hidden");
+
         GameApp.disposeTexture("bullet");
         GameApp.disposeTexture("enemy");
+        GameApp.disposeTexture("xp_orb");
 
-        // Dispose player animations
         GameApp.disposeAnimation("player_idle");
         GameApp.disposeAnimation("player_run_left");
         GameApp.disposeAnimation("player_run_right");
@@ -99,7 +111,6 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("player_death_sheet");
         GameApp.disposeSpritesheet("player_hit_sheet");
 
-        // Dispose zombie animations
         GameApp.disposeAnimation("zombie_idle");
         GameApp.disposeAnimation("zombie_run");
         GameApp.disposeAnimation("zombie_hit");
@@ -111,10 +122,8 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("zombie_death1_sheet");
         GameApp.disposeSpritesheet("zombie_death2_sheet");
 
-        // Dispose all map textures
         for (int i = 0; i < 16; i++) {
-            String roomKey = getRoomTextureKey(i);
-            GameApp.disposeTexture(roomKey);
+            GameApp.disposeTexture(getRoomTextureKey(i));
         }
     }
 
@@ -122,4 +131,3 @@ public class ResourceLoader {
         return "room_" + String.format("%02d", mapIndex);
     }
 }
-
