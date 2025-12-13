@@ -102,6 +102,7 @@ public class Enemy {
         // Update direction whenever there's horizontal movement
         if (dirX < 0) {
             facingRight = true;
+
         } else if (dirX > 0) {
             facingRight = false;
         }

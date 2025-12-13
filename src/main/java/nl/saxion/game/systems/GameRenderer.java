@@ -33,11 +33,21 @@ public class GameRenderer {
         // Get current animation from player state
         String animKey = (player != null) ? player.getCurrentAnimation() : "player_idle";
 
+        // Flip idle animation based on last facing direction
+        // player_idle default faces right, so flip when facing left
+        boolean flipX = false;
+        if (player != null && animKey.equals("player_idle")) {
+            flipX = !player.isFacingRight();
+        }
+
         GameApp.drawAnimation(animKey,
                 playerScreenX - Player.SPRITE_SIZE / 2f,
                 playerScreenY - Player.SPRITE_SIZE / 2f,
                 Player.SPRITE_SIZE,
-                Player.SPRITE_SIZE
+                Player.SPRITE_SIZE,
+                0,
+                flipX,
+                false
         );
     }
 
