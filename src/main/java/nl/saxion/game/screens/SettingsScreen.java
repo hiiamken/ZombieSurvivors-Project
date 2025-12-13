@@ -1,6 +1,8 @@
 package nl.saxion.game.screens;
 
 import com.badlogic.gdx.Input;
+import nl.saxion.game.config.ConfigManager;
+import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.ui.Button;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
@@ -37,8 +39,26 @@ public class SettingsScreen extends ScalableGameScreen {
     @Override
     public void show() {
         loadResources();
+        loadSettingsFromConfig();
         createSettingItems();
         createBackButton();
+    }
+
+    // Load settings from config file
+    private void loadSettingsFromConfig() {
+        GameConfig config = ConfigManager.loadConfig();
+        masterVolume = (int) (config.masterVolume * 100);
+        sfxVolume = (int) (config.sfxVolume * 100);
+        musicVolume = (int) (config.musicVolume * 100);
+    }
+
+    // Save settings to config file
+    private void saveSettingsToConfig() {
+        GameConfig config = ConfigManager.loadConfig();
+        config.masterVolume = masterVolume / 100f;
+        config.sfxVolume = sfxVolume / 100f;
+        config.musicVolume = musicVolume / 100f;
+        ConfigManager.saveConfig(config);
     }
 
     private void loadResources() {
@@ -80,7 +100,8 @@ public class SettingsScreen extends ScalableGameScreen {
 
         backButton = new Button(btnX, btnY, btnWidth, btnHeight, "< BACK");
         backButton.setOnClick(() -> {
-            GameApp.log("Returning to main menu...");
+            saveSettingsToConfig();
+            GameApp.log("Settings saved. Returning to main menu...");
             GameApp.switchScreen("menu");
         });
         backButton.setColors("darkgray", "gray", "white", "white");
@@ -88,7 +109,8 @@ public class SettingsScreen extends ScalableGameScreen {
 
     @Override
     public void hide() {
-        // Settings are kept in memory
+        // Save settings when leaving screen
+        saveSettingsToConfig();
     }
 
     @Override
@@ -157,8 +179,9 @@ public class SettingsScreen extends ScalableGameScreen {
             }
         }
 
-        // Escape to go back
+        // Escape to go back (saves settings)
         if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            saveSettingsToConfig();
             backButton.click();
         }
 
@@ -214,7 +237,7 @@ public class SettingsScreen extends ScalableGameScreen {
     }
 
     // Inner class for setting items
-    private static class SettingItem {
+    private class SettingItem {
         private String label;
         private float x, y;
         private float barWidth = 200;
@@ -280,16 +303,22 @@ public class SettingsScreen extends ScalableGameScreen {
             int value = getter.get();
             value = Math.min(100, value + 5);
             setter.set(value);
+            // Auto-save when volume changes
+            saveSettingsToConfig();
         }
 
         public void decrease() {
             int value = getter.get();
             value = Math.max(0, value - 5);
             setter.set(value);
+            // Auto-save when volume changes
+            saveSettingsToConfig();
         }
 
         public void setValue(int value) {
             setter.set(value);
+            // Auto-save when volume changes
+            saveSettingsToConfig();
         }
 
         public boolean containsPoint(float px, float py) {
