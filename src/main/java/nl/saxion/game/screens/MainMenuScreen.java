@@ -26,7 +26,7 @@ public class MainMenuScreen extends ScalableGameScreen {
     private Button pressedButton = null;
 
     public MainMenuScreen() {
-        super(1200, 800);
+        super(1280, 720); // 16:9 aspect ratio
     }
 
     @Override

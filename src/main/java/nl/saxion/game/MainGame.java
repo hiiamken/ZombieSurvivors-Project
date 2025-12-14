@@ -34,9 +34,10 @@ public class MainGame {
         }
 
 
+        // Window size: 16:9 aspect ratio (HD)
         GameApp.start(
                 "Zombie Survivors",
-                1200, 800,
+                1280, 720,
                 60,
                 false,
                 "menu"
