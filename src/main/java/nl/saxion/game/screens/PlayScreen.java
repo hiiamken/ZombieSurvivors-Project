@@ -17,6 +17,7 @@ import nl.saxion.game.systems.MapRenderer;
 import nl.saxion.game.systems.ResourceLoader;
 import nl.saxion.game.ui.HUD;
 import nl.saxion.game.utils.CollisionChecker;
+import nl.saxion.game.utils.DebugLogger;
 import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
@@ -70,13 +71,40 @@ public class PlayScreen extends ScalableGameScreen {
         input = new InputController(MainGame.getConfig());
         hud = new HUD();
 
-        gameStateManager.setCurrentState(GameState.MENU);
+        // Load game over fonts - larger title font
+        GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 96,
+                "red-500", 3f, "black", 4, 4, "red-900", true);
+        GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
+        GameApp.addStyledFont("gameOverButtonFont", "fonts/PressStart2P-Regular.ttf", 18,
+                "white", 2f, "black", 2, 2, "gray-600", true);
+
+        // Load game over button sprites
+        if (!GameApp.hasTexture("green_long")) {
+            GameApp.addTexture("green_long", "assets/ui/green_long.png");
+        }
+        if (!GameApp.hasTexture("green_pressed_long")) {
+            GameApp.addTexture("green_pressed_long", "assets/ui/green_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("red_long")) {
+            GameApp.addTexture("red_long", "assets/ui/red_long.png");
+        }
+        if (!GameApp.hasTexture("red_pressed_long")) {
+            GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
+        }
+
+        // Start game immediately (no splash screen - menu is handled by MainMenuScreen)
+        gameStateManager.setCurrentState(GameState.PLAYING);
 
         resetGame();
     }
 
     @Override
     public void hide() {
+        // Dispose fonts
+        GameApp.disposeFont("gameOverTitle");
+        GameApp.disposeFont("gameOverText");
+        GameApp.disposeFont("gameOverButtonFont");
+
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
         }
@@ -88,16 +116,61 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.clearScreen("black");
 
-        // Handle menu state
-        if (gameStateManager.getCurrentState() == GameState.MENU) {
-            gameStateManager.handleMenuInput(this::resetGame);
-            gameStateManager.renderMenuScreen();
-            return;
-        }
-
         // Handle game over state
         if (gameStateManager.getCurrentState() == GameState.GAME_OVER) {
-            gameStateManager.handleGameOverInput(this::resetGame);
+            gameStateManager.updateGameOverFade(delta);
+
+            // Initialize buttons if not already done
+            gameStateManager.initializeGameOverButtons(
+                    () -> {
+                        // Play Again action
+                        gameStateManager.resetGameOverFade();
+                        resetGame();
+                    },
+                    () -> {
+                        // Back to Menu action
+                        GameApp.switchScreen("menu");
+                    }
+            );
+
+            // Get mouse position and convert to world coordinates
+            float mouseX = GameApp.getMousePositionInWindowX();
+            float mouseY = GameApp.getMousePositionInWindowY();
+            float screenWidth = GameApp.getWorldWidth();
+            float screenHeight = GameApp.getWorldHeight();
+
+            // Convert mouse coordinates from window to world
+            // Get window size and scale mouse coordinates accordingly
+            float windowWidth = GameApp.getWindowWidth();
+            float windowHeight = GameApp.getWindowHeight();
+            float scaleX = screenWidth / windowWidth;
+            float scaleY = screenHeight / windowHeight;
+
+            float worldMouseX = mouseX * scaleX;
+            float worldMouseY = (windowHeight - mouseY) * scaleY; // Flip Y and scale
+
+            // Debug: log conversion (only if debug enabled)
+            if (GameApp.isButtonJustPressed(0)) {
+                DebugLogger.log("Mouse conversion: window=(%.1f, %.1f) -> world=(%.1f, %.1f), scale=(%.3f, %.3f), windowSize=(%.0f, %.0f), worldSize=(%.0f, %.0f)",
+                        mouseX, mouseY, worldMouseX, worldMouseY, scaleX, scaleY, windowWidth, windowHeight, screenWidth, screenHeight);
+            }
+
+            // Show cursor for mouse interaction
+            GameApp.showCursor();
+
+            // Handle input with converted coordinates
+            gameStateManager.handleGameOverInput(worldMouseX, worldMouseY,
+                    () -> {
+                        // Play Again
+                        gameStateManager.resetGameOverFade();
+                        resetGame();
+                    },
+                    () -> {
+                        // Back to Menu
+                        GameApp.switchScreen("menu");
+                    }
+            );
+
             gameStateManager.renderGameOverScreen();
             return;
         }
@@ -182,6 +255,7 @@ public class PlayScreen extends ScalableGameScreen {
                 GameApp.log("Death animation finished - showing game over");
                 gameStateManager.setCurrentState(GameState.GAME_OVER);
                 gameStateManager.setScore(score);
+                gameStateManager.resetGameOverFade(); // Reset fade for smooth transition
             }
         }
 
