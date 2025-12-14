@@ -33,7 +33,7 @@ public class SettingsScreen extends ScalableGameScreen {
     private static final String BAR_FILL_COLOR = "settings_green";
 
     public SettingsScreen() {
-        super(720, 405); // 16:9 aspect ratio - smaller world size for zoom effect
+        super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect
     }
 
     @Override

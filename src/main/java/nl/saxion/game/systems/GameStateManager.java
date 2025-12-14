@@ -74,8 +74,8 @@ public class GameStateManager {
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
 
-        float buttonWidth = 280f;
-        float buttonHeight = 50f;
+        float buttonWidth = 220f; // Smaller buttons
+        float buttonHeight = 45f; // Slightly shorter
         float buttonSpacing = 20f;
 
         // Play Again button (green) - positioned lower on screen
@@ -190,7 +190,7 @@ public class GameStateManager {
         float titleY = centerY + 150;
         float gameWidth = GameApp.getTextWidth("gameOverTitle", "GAME");
         float overWidth = GameApp.getTextWidth("gameOverTitle", "OVER");
-        float spacing = 30f; // Controlled spacing between words
+        float spacing = 25f; // Slightly less spacing between words
         // Calculate positions so "GAME" and "OVER" are on same line with spacing between them
         float gameCenterX = centerX - (overWidth / 2) - (spacing / 2);
         float overCenterX = centerX + (gameWidth / 2) + (spacing / 2);

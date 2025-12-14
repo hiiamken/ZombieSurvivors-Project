@@ -52,7 +52,7 @@ public class PlayScreen extends ScalableGameScreen {
     private float playerWorldY;
 
     public PlayScreen() {
-        super(720, 405); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
+        super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
     }
 
     @Override
@@ -71,9 +71,9 @@ public class PlayScreen extends ScalableGameScreen {
         input = new InputController(MainGame.getConfig());
         hud = new HUD();
 
-        // Load game over fonts - larger title font
-        GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 96,
-                "red-500", 3f, "black", 4, 4, "red-900", true);
+        // Load game over fonts - adjusted size for smaller world
+        GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
+                "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
         GameApp.addStyledFont("gameOverButtonFont", "fonts/PressStart2P-Regular.ttf", 18,
                 "white", 2f, "black", 2, 2, "gray-600", true);
