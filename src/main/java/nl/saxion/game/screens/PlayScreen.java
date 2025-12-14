@@ -52,7 +52,7 @@ public class PlayScreen extends ScalableGameScreen {
     private float playerWorldY;
 
     public PlayScreen() {
-        super(800, 600);
+        super(720, 405); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
     }
 
     @Override
