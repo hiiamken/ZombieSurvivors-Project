@@ -106,6 +106,8 @@ public class ConfigManager {
                 cfg.keyMoveRight = parseKeyValue(value);
             } else if (key.equals("keyShoot")) {
                 cfg.keyShoot = parseKeyValue(value);
+            } else if (key.equals("debugEnabled")) {
+                cfg.debugEnabled = Boolean.parseBoolean(value);
             }
         } catch (NumberFormatException ex) {
             GameApp.log("Invalid value in config for " + key + ": " + value);
@@ -147,6 +149,8 @@ public class ConfigManager {
                     cfg.keyMoveRight = parseKeyValue(value);
                 } else if (key.equals("keyShoot")) {
                     cfg.keyShoot = parseKeyValue(value);
+                } else if (key.equals("debugEnabled")) {
+                    cfg.debugEnabled = Boolean.parseBoolean(value);
                 }
             } catch (NumberFormatException ex) {
                 GameApp.log("Invalid value in config for " + key + ": " + value);
@@ -230,7 +234,8 @@ public class ConfigManager {
             bw.write("  \"keyMoveDown\": " + cfg.keyMoveDown + ",\n");
             bw.write("  \"keyMoveLeft\": " + cfg.keyMoveLeft + ",\n");
             bw.write("  \"keyMoveRight\": " + cfg.keyMoveRight + ",\n");
-            bw.write("  \"keyShoot\": " + cfg.keyShoot + "\n");
+            bw.write("  \"keyShoot\": " + cfg.keyShoot + ",\n");
+            bw.write("  \"debugEnabled\": " + cfg.debugEnabled + "\n");
             bw.write("}");
 
             bw.flush();

@@ -13,6 +13,7 @@ public class Button {
 
     private boolean isHovered = false;
     private boolean isSelected = false;
+    private boolean isPressed = false;
     private boolean isVisible = true;
 
     private Runnable onClickAction;
@@ -22,6 +23,13 @@ public class Button {
     private String hoverColor = "gray";
     private String borderColor = "white";
     private String textColor = "white";
+
+    // Sprite support for Pixel UI buttons
+    private String normalSprite = null;
+    private String hoverSprite = null;
+    private String selectedSprite = null;
+    private String pressedSprite = null;
+    private boolean useSprite = false;
 
     public Button(float x, float y, float width, float height, String text) {
         this.x = x;
@@ -39,18 +47,36 @@ public class Button {
     public void render() {
         if (!isVisible) return;
 
-        // Draw button background
-        String bgColor = (isHovered || isSelected) ? hoverColor : normalColor;
+        // Use sprite if available
+        if (useSprite) {
+            String spriteToUse = normalSprite;
+            if (isPressed && pressedSprite != null) {
+                spriteToUse = pressedSprite;
+            } else if (isSelected && selectedSprite != null) {
+                spriteToUse = selectedSprite;
+            } else if (isHovered && hoverSprite != null) {
+                spriteToUse = hoverSprite;
+            }
 
-        GameApp.startShapeRenderingFilled();
-        GameApp.drawRect(x, y, width, height, bgColor);
-        GameApp.endShapeRendering();
+            if (spriteToUse != null && GameApp.hasTexture(spriteToUse)) {
+                GameApp.startSpriteRendering();
+                GameApp.drawTexture(spriteToUse, x, y, width, height);
+                GameApp.endSpriteRendering();
+            }
+        } else {
+            // Draw button background
+            String bgColor = (isHovered || isSelected) ? hoverColor : normalColor;
 
-        // Draw border
-        GameApp.startShapeRenderingOutlined();
-        GameApp.setLineWidth(2f);
-        GameApp.drawRect(x, y, width, height, borderColor);
-        GameApp.endShapeRendering();
+            GameApp.startShapeRenderingFilled();
+            GameApp.drawRect(x, y, width, height, bgColor);
+            GameApp.endShapeRendering();
+
+            // Draw border
+            GameApp.startShapeRenderingOutlined();
+            GameApp.setLineWidth(2f);
+            GameApp.drawRect(x, y, width, height, borderColor);
+            GameApp.endShapeRendering();
+        }
 
         // Draw text centered if text is not empty
         if (text != null && !text.isEmpty()) {
@@ -82,8 +108,18 @@ public class Button {
     }
 
     public void click() {
+        nl.saxion.game.utils.DebugLogger.log("Button.click() called. onClickAction is %s",
+                onClickAction != null ? "SET" : "NULL");
         if (onClickAction != null) {
-            onClickAction.run();
+            try {
+                onClickAction.run();
+                nl.saxion.game.utils.DebugLogger.log("Button.click() - onClickAction executed successfully");
+            } catch (Exception e) {
+                nl.saxion.game.utils.DebugLogger.log("Button.click() - ERROR: %s", e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            nl.saxion.game.utils.DebugLogger.log("Button.click() - WARNING: onClickAction is NULL!");
         }
     }
 
@@ -141,6 +177,39 @@ public class Button {
 
     public float getHeight() {
         return height;
+    }
+
+    // Sprite methods for Pixel UI
+    public void setSprites(String normal, String hover, String selected) {
+        this.normalSprite = normal;
+        this.hoverSprite = hover;
+        this.selectedSprite = selected;
+        this.useSprite = (normal != null);
+    }
+
+    public void setSprites(String normal, String hover, String selected, String pressed) {
+        this.normalSprite = normal;
+        this.hoverSprite = hover;
+        this.selectedSprite = selected;
+        this.pressedSprite = pressed;
+        this.useSprite = (normal != null);
+    }
+
+    public void setNormalSprite(String sprite) {
+        this.normalSprite = sprite;
+        this.useSprite = (sprite != null);
+    }
+
+    public void setPressed(boolean pressed) {
+        this.isPressed = pressed;
+    }
+
+    public boolean isPressed() {
+        return isPressed;
+    }
+
+    public boolean isUsingSprite() {
+        return useSprite;
     }
 }
 

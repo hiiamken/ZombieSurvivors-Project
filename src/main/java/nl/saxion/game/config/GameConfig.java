@@ -14,6 +14,8 @@ public class GameConfig {
     public int keyMoveRight;
     public int keyShoot;
 
+    public boolean debugEnabled;
+
     public GameConfig() {}
 
     public static GameConfig createDefault() {
@@ -28,6 +30,8 @@ public class GameConfig {
         cfg.keyMoveLeft = com.badlogic.gdx.Input.Keys.A;
         cfg.keyMoveRight = com.badlogic.gdx.Input.Keys.D;
         cfg.keyShoot = com.badlogic.gdx.Input.Keys.SPACE;
+
+        cfg.debugEnabled = false; // Debug disabled by default
 
         return cfg;
     }
