@@ -33,11 +33,15 @@ public class GameRenderer {
         // Get current animation from player state
         String animKey = (player != null) ? player.getCurrentAnimation() : "player_idle";
 
-        // Flip idle animation based on last facing direction
-        // player_idle default faces right, so flip when facing left
+        // Flip animations based on facing direction
+        // player_idle, player_hit, and player_death default face right, so flip when facing left
+        // player_run_left and player_run_right already have direction, don't flip
         boolean flipX = false;
-        if (player != null && animKey.equals("player_idle")) {
-            flipX = !player.isFacingRight();
+        if (player != null) {
+            if (animKey.equals("player_idle") || animKey.equals("player_hit") || animKey.equals("player_death")) {
+                flipX = !player.isFacingRight();
+            }
+            // player_run_left and player_run_right already have correct direction
         }
 
         GameApp.drawAnimation(animKey,

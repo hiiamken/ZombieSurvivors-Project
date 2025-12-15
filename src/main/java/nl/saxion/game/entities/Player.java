@@ -251,17 +251,19 @@ public class Player {
             return;
         }
 
-        // Hit animation plays while timer is active
-        if (hitAnimationTimer > 0) {
-            animationState = AnimationState.HIT;
-            return;
-        }
-
-        // Track facing direction
+        // Track facing direction - only update when actually moving horizontally
+        // This preserves facing direction when standing still or being hit
         if (dirX < 0) {
             facingRight = false;
         } else if (dirX > 0) {
             facingRight = true;
+        }
+        // If dirX == 0, keep current facingRight value (don't reset)
+
+        // Hit animation plays while timer is active
+        if (hitAnimationTimer > 0) {
+            animationState = AnimationState.HIT;
+            return;
         }
 
         // Running or idle based on movement

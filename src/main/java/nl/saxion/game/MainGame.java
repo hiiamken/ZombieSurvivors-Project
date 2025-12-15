@@ -6,6 +6,7 @@ import nl.saxion.game.screens.SettingsScreen;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.config.ConfigManager;
+import nl.saxion.game.utils.DebugLogger;
 
 public class MainGame {
 
@@ -26,10 +27,17 @@ public class MainGame {
         config = ConfigManager.loadConfig();
         GameApp.log("Loaded config. masterVolume = " + config.masterVolume);
 
+        // Set debug logger enabled state from config
+        DebugLogger.setEnabled(config.debugEnabled);
+        if (config.debugEnabled) {
+            GameApp.log("Debug logging enabled");
+        }
 
+
+        // Window size: 16:9 aspect ratio (HD)
         GameApp.start(
                 "Zombie Survivors",
-                1200, 800,
+                1280, 720,
                 60,
                 false,
                 "menu"
