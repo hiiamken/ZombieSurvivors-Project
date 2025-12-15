@@ -7,7 +7,7 @@ public class HUD {
 
     String TEXT_COLOR = "white";
 
-    public void render(PlayerStatus status) {
+    public void render(PlayerStatus status, float gameTime) {
         // Draw shapes first (XP bar)
         renderXPBar(status);
 
@@ -15,6 +15,7 @@ public class HUD {
         GameApp.startSpriteRendering();
         renderScore(status);
         renderXPText(status);
+        renderSurvivalTime(gameTime);
         GameApp.endSpriteRendering();
     }
 
@@ -50,26 +51,38 @@ public class HUD {
         GameApp.endShapeRendering();
     }
 
+    private void renderSurvivalTime(float gameTime) {
+        int totalSeconds = (int) gameTime;
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+
+        String timeText = String.format("TIME %02d:%02d", minutes, seconds);
+
+        float screenHeight = GameApp.getWorldHeight();
+
+        // Position: top-left, below XP bar
+        float x = 10f;
+        float y = screenHeight - 30f;
+
+        GameApp.drawText("default", timeText, x, y, "white");
+    }
+
     // Draw XP level text - right side, vertically centered with bar
     private void renderXPText(PlayerStatus status) {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
         float barHeight = 12f;
         float barY = screenHeight - barHeight;
-        // Lower Y position - move text down in the bar
-        float textY = barY + barHeight - 10f; // Near bottom of bar with small padding
+        float textY = barY + barHeight - 10f;
 
-        // Level text on right side
         String levelText = "LV " + status.level;
-        // Use styled font if available, otherwise default
         String fontName = GameApp.hasFont("levelFont") ? "levelFont" : "default";
-        // Calculate text width to position it properly inside the bar
+
         float textWidth = GameApp.getTextWidth(fontName, levelText);
-        float textX = screenWidth - textWidth - 5f; // Right side with padding, accounting for text width
+        float textX = screenWidth - textWidth - 5f;
 
         GameApp.drawText(fontName, levelText, textX, textY, "white");
     }
-
 
     private void renderScore(PlayerStatus status) {
         float screenWidth = GameApp.getWorldWidth();
@@ -77,23 +90,21 @@ public class HUD {
         float barHeight = 12f;
         float barY = screenHeight - barHeight;
 
-        // Position score on right side, below XP bar
-        float scoreY = barY - 18f; // Below XP bar with spacing
+        float scoreY = barY - 18f;
         String scoreText = formatScore(status.score);
 
-        // Use styled font if available, otherwise default
         String fontName = GameApp.hasFont("scoreFont") ? "scoreFont" : "default";
         float textWidth = GameApp.getTextWidth(fontName, scoreText);
-        float scoreX = screenWidth - textWidth - 10f; // Right side with padding
+        float scoreX = screenWidth - textWidth - 10f;
 
         GameApp.drawText(fontName, scoreText, scoreX, scoreY, "white");
     }
 
-    // Format score with commas for readability
     private String formatScore(int score) {
         return String.format("SCORE: %,d", score);
     }
 
+    // (Optional old helpers - safe to keep if other code uses them)
     public void renderXPBarOnly(PlayerStatus status) {
         float percent = status.currentXP / (float) status.xpToNext;
         percent = GameApp.clamp(percent, 0f, 1f);
@@ -109,5 +120,4 @@ public class HUD {
         renderScore(status);
         GameApp.drawText("default", "LV " + status.level, 230, 95, "white");
     }
-
 }
