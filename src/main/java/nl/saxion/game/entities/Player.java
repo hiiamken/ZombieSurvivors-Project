@@ -17,6 +17,14 @@ public class Player {
     private float worldX;
     private float worldY;
 
+    // ===== XP / LEVEL SYSTEM =====
+    private int currentLevel = 1;
+    private int currentXP = 0;
+    private int xpToNextLevel = 100;
+    private float xpMagnetRange = 100f;
+    private float damageMultiplier = 1f;
+    private float healthRegenRate = 0f;
+
     // Speed
     private float speed;
 
@@ -83,6 +91,12 @@ public class Player {
         if (isDying) {
             animationState = AnimationState.DEAD;
             return;
+        }
+
+        // Health regen (continuous)
+        if (healthRegenRate > 0f && health < maxHealth) {
+            float regen = healthRegenRate * delta;
+            if (regen >= 1f) heal((int) regen);
         }
 
         // Update hit animation timer
@@ -462,6 +476,7 @@ public class Player {
         }
     }
 
+
     private void clampPosition(int worldWidth, int worldHeight) {
         if (worldWidth < Integer.MAX_VALUE / 2 && worldHeight < Integer.MAX_VALUE / 2) {
             float maxX = worldWidth - SPRITE_SIZE;
@@ -470,4 +485,38 @@ public class Player {
             worldY = GameApp.clamp(worldY, 0, maxY);
         }
     }
+    public void addXP(int amount) {
+        currentXP += amount;
+    }
+
+    public boolean checkLevelUp() {
+        return currentXP >= xpToNextLevel;
+    }
+
+    public void levelUp() {
+        currentXP -= xpToNextLevel;
+        currentLevel++;
+        xpToNextLevel = 100 + currentLevel * 50;
+    }
+
+    public int getCurrentLevel() { return currentLevel; }
+    public int getCurrentXP() { return currentXP; }
+    public int getXPToNextLevel() { return xpToNextLevel; }
+
+    public float getXPMagnetRange() { return xpMagnetRange; }
+    public float getDamageMultiplier() { return damageMultiplier; }
+
+    public void applyStatUpgrade(StatUpgradeType type) {
+        switch (type) {
+            case SPEED -> speed *= 1.15f;
+            case DAMAGE -> damageMultiplier *= 1.2f;
+            case XP_MAGNET -> xpMagnetRange *= 1.5f;
+            case MAX_HEALTH -> {
+                maxHealth += 20;
+                health = maxHealth;
+            }
+            case HEALTH_REGEN -> healthRegenRate += 0.5f;
+        }
+    }
+
 }

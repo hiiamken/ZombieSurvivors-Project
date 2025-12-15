@@ -9,7 +9,7 @@ public class Weapon {
     private WeaponType type;
     private float fireRate;        // shots per second
     private float fireCooldown;    // seconds remaining until next shot
-    private int damage;            // damage per bullet
+    private int damage;            // base damage per bullet
 
     // Bullet properties
     private float bulletSpeed;
@@ -51,6 +51,7 @@ public class Weapon {
     private void startCooldown() {
         fireCooldown = 1f / fireRate;
     }
+
     public Bullet tryFire(Player player) {
         if (!canFire()) {
             return null;
@@ -63,7 +64,7 @@ public class Weapon {
         // default: shoot upward if standing still
         if (dirX == 0 && dirY == 0) {
             dirX = 0f;
-            dirY = 1f;  // Shoot up (positive Y in GameApp)
+            dirY = 1f;
         }
 
         // Player position is top-left of sprite
@@ -79,12 +80,15 @@ public class Weapon {
         float bulletStartX = damageHitboxCenterX - bulletWidth / 2f;
         float bulletStartY = damageHitboxCenterY - bulletHeight / 2f;
 
+        // 🔥 APPLY DAMAGE MULTIPLIER HERE
+        int finalDamage = (int) (damage * player.getDamageMultiplier());
+
         Bullet bullet = new Bullet(
                 bulletStartX,
                 bulletStartY,
                 dirX,
                 dirY,
-                damage,
+                finalDamage,   // ✅ upgraded damage
                 bulletSpeed,
                 bulletWidth,
                 bulletHeight
