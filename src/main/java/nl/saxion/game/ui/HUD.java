@@ -5,73 +5,93 @@ import nl.saxion.gameapp.GameApp;
 
 public class HUD {
 
-    int HP_BAR_X = 20;
-    int HP_BAR_Y = 20;
-
-    int SCORE_X = 20;
-    int SCORE_Y = 60;
-
     String TEXT_COLOR = "white";
 
-    float HP_LOW_THRESHOLD = 0.3f;    // Below 30%
-    float HP_MEDIUM_THRESHOLD = 0.6f; // Below 60%
-
     public void render(PlayerStatus status) {
-        renderHPBar(status);
+        // Draw shapes first (XP bar)
+        renderXPBar(status);
+
+        // Then draw all text with sprite rendering
+        GameApp.startSpriteRendering();
         renderScore(status);
-        renderXP(status);
+        renderXPText(status);
+        GameApp.endSpriteRendering();
     }
 
-    // ✅ XP BAR (FIXED & SAFE)
-    private void renderXP(PlayerStatus status) {
+    // Draw XP bar shapes
+    private void renderXPBar(PlayerStatus status) {
         float percent = status.currentXP / (float) status.xpToNext;
         percent = GameApp.clamp(percent, 0f, 1f);
 
-        // Draw XP bar shapes
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float barHeight = 12f; // Thin bar at top
+        float barY = screenHeight - barHeight; // Top of screen
+
         GameApp.startShapeRenderingFilled();
 
-        // Background
-        GameApp.setColor(120, 120, 120, 255);
-        GameApp.drawRect(20, 90, 200, 10);
+        // Background - dark gray to match map
+        GameApp.setColor(40, 40, 40, 255);
+        GameApp.drawRect(0, barY, screenWidth, barHeight);
 
-        // Fill
-        GameApp.setColor(255, 215, 0, 255); // gold
-        GameApp.drawRect(20, 90, 200 * percent, 10);
+        // Fill - blue/cyan to match game style
+        if (percent > 0) {
+            GameApp.setColor(70, 130, 255, 255); // Blue
+            GameApp.drawRect(0, barY, screenWidth * percent, barHeight);
+        }
 
         GameApp.endShapeRendering();
 
-        // Draw level text (no sprite start/end needed)
-        GameApp.drawText("default", "LV " + status.level, 230, 95, "white");
+        // Draw border outline - thicker and darker
+        GameApp.startShapeRenderingOutlined();
+        GameApp.setLineWidth(3f);
+        GameApp.setColor(100, 100, 100, 255); // Dark gray border
+        GameApp.drawRect(0, barY, screenWidth, barHeight);
+        GameApp.endShapeRendering();
     }
 
-    private void renderHPBar(PlayerStatus status) {
-        float hpPercent = status.getHealthPercentage();
+    // Draw XP level text - right side, vertically centered with bar
+    private void renderXPText(PlayerStatus status) {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float barHeight = 12f;
+        float barY = screenHeight - barHeight;
+        // Lower Y position - move text down in the bar
+        float textY = barY + barHeight - 10f; // Near bottom of bar with small padding
 
-        int barLength = (int) (20 * hpPercent);
-        StringBuilder barBuilder = new StringBuilder();
+        // Level text on right side
+        String levelText = "LV " + status.level;
+        // Use styled font if available, otherwise default
+        String fontName = GameApp.hasFont("levelFont") ? "levelFont" : "default";
+        // Calculate text width to position it properly inside the bar
+        float textWidth = GameApp.getTextWidth(fontName, levelText);
+        float textX = screenWidth - textWidth - 5f; // Right side with padding, accounting for text width
 
-        for (int i = 0; i < 20; i++) {
-            if (i < barLength) {
-                if (hpPercent <= HP_LOW_THRESHOLD) {
-                    barBuilder.append("▒");
-                } else if (hpPercent <= HP_MEDIUM_THRESHOLD) {
-                    barBuilder.append("▓");
-                } else {
-                    barBuilder.append("█");
-                }
-            } else {
-                barBuilder.append("░");
-            }
-        }
-
-        GameApp.drawText("default", barBuilder.toString(), HP_BAR_X, HP_BAR_Y, TEXT_COLOR);
-
-        String hpText = String.format("HP: %d / %d", status.health, status.maxHealth);
-        GameApp.drawText("default", hpText, HP_BAR_X, HP_BAR_Y + 25, TEXT_COLOR);
+        GameApp.drawText(fontName, levelText, textX, textY, "white");
     }
+
 
     private void renderScore(PlayerStatus status) {
-        GameApp.drawText("default", "Score: " + status.score, SCORE_X, SCORE_Y, TEXT_COLOR);
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float barHeight = 12f;
+        float barY = screenHeight - barHeight;
+
+        // Position score on right side, below XP bar
+        float scoreY = barY - 18f; // Below XP bar with spacing
+        String scoreText = formatScore(status.score);
+
+        // Use styled font if available, otherwise default
+        String fontName = GameApp.hasFont("scoreFont") ? "scoreFont" : "default";
+        float textWidth = GameApp.getTextWidth(fontName, scoreText);
+        float scoreX = screenWidth - textWidth - 10f; // Right side with padding
+
+        GameApp.drawText(fontName, scoreText, scoreX, scoreY, "white");
+    }
+
+    // Format score with commas for readability
+    private String formatScore(int score) {
+        return String.format("SCORE: %,d", score);
     }
 
     public void renderXPBarOnly(PlayerStatus status) {
@@ -86,7 +106,6 @@ public class HUD {
     }
 
     public void renderTextOnly(PlayerStatus status) {
-        renderHPBar(status);
         renderScore(status);
         GameApp.drawText("default", "LV " + status.level, 230, 95, "white");
     }

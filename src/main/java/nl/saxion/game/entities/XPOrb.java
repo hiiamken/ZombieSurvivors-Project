@@ -43,10 +43,17 @@ public class XPOrb {
         float screenX = GameApp.getWorldWidth() / 2f + (x - playerWorldX);
         float screenY = GameApp.getWorldHeight() / 2f + (y - playerWorldY);
 
-        float scale = 1f + 0.2f * (float)Math.sin(pulseTime * 5f);
+        float scale = 1f + 0.15f * (float)Math.sin(pulseTime * 5f);
+        float size = 8f * scale;
 
-        GameApp.setColor(0, 200, 255, 255);
-        GameApp.drawCircle(screenX, screenY, 6f * scale);
+        // Draw animation from sprite sheet (row 9, cols 19-22)
+        if (GameApp.hasAnimation("orb_animation")) {
+            GameApp.drawAnimation("orb_animation", screenX - size/2, screenY - size/2, size, size);
+        } else {
+            // Fallback to circle if animation not loaded
+            GameApp.setColor(0, 200, 255, 255);
+            GameApp.drawCircle(screenX, screenY, size/2);
+        }
     }
 
     public boolean isCollected() { return collected; }

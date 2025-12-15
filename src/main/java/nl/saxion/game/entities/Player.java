@@ -513,7 +513,8 @@ public class Player {
             case XP_MAGNET -> xpMagnetRange *= 1.5f;
             case MAX_HEALTH -> {
                 maxHealth += 20;
-                health = maxHealth;
+                // Keep current health, don't auto-heal (like Vampire Survivors)
+                // Health percentage will decrease as max increases
             }
             case HEALTH_REGEN -> healthRegenRate += 0.5f;
         }

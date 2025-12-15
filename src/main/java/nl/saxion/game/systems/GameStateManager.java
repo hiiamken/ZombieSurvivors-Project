@@ -74,12 +74,12 @@ public class GameStateManager {
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
 
-        float buttonWidth = 220f; // Smaller buttons
-        float buttonHeight = 45f; // Slightly shorter
-        float buttonSpacing = 20f;
+        float buttonWidth = 160f; // Smaller to prevent image stretching
+        float buttonHeight = 30f; // Smaller height
+        float buttonSpacing = 20f; // Spacing between buttons
 
         // Play Again button (green) - positioned lower on screen
-        float playAgainY = centerY - 100; // Lower position
+        float playAgainY = centerY - 80; // Better vertical positioning
         Button playAgainButton = new Button(centerX - buttonWidth / 2, playAgainY, buttonWidth, buttonHeight, "");
         playAgainButton.setOnClick(onPlayAgain);
         if (GameApp.hasTexture("green_long")) {
@@ -186,22 +186,15 @@ public class GameStateManager {
         // Now render text in sprite batch
         GameApp.startSpriteRendering();
 
-        // Draw "GAME OVER" title on one line with controlled spacing
-        float titleY = centerY + 150;
-        float gameWidth = GameApp.getTextWidth("gameOverTitle", "GAME");
-        float overWidth = GameApp.getTextWidth("gameOverTitle", "OVER");
-        float spacing = 25f; // Slightly less spacing between words
-        // Calculate positions so "GAME" and "OVER" are on same line with spacing between them
-        float gameCenterX = centerX - (overWidth / 2) - (spacing / 2);
-        float overCenterX = centerX + (gameWidth / 2) + (spacing / 2);
-        GameApp.drawTextCentered("gameOverTitle", "GAME", gameCenterX, titleY, "red-500");
-        GameApp.drawTextCentered("gameOverTitle", "OVER", overCenterX, titleY, "red-500");
+        // Draw "GAME OVER" title - centered as single text
+        float titleY = centerY + 120; // Better positioning
+        GameApp.drawTextCentered("gameOverTitle", "GAME OVER", centerX, titleY, "red-500");
 
-        // Draw score centered below title
-        String scoreText = "Score: " + score;
+        // Draw score centered below title with better formatting
+        String scoreText = String.format("SCORE: %,d", score); // Format with commas
+        float titleHeight = GameApp.getTextHeight("gameOverTitle", "GAME OVER");
         float scoreTextHeight = GameApp.getTextHeight("gameOverText", scoreText);
-        float titleBottomY = titleY - GameApp.getTextHeight("gameOverTitle", "OVER") / 2;
-        float scoreY = titleBottomY - scoreTextHeight * 2.5f; // More space below title, perfectly centered
+        float scoreY = titleY - titleHeight / 2 - scoreTextHeight * 2.2f; // Better spacing
         GameApp.drawTextCentered("gameOverText", scoreText, centerX, scoreY, "white");
 
         // Draw button text labels
@@ -213,21 +206,17 @@ public class GameStateManager {
     private void drawGameOverButtonText(float centerX, float centerY) {
         if (gameOverButtons == null || gameOverButtons.size() < 2) return;
 
-        // Play Again button text
+        // Play Again button text - perfectly centered
         Button playAgainButton = gameOverButtons.get(0);
         float playAgainCenterX = playAgainButton.getX() + playAgainButton.getWidth() / 2;
         float playAgainCenterY = playAgainButton.getY() + playAgainButton.getHeight() / 2;
-        float textHeight = GameApp.getTextHeight("gameOverButtonFont", "PLAY AGAIN");
-        float adjustedY = playAgainCenterY - textHeight * 0.1f;
-        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, adjustedY, "white");
+        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, playAgainCenterY, "white");
 
-        // Back to Menu button text
+        // Back to Menu button text - perfectly centered
         Button backToMenuButton = gameOverButtons.get(1);
         float backToMenuCenterX = backToMenuButton.getX() + backToMenuButton.getWidth() / 2;
         float backToMenuCenterY = backToMenuButton.getY() + backToMenuButton.getHeight() / 2;
-        textHeight = GameApp.getTextHeight("gameOverButtonFont", "BACK TO MENU");
-        adjustedY = backToMenuCenterY - textHeight * 0.1f;
-        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, adjustedY, "white");
+        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, backToMenuCenterY, "white");
     }
 
     // Draw smooth, eye-friendly gradient background with subtle animation

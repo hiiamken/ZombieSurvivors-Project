@@ -25,7 +25,7 @@ public class CollisionHandler {
         }
     }
 
-    public void handleBulletEnemyCollisions(List<Bullet> bullets, List<Enemy> enemies, java.util.function.Consumer<Integer> onEnemyKilled, CollisionChecker wallCollisionChecker) {
+    public void handleBulletEnemyCollisions(List<Bullet> bullets, List<Enemy> enemies, java.util.function.Consumer<Integer> onEnemyKilled, java.util.function.Consumer<Enemy> onEnemyKilledForOrbs, CollisionChecker wallCollisionChecker) {
         for (Bullet b : bullets) {
             if (b.isDestroyed()) {
                 continue;
@@ -61,6 +61,9 @@ public class CollisionHandler {
 
                     if (e.isDead()) {
                         onEnemyKilled.accept(10); // Score for killing enemy
+                        if (onEnemyKilledForOrbs != null) {
+                            onEnemyKilledForOrbs.accept(e); // Spawn orbs at enemy position
+                        }
                     }
 
                     break;

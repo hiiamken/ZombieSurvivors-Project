@@ -6,8 +6,11 @@ import nl.saxion.game.core.GameState;
 import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
+import nl.saxion.game.entities.LevelUpOption;
 import nl.saxion.game.entities.Player;
+import nl.saxion.game.entities.StatUpgradeType;
 import nl.saxion.game.entities.Weapon;
+import nl.saxion.game.entities.XPOrb;
 import nl.saxion.game.systems.CollisionHandler;
 import nl.saxion.game.systems.EnemySpawner;
 import nl.saxion.game.systems.GameRenderer;
@@ -22,6 +25,7 @@ import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import com.badlogic.gdx.Input;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +40,7 @@ public class PlayScreen extends ScalableGameScreen {
     private Weapon weapon;
     private List<Bullet> bullets;
     private List<Enemy> enemies;
+    private List<XPOrb> xpOrbs;
 
     // Systems
     private ResourceLoader resourceLoader;
@@ -50,6 +55,10 @@ public class PlayScreen extends ScalableGameScreen {
     private int score = 0;
     private float playerWorldX;
     private float playerWorldY;
+
+    // Level up menu
+    private boolean isLevelUpActive = false;
+    private List<LevelUpOption> levelUpOptions = new ArrayList<>();
 
     public PlayScreen() {
         super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
@@ -75,8 +84,16 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
                 "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
-        GameApp.addStyledFont("gameOverButtonFont", "fonts/PressStart2P-Regular.ttf", 18,
-                "white", 2f, "black", 2, 2, "gray-600", true);
+        GameApp.addStyledFont("gameOverButtonFont", "fonts/PressStart2P-Regular.ttf", 14,
+                "white", 1.5f, "black", 1, 1, "gray-600", true);
+
+        // Load level font for XP bar (pixel-perfect for HUD, smaller to fit bar height)
+        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 8,
+                "white", 1f, "black", 1, 1, "gray-800", true);
+
+        // Load score font (pixel-perfect for HUD, professional styling)
+        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
+                "white", 1.5f, "black", 2, 2, "gray-700", true);
 
         // Load game over button sprites
         if (!GameApp.hasTexture("green_long")) {
@@ -104,6 +121,8 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeFont("gameOverTitle");
         GameApp.disposeFont("gameOverText");
         GameApp.disposeFont("gameOverButtonFont");
+        GameApp.disposeFont("levelFont");
+        GameApp.disposeFont("scoreFont");
 
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
@@ -177,6 +196,23 @@ public class PlayScreen extends ScalableGameScreen {
 
         // ----- GAMEPLAY STATE -----
 
+        // Handle level up menu (pause game when active)
+        if (isLevelUpActive) {
+            handleLevelUpInput();
+            // Still render game in background
+            mapRenderer.render(playerWorldX, playerWorldY);
+            GameApp.startSpriteRendering();
+            gameRenderer.renderPlayer();
+            gameRenderer.renderEnemies(enemies);
+            gameRenderer.renderBullets(bullets);
+            GameApp.endSpriteRendering();
+            renderPlayerHealthBar();
+            renderXPOrbs();
+            renderHUD();
+            renderLevelUpMenu();
+            return; // Skip game updates
+        }
+
         // Update game time for difficulty scaling
         gameTime += delta;
 
@@ -234,6 +270,9 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.updateAnimation("zombie_hit");
         GameApp.updateAnimation("zombie_death");
 
+        // Update XP orb animation
+        GameApp.updateAnimation("orb_animation");
+
         // Enemy spawning
         enemySpawner.update(delta, gameTime, playerWorldX, playerWorldY, enemies);
 
@@ -241,8 +280,19 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler.update(delta);
         // Pass wall collision checker to prevent bullets hitting enemies through walls
         CollisionChecker wallChecker = mapRenderer::checkWallCollision;
-        collisionHandler.handleBulletEnemyCollisions(bullets, enemies, this::addScore, wallChecker);
+        collisionHandler.handleBulletEnemyCollisions(bullets, enemies,
+                (score) -> addScore(score),
+                (enemy) -> spawnXPOrbsAtEnemy(enemy),
+                wallChecker);
         collisionHandler.handleEnemyPlayerCollisions(player, enemies);
+
+        // Update XP orbs
+        updateXPOrbs(delta);
+
+        // Check for level up
+        if (!isLevelUpActive && player.checkLevelUp()) {
+            showLevelUpMenu();
+        }
 
         // Cleanup
         collisionHandler.removeDeadEnemies(enemies);
@@ -270,9 +320,16 @@ public class PlayScreen extends ScalableGameScreen {
         gameRenderer.renderEnemies(enemies);
         gameRenderer.renderBullets(bullets);
 
-        renderHUD();
-
         GameApp.endSpriteRendering();
+
+        // Render health bar below player (uses shape rendering)
+        renderPlayerHealthBar();
+
+        // Render XP orbs (uses shape rendering)
+        renderXPOrbs();
+
+        // Render HUD after sprite rendering (HUD uses shapes and text)
+        renderHUD();
     }
 
     // =========================
@@ -282,7 +339,10 @@ public class PlayScreen extends ScalableGameScreen {
     public PlayerStatus getPlayerStatus() {
         int health = player.getHealth();
         int maxHealth = player.getMaxHealth();
-        return new PlayerStatus(health, maxHealth, score);
+        int level = player.getCurrentLevel();
+        int currentXP = player.getCurrentXP();
+        int xpToNext = player.getXPToNextLevel();
+        return new PlayerStatus(health, maxHealth, score, level, currentXP, xpToNext);
     }
 
     public void addScore(int amount) {
@@ -293,6 +353,182 @@ public class PlayScreen extends ScalableGameScreen {
     private void renderHUD() {
         PlayerStatus status = getPlayerStatus();
         hud.render(status);
+    }
+
+    // Render health bar below player (like Vampire Survivors)
+    private void renderPlayerHealthBar() {
+        if (player == null) return;
+
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        // Player is always at center of viewport
+        float playerScreenX = worldW / 2f;
+        float playerScreenY = worldH / 2f;
+
+        // Health bar properties - smaller and closer to player
+        float barWidth = 18f;  // Narrower bar
+        float barHeight = 2f;  // Thinner bar
+        float barOffsetY = 6f; // Closer to player
+
+        // Calculate health percentage
+        float hpPercent = player.getHealth() / (float) player.getMaxHealth();
+        hpPercent = GameApp.clamp(hpPercent, 0f, 1f);
+
+        // Position: centered below player
+        float barX = playerScreenX - barWidth / 2f;
+        float barY = playerScreenY - Player.SPRITE_SIZE / 2f - barOffsetY;
+
+        GameApp.startShapeRenderingFilled();
+
+        // Background (empty health) - dark red/black
+        GameApp.setColor(60, 20, 20, 255);
+        GameApp.drawRect(barX, barY, barWidth, barHeight);
+
+        // Fill (current health) - bright red
+        if (hpPercent > 0) {
+            GameApp.setColor(220, 30, 30, 255); // Bright red
+            GameApp.drawRect(barX, barY, barWidth * hpPercent, barHeight);
+        }
+
+        GameApp.endShapeRendering();
+
+        // Border outline - subtle dark border
+        GameApp.startShapeRenderingOutlined();
+        GameApp.setLineWidth(1f);
+        GameApp.setColor(120, 120, 120, 255); // Dark gray border
+        GameApp.drawRect(barX, barY, barWidth, barHeight);
+        GameApp.endShapeRendering();
+    }
+
+    // =========================
+    // XP ORB SYSTEM
+    // =========================
+
+    // Spawn XP orbs at enemy position when enemy dies
+    private void spawnXPOrbsAtEnemy(Enemy enemy) {
+        // Spawn 1-3 orbs
+        int orbCount = GameApp.randomInt(1, 4);
+        for (int i = 0; i < orbCount; i++) {
+            float offsetX = GameApp.random(-10f, 10f);
+            float offsetY = GameApp.random(-10f, 10f);
+            XPOrb orb = new XPOrb(enemy.getX() + offsetX, enemy.getY() + offsetY, 10);
+            xpOrbs.add(orb);
+        }
+    }
+
+    // Update XP orbs (magnet, collection, expiration)
+    private void updateXPOrbs(float delta) {
+        java.util.Iterator<XPOrb> it = xpOrbs.iterator();
+        while (it.hasNext()) {
+            XPOrb orb = it.next();
+
+            // Update orb position and magnet
+            orb.update(delta, player.getX(), player.getY());
+
+            // Check if collected
+            if (orb.isCollected()) {
+                player.addXP(orb.getXPValue());
+                it.remove();
+                continue;
+            }
+
+            // Remove expired orbs
+            if (orb.isExpired()) {
+                it.remove();
+            }
+        }
+    }
+
+    // Render XP orbs
+    private void renderXPOrbs() {
+        GameApp.startSpriteRendering();
+        for (XPOrb orb : xpOrbs) {
+            orb.render(playerWorldX, playerWorldY);
+        }
+        GameApp.endSpriteRendering();
+    }
+
+    // =========================
+    // LEVEL UP MENU
+    // =========================
+
+    // Show level up menu with 3 random options
+    private void showLevelUpMenu() {
+        isLevelUpActive = true;
+        levelUpOptions.clear();
+
+        // Generate 3 random stat upgrades
+        StatUpgradeType[] allUpgrades = StatUpgradeType.values();
+        List<StatUpgradeType> available = new ArrayList<>();
+        for (StatUpgradeType upgrade : allUpgrades) {
+            available.add(upgrade);
+        }
+
+        // Pick 3 random upgrades
+        for (int i = 0; i < 3 && !available.isEmpty(); i++) {
+            int index = GameApp.randomInt(0, available.size());
+            levelUpOptions.add(new LevelUpOption(available.get(index)));
+            available.remove(index);
+        }
+    }
+
+    // Render level up menu
+    private void renderLevelUpMenu() {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+
+        // Draw semi-transparent background
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(0, 0, 0, 200);
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+
+        // Draw menu
+        GameApp.startSpriteRendering();
+
+        // Title
+        float titleY = centerY + 80f;
+        GameApp.drawTextCentered("default", "LEVEL UP!", centerX, titleY, "yellow-500");
+
+        // Options
+        float optionStartY = centerY - 20f;
+        float optionSpacing = 40f;
+
+        for (int i = 0; i < levelUpOptions.size(); i++) {
+            LevelUpOption option = levelUpOptions.get(i);
+            float optionY = optionStartY - (i * optionSpacing);
+            String text = String.format("[%d] %s - %s", i + 1, option.title, option.description);
+            GameApp.drawTextCentered("default", text, centerX, optionY, "white");
+        }
+
+        GameApp.endSpriteRendering();
+    }
+
+    // Handle level up menu input
+    private void handleLevelUpInput() {
+        // Check for number key presses (1, 2, 3)
+        if (GameApp.isKeyJustPressed(Input.Keys.NUM_1) && levelUpOptions.size() > 0) {
+            applyLevelUpOption(0);
+        } else if (GameApp.isKeyJustPressed(Input.Keys.NUM_2) && levelUpOptions.size() > 1) {
+            applyLevelUpOption(1);
+        } else if (GameApp.isKeyJustPressed(Input.Keys.NUM_3) && levelUpOptions.size() > 2) {
+            applyLevelUpOption(2);
+        }
+    }
+
+    // Apply selected level up option
+    private void applyLevelUpOption(int index) {
+        if (index < 0 || index >= levelUpOptions.size()) return;
+
+        LevelUpOption option = levelUpOptions.get(index);
+        player.applyStatUpgrade(option.stat);
+        player.levelUp();
+
+        isLevelUpActive = false;
+        levelUpOptions.clear();
     }
 
     // =========================
@@ -311,6 +547,9 @@ public class PlayScreen extends ScalableGameScreen {
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 10f, 10f);
 
         enemies = new ArrayList<>();
+        xpOrbs = new ArrayList<>();
+        isLevelUpActive = false;
+        levelUpOptions.clear();
 
         // Reset game state
         gameTime = 0f;
