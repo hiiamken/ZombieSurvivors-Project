@@ -43,6 +43,16 @@ public class ResourceLoader {
 
         GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");
 
+        // Load XP orb sprite sheet
+        GameApp.addSpriteSheet("orb_sheet", "assets/enemy/orb.png", 16, 16);
+
+        // Create XP orb animation from row 9, columns 19-22 (4 frames)
+        GameApp.addEmptyAnimation("orb_animation", 0.15f, true);
+        GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 19);
+        GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 20);
+        GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 21);
+        GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 22);
+
         // Load 16 individual map textures
         int loadedCount = 0;
         for (int i = 0; i < 16; i++) {
@@ -110,6 +120,10 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("zombie_hit_sheet");
         GameApp.disposeSpritesheet("zombie_death1_sheet");
         GameApp.disposeSpritesheet("zombie_death2_sheet");
+
+        // Dispose XP orb animation and sprite sheet
+        GameApp.disposeAnimation("orb_animation");
+        GameApp.disposeSpritesheet("orb_sheet");
 
         // Dispose all map textures
         for (int i = 0; i < 16; i++) {
