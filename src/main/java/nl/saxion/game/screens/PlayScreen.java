@@ -95,6 +95,9 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
                 "white", 1.5f, "black", 2, 2, "gray-700", true);
 
+        // Load timer font (Press Start 2P for timer display)
+        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 14, true);
+
         // Load game over button sprites
         if (!GameApp.hasTexture("green_long")) {
             GameApp.addTexture("green_long", "assets/ui/green_long.png");
@@ -123,6 +126,7 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeFont("gameOverButtonFont");
         GameApp.disposeFont("levelFont");
         GameApp.disposeFont("scoreFont");
+        GameApp.disposeFont("timerFont");
 
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
