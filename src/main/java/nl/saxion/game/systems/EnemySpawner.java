@@ -20,6 +20,10 @@ public class EnemySpawner {
             return;
         }
 
+        // Spawn interval scaling based on gameTime (faster spawns over time)
+        enemySpawnInterval = 3f - (gameTime * 0.05f);
+        enemySpawnInterval = GameApp.clamp(enemySpawnInterval, 0.5f, 3f);
+
         // Spawn timer (count up)
         enemySpawnTimer += delta;
         if (enemySpawnTimer < enemySpawnInterval) {
@@ -71,12 +75,6 @@ public class EnemySpawner {
 
         // Spawn enemy
         enemies.add(new Enemy(spawnX, spawnY, currentSpeed, currentHealth));
-
-        // Spawn interval scaling (faster spawns over time, clamped)
-        if (enemySpawnInterval > 1.5f) {
-            enemySpawnInterval -= delta * 0.02f;
-        }
-        enemySpawnInterval = GameApp.clamp(enemySpawnInterval, 0.5f, 10f);
     }
 
     public void reset() {

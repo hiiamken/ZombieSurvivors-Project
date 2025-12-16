@@ -56,15 +56,18 @@ public class HUD {
         int minutes = totalSeconds / 60;
         int seconds = totalSeconds % 60;
 
-        String timeText = String.format("TIME %02d:%02d", minutes, seconds);
+        String timeText = String.format("%02d:%02d", minutes, seconds);
 
+        float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
 
-        // Position: top-left, below XP bar
-        float x = 10f;
+        // Position: centered horizontally, below XP bar
+        String fontName = GameApp.hasFont("timerFont") ? "timerFont" : "default";
+        float textWidth = GameApp.getTextWidth(fontName, timeText);
+        float x = (screenWidth - textWidth) / 2f; // Center horizontally
         float y = screenHeight - 30f;
 
-        GameApp.drawText("default", timeText, x, y, "white");
+        GameApp.drawText(fontName, timeText, x, y, "white");
     }
 
     // Draw XP level text - right side, vertically centered with bar

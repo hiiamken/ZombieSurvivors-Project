@@ -12,6 +12,7 @@ import nl.saxion.game.entities.StatUpgradeType;
 import nl.saxion.game.entities.Weapon;
 import nl.saxion.game.entities.XPOrb;
 import nl.saxion.game.systems.CollisionHandler;
+import nl.saxion.game.systems.DamageTextSystem;
 import nl.saxion.game.systems.EnemySpawner;
 import nl.saxion.game.systems.GameRenderer;
 import nl.saxion.game.systems.GameStateManager;
@@ -49,6 +50,7 @@ public class PlayScreen extends ScalableGameScreen {
     private CollisionHandler collisionHandler;
     private GameRenderer gameRenderer;
     private GameStateManager gameStateManager;
+    private DamageTextSystem damageTextSystem;
 
     // Game state
     private float gameTime = 0f;
@@ -76,6 +78,10 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler = new CollisionHandler();
         gameRenderer = new GameRenderer();
         gameStateManager = new GameStateManager();
+        damageTextSystem = new DamageTextSystem();
+
+        // Link damage text system to collision handler
+        collisionHandler.setDamageTextSystem(damageTextSystem);
 
         input = new InputController(MainGame.getConfig());
         hud = new HUD();
@@ -94,6 +100,13 @@ public class PlayScreen extends ScalableGameScreen {
         // Load score font (pixel-perfect for HUD, professional styling)
         GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
                 "white", 1.5f, "black", 2, 2, "gray-700", true);
+
+        // Load timer font (Press Start 2P for timer display)
+        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 14, true);
+
+        // Load damage font (PixelOperatorMono-Bold for damage numbers - smaller size)
+        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 13,
+                "orange-500", 0.4f, "black", 1, 1, "black", true);
 
         // Load game over button sprites
         if (!GameApp.hasTexture("green_long")) {
@@ -123,6 +136,8 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeFont("gameOverButtonFont");
         GameApp.disposeFont("levelFont");
         GameApp.disposeFont("scoreFont");
+        GameApp.disposeFont("timerFont");
+        GameApp.disposeFont("damageFont");
 
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
@@ -286,6 +301,9 @@ public class PlayScreen extends ScalableGameScreen {
                 wallChecker);
         collisionHandler.handleEnemyPlayerCollisions(player, enemies);
 
+        // Update damage texts
+        damageTextSystem.update(delta);
+
         // Update XP orbs
         updateXPOrbs(delta);
 
@@ -321,6 +339,9 @@ public class PlayScreen extends ScalableGameScreen {
         gameRenderer.renderBullets(bullets);
 
         GameApp.endSpriteRendering();
+
+        // Render damage texts (after sprites, uses its own sprite batch)
+        damageTextSystem.render(playerWorldX, playerWorldY);
 
         // Render health bar below player (uses shape rendering)
         renderPlayerHealthBar();
@@ -544,7 +565,8 @@ public class PlayScreen extends ScalableGameScreen {
         player = new Player(startX, startY, speed, maxHealth, null);
 
         bullets = new ArrayList<>();
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 10, 400f, 10f, 10f);
+        // Weapon với random damage: 5-15 (enemy health 15, chết trong 1-3 hit)
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 5, 15, 400f, 10f, 10f);
 
         enemies = new ArrayList<>();
         xpOrbs = new ArrayList<>();
@@ -556,6 +578,7 @@ public class PlayScreen extends ScalableGameScreen {
         score = 0;
         enemySpawner.reset();
         collisionHandler.reset();
+        damageTextSystem.reset();
 
         // Set initial player world position
         playerWorldX = MapRenderer.getMapTileWidth() / 2f; // 480

@@ -17,6 +17,9 @@ public class CollisionHandler {
 
     private float playerDamageCooldown = 0f;
 
+    // Damage text system for spawning damage numbers
+    private DamageTextSystem damageTextSystem;
+
     public void update(float delta) {
         // Player Damage cooldown
         playerDamageCooldown -= delta;
@@ -56,8 +59,19 @@ public class CollisionHandler {
                 float eH = enemyDamageHitbox.height;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
-                    e.takeDamage(b.getDamage());
+                    int damage = b.getDamage();
+                    e.takeDamage(damage);
                     b.destroy();
+
+                    // Spawn damage text at enemy position
+                    if (damageTextSystem != null) {
+                        // Use enemy center position for damage text spawn
+                        float enemyCenterX = eX + eW / 2f;
+                        float enemyCenterY = eY + eH / 2f;
+                        // Simple crit check: 10% chance or if damage > 15
+                        boolean isCrit = GameApp.random(0f, 1f) < 0.1f || damage > 15;
+                        damageTextSystem.spawnDamageText(enemyCenterX, enemyCenterY, damage, isCrit);
+                    }
 
                     if (e.isDead()) {
                         onEnemyKilled.accept(10); // Score for killing enemy
@@ -122,6 +136,10 @@ public class CollisionHandler {
                 it.remove();
             }
         }
+    }
+
+    public void setDamageTextSystem(DamageTextSystem system) {
+        this.damageTextSystem = system;
     }
 
     public void reset() {

@@ -1,5 +1,7 @@
 package nl.saxion.game.entities;
 
+import nl.saxion.gameapp.GameApp;
+
 public class Weapon {
 
     public enum WeaponType {
@@ -9,32 +11,45 @@ public class Weapon {
     private WeaponType type;
     private float fireRate;        // shots per second
     private float fireCooldown;    // seconds remaining until next shot
-    private int damage;            // base damage per bullet
+    private int minDamage;        // minimum damage per bullet
+    private int maxDamage;        // maximum damage per bullet
 
     // Bullet properties
     private float bulletSpeed;
     private float bulletWidth;
     private float bulletHeight;
 
-    // Old constructor – still works
+    // Old constructor – still works (uses damage as both min and max)
     public Weapon(WeaponType type, float fireRate, int damage) {
-        this(type, fireRate, damage, 400f, 6f, 6f);
+        this(type, fireRate, damage, damage, 400f, 6f, 6f);
     }
 
-    // New constructor with more control
+    // Constructor with damage range
+    public Weapon(WeaponType type,
+                  float fireRate,
+                  int minDamage,
+                  int maxDamage,
+                  float bulletSpeed,
+                  float bulletWidth,
+                  float bulletHeight) {
+        this.type = type;
+        this.fireRate = fireRate;
+        this.minDamage = minDamage;
+        this.maxDamage = maxDamage;
+        this.bulletSpeed = bulletSpeed;
+        this.bulletWidth = bulletWidth;
+        this.bulletHeight = bulletHeight;
+        this.fireCooldown = 0f;
+    }
+
+    // Legacy constructor for compatibility (uses damage as both min and max)
     public Weapon(WeaponType type,
                   float fireRate,
                   int damage,
                   float bulletSpeed,
                   float bulletWidth,
                   float bulletHeight) {
-        this.type = type;
-        this.fireRate = fireRate;
-        this.damage = damage;
-        this.bulletSpeed = bulletSpeed;
-        this.bulletWidth = bulletWidth;
-        this.bulletHeight = bulletHeight;
-        this.fireCooldown = 0f;
+        this(type, fireRate, damage, damage, bulletSpeed, bulletWidth, bulletHeight);
     }
 
     // called every frame
@@ -80,8 +95,10 @@ public class Weapon {
         float bulletStartX = damageHitboxCenterX - bulletWidth / 2f;
         float bulletStartY = damageHitboxCenterY - bulletHeight / 2f;
 
-        // 🔥 APPLY DAMAGE MULTIPLIER HERE
-        int finalDamage = (int) (damage * player.getDamageMultiplier());
+        // Random damage within range
+        int baseDamage = GameApp.randomInt(minDamage, maxDamage + 1);
+        // Apply damage multiplier from player upgrades
+        int finalDamage = (int) (baseDamage * player.getDamageMultiplier());
 
         Bullet bullet = new Bullet(
                 bulletStartX,
@@ -98,8 +115,17 @@ public class Weapon {
         return bullet;
     }
 
-    public int getDamage() {
-        return damage;
+    // Get average damage for display/calculation
+    public int getAverageDamage() {
+        return (minDamage + maxDamage) / 2;
+    }
+
+    public int getMinDamage() {
+        return minDamage;
+    }
+
+    public int getMaxDamage() {
+        return maxDamage;
     }
 
     public float getFireRate() {
