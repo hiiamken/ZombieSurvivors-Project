@@ -352,7 +352,7 @@ public class PlayScreen extends ScalableGameScreen {
 
     private void renderHUD() {
         PlayerStatus status = getPlayerStatus();
-        hud.render(status);
+        hud.render(status, gameTime);
     }
 
     // Render health bar below player (like Vampire Survivors)
