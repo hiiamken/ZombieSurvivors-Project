@@ -1,8 +1,12 @@
 package nl.saxion.game.screens;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Cursor;
+import com.badlogic.gdx.graphics.Pixmap;
 import nl.saxion.game.config.ConfigManager;
 import nl.saxion.game.config.GameConfig;
+import nl.saxion.game.systems.SoundManager;
 import nl.saxion.game.ui.Button;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
@@ -24,6 +28,15 @@ public class SettingsScreen extends ScalableGameScreen {
 
     // Back button
     private Button backButton;
+    
+    // Sound manager for background music
+    private SoundManager soundManager;
+
+    // Cursor management
+    private Cursor cursorPointer; // Left side (pointer/default)
+    private Cursor cursorHover;   // Right side (hover)
+    private boolean isHoveringButton = false;
+
 
     // Colors - using custom registered colors
     private static final String BG_COLOR = "black";
@@ -38,10 +51,68 @@ public class SettingsScreen extends ScalableGameScreen {
 
     @Override
     public void show() {
+        // Load cursors
+        loadPusheenCursors();
+        
+        // Initialize sound manager for background music
+        soundManager = new SoundManager();
+        soundManager.loadAllSounds();
+        
+        // Start background music for menu (if not already playing)
+        if (soundManager != null) {
+            soundManager.playMusic(true);
+        }
+
         loadResources();
         loadSettingsFromConfig();
         createSettingItems();
         createBackButton();
+    }
+
+    // Load cursor images (pointer.png and cursor.png)
+    private void loadPusheenCursors() {
+        try {
+            // Load pointer cursor (for click/default state)
+            String pointerPath = "assets/ui/pointer.png";
+            Pixmap pointerSource = new Pixmap(Gdx.files.internal(pointerPath));
+            int pointerSourceWidth = pointerSource.getWidth();
+            int pointerSourceHeight = pointerSource.getHeight();
+
+            // Resize to 32x32
+            int targetSize = 32;
+            Pixmap pointerPixmap = new Pixmap(targetSize, targetSize, pointerSource.getFormat());
+            pointerPixmap.drawPixmap(pointerSource,
+                    0, 0, pointerSourceWidth, pointerSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorPointer = Gdx.graphics.newCursor(pointerPixmap, 0, 0);
+            pointerPixmap.dispose();
+            pointerSource.dispose();
+
+            // Load hover cursor (for hover state)
+            String cursorPath = "assets/ui/cursor.png";
+            Pixmap cursorSource = new Pixmap(Gdx.files.internal(cursorPath));
+            int cursorSourceWidth = cursorSource.getWidth();
+            int cursorSourceHeight = cursorSource.getHeight();
+
+            // Resize to 32x32
+            Pixmap cursorPixmap = new Pixmap(targetSize, targetSize, cursorSource.getFormat());
+            cursorPixmap.drawPixmap(cursorSource,
+                    0, 0, cursorSourceWidth, cursorSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorHover = Gdx.graphics.newCursor(cursorPixmap, 0, 0);
+            cursorPixmap.dispose();
+            cursorSource.dispose();
+
+            // Set default to pointer
+            if (cursorPointer != null) {
+                Gdx.graphics.setCursor(cursorPointer);
+            } else {
+                GameApp.showCursor();
+            }
+        } catch (Exception e) {
+            GameApp.log("Could not load cursors: " + e.getMessage());
+            GameApp.showCursor(); // Fallback to default
+        }
     }
 
     // Load settings from config file
@@ -111,6 +182,19 @@ public class SettingsScreen extends ScalableGameScreen {
     public void hide() {
         // Save settings when leaving screen
         saveSettingsToConfig();
+        
+        // Don't stop music when leaving settings - keep it playing for menu
+        // Music will continue in MainMenuScreen
+
+        // Dispose cursors
+        if (cursorPointer != null) {
+            cursorPointer.dispose();
+            cursorPointer = null;
+        }
+        if (cursorHover != null) {
+            cursorHover.dispose();
+            cursorHover = null;
+        }
     }
 
     @Override
@@ -144,6 +228,43 @@ public class SettingsScreen extends ScalableGameScreen {
     }
 
     private void handleInput(float mouseX, float mouseY) {
+        // Check if hovering over back button or setting items for cursor switching
+        boolean hoveringAnyButton = false;
+        if (backButton.containsPoint(mouseX, mouseY)) {
+            hoveringAnyButton = true;
+        }
+        for (SettingItem item : settingItems) {
+            if (item.containsPoint(mouseX, mouseY)) {
+                hoveringAnyButton = true;
+                break;
+            }
+        }
+
+        // Switch cursor based on hover state and click state
+        if (cursorPointer != null && cursorHover != null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+            if (isMouseDown || isMouseJustPressed) {
+                // When clicking, use pointer cursor and reset hover state
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringButton = false; // Reset to allow hover cursor after release
+            } else if (hoveringAnyButton) {
+                // Hovering over button - use hover cursor
+                if (!isHoveringButton) {
+                    // Just started hovering
+                    Gdx.graphics.setCursor(cursorHover);
+                    isHoveringButton = true;
+                }
+            } else {
+                // Not hovering - use pointer cursor
+                if (isHoveringButton) {
+                    // Just stopped hovering
+                    Gdx.graphics.setCursor(cursorPointer);
+                    isHoveringButton = false;
+                }
+            }
+        }
+
         // Navigate between settings with up/down
         if (GameApp.isKeyJustPressed(Input.Keys.UP) || GameApp.isKeyJustPressed(Input.Keys.W)) {
             selectedItemIndex--;
@@ -175,6 +296,10 @@ public class SettingsScreen extends ScalableGameScreen {
         // Enter to go back if back button is selected
         if (GameApp.isKeyJustPressed(Input.Keys.ENTER) || GameApp.isKeyJustPressed(Input.Keys.SPACE)) {
             if (selectedItemIndex == settingItems.size()) {
+                // Play button click sound at 2.5f volume
+                if (soundManager != null) {
+                    soundManager.playSound("clickbutton", 2.5f);
+                }
                 backButton.click();
             }
         }
@@ -182,12 +307,20 @@ public class SettingsScreen extends ScalableGameScreen {
         // Escape to go back (saves settings)
         if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
             saveSettingsToConfig();
+            // Play button click sound at 2.5f volume
+            if (soundManager != null) {
+                soundManager.playSound("clickbutton", 2.5f);
+            }
             backButton.click();
         }
 
         // Mouse click on back button
         if (GameApp.isButtonJustPressed(0)) {
             if (backButton.containsPoint(mouseX, mouseY)) {
+                // Play button click sound at 2.5f volume
+                if (soundManager != null) {
+                    soundManager.playSound("clickbutton", 2.5f);
+                }
                 backButton.click();
             }
 

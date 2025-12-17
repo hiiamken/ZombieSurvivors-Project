@@ -68,6 +68,10 @@ public class Weapon {
     }
 
     public Bullet tryFire(Player player) {
+        return tryFire(player, null);
+    }
+    
+    public Bullet tryFire(Player player, nl.saxion.game.systems.SoundManager soundManager) {
         if (!canFire()) {
             return null;
         }
@@ -110,6 +114,11 @@ public class Weapon {
                 bulletWidth,
                 bulletHeight
         );
+
+        // Play shooting sound at 10% volume
+        if (soundManager != null) {
+            soundManager.playSound("shooting", 0.1f);
+        }
 
         startCooldown();
         return bullet;

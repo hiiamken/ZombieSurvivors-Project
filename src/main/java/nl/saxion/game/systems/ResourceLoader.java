@@ -9,7 +9,12 @@ import java.util.Map;
 
 // Handles loading and disposing of game resources
 public class ResourceLoader {
+    private SoundManager soundManager;
+    
     public void loadGameResources() {
+        // Load audio resources
+        soundManager = new SoundManager();
+        soundManager.loadAllSounds();
         GameApp.log("PlayScreen loaded");
 
         GameApp.addTexture("bullet", "assets/Bullet/Bullet.png");
@@ -67,9 +72,6 @@ public class ResourceLoader {
         }
 
         GameApp.log("Loaded " + loadedCount + " map textures (room_00.png to room_15.png)");
-
-        // Hide cursor for better game experience
-        GameApp.hideCursor();
     }
 
     public Map<Integer, TMXMapData> loadTMXMaps() {
@@ -93,6 +95,13 @@ public class ResourceLoader {
 
     public void disposeGameResources() {
         GameApp.log("PlayScreen hidden");
+        
+        // Dispose audio resources
+        if (soundManager != null) {
+            soundManager.dispose();
+            soundManager = null;
+        }
+        
         GameApp.disposeTexture("bullet");
         GameApp.disposeTexture("enemy");
 
@@ -134,6 +143,14 @@ public class ResourceLoader {
 
     private String getRoomTextureKey(int mapIndex) {
         return "room_" + String.format("%02d", mapIndex);
+    }
+    
+    /**
+     * Get the SoundManager instance.
+     * @return SoundManager instance
+     */
+    public SoundManager getSoundManager() {
+        return soundManager;
     }
 }
 
