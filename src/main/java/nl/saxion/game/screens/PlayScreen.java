@@ -19,6 +19,7 @@ import nl.saxion.game.systems.GameStateManager;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.systems.MapRenderer;
 import nl.saxion.game.systems.ResourceLoader;
+import nl.saxion.game.systems.SoundManager;
 import nl.saxion.game.ui.Button;
 import nl.saxion.game.ui.HUD;
 import nl.saxion.game.utils.CollisionChecker;
@@ -60,6 +61,8 @@ public class PlayScreen extends ScalableGameScreen {
     private GameRenderer gameRenderer;
     private GameStateManager gameStateManager;
     private DamageTextSystem damageTextSystem;
+    private SoundManager soundManager;
+    private GameOverScreen gameOverScreen;
 
     // Game state
     private float gameTime = 0f;
@@ -70,6 +73,11 @@ public class PlayScreen extends ScalableGameScreen {
     // Level up menu
     private boolean isLevelUpActive = false;
     private List<LevelUpOption> levelUpOptions = new ArrayList<>();
+    
+    // Ingame music delay
+    private float ingameMusicDelayTimer = 0f;
+    private static final float INGAME_MUSIC_DELAY = 1.2f;
+    private boolean ingameMusicStarted = false;
 
     public PlayScreen() {
         super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
@@ -80,6 +88,9 @@ public class PlayScreen extends ScalableGameScreen {
         // Initialize systems
         resourceLoader = new ResourceLoader();
         resourceLoader.loadGameResources();
+        
+        // Get SoundManager from ResourceLoader
+        soundManager = resourceLoader.getSoundManager();
 
         Map<Integer, TMXMapData> tmxMapDataByRoomIndex = resourceLoader.loadTMXMaps();
         mapRenderer = new MapRenderer(tmxMapDataByRoomIndex);
@@ -91,6 +102,35 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Link damage text system to collision handler
         collisionHandler.setDamageTextSystem(damageTextSystem);
+        
+        // Link sound manager to collision handler for damage sounds
+        if (soundManager != null) {
+            collisionHandler.setSoundManager(soundManager);
+        }
+        
+        // Initialize game over screen
+        gameOverScreen = new GameOverScreen();
+        gameOverScreen.setSoundManager(soundManager);
+        gameOverScreen.initialize(
+                () -> {
+                    // Play Again action
+                    gameOverScreen.resetFade();
+                    resetGame();
+                },
+                () -> {
+                    // Back to Menu action
+                    GameApp.switchScreen("menu");
+                }
+        );
+        
+        // Stop menu music and start ingame music with delay
+        // Delay allows clickbutton sound to play before music starts
+        if (soundManager != null) {
+            soundManager.stopMusic(); // Stop menu music
+            // Reset delay timer for ingame music
+            ingameMusicDelayTimer = 0f;
+            ingameMusicStarted = false;
+        }
 
         input = new InputController(MainGame.getConfig());
         hud = new HUD();
@@ -207,6 +247,11 @@ public class PlayScreen extends ScalableGameScreen {
             cursorHover = null;
         }
 
+        // Stop ingame music when leaving gameplay
+        if (soundManager != null) {
+            soundManager.stopIngameMusic();
+        }
+        
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
         }
@@ -220,20 +265,8 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Handle game over state
         if (gameStateManager.getCurrentState() == GameState.GAME_OVER) {
-            gameStateManager.updateGameOverFade(delta);
-
-            // Initialize buttons if not already done
-            gameStateManager.initializeGameOverButtons(
-                    () -> {
-                        // Play Again action
-                        gameStateManager.resetGameOverFade();
-                        resetGame();
-                    },
-                    () -> {
-                        // Back to Menu action
-                        GameApp.switchScreen("menu");
-                    }
-            );
+            // Update game over screen
+            gameOverScreen.update(delta);
 
             // Get mouse position and convert to world coordinates
             float mouseX = GameApp.getMousePositionInWindowX();
@@ -264,23 +297,23 @@ public class PlayScreen extends ScalableGameScreen {
             handleGameOverCursor(worldMouseX, worldMouseY);
 
             // Handle input with converted coordinates
-            gameStateManager.handleGameOverInput(worldMouseX, worldMouseY,
-                    () -> {
-                        // Play Again
-                        gameStateManager.resetGameOverFade();
-                        resetGame();
-                    },
-                    () -> {
-                        // Back to Menu
-                        GameApp.switchScreen("menu");
-                    }
-            );
+            gameOverScreen.handleInput(worldMouseX, worldMouseY);
 
-            gameStateManager.renderGameOverScreen();
+            // Render game over screen
+            gameOverScreen.render();
             return;
         }
 
         // ----- GAMEPLAY STATE -----
+        
+        // Handle ingame music delay (start music after delay to allow click sound)
+        if (!ingameMusicStarted && soundManager != null) {
+            ingameMusicDelayTimer += delta;
+            if (ingameMusicDelayTimer >= INGAME_MUSIC_DELAY) {
+                soundManager.playIngameMusic(true);
+                ingameMusicStarted = true;
+            }
+        }
 
         // Handle level up menu (pause game when active)
         if (isLevelUpActive) {
@@ -329,7 +362,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Update weapon and shooting (only if player is alive)
         weapon.update(delta);
         if (!player.isDying()) {
-            Bullet newBullet = weapon.tryFire(player);
+            Bullet newBullet = weapon.tryFire(player, soundManager);
             if (newBullet != null) {
                 bullets.add(newBullet);
             }
@@ -407,9 +440,19 @@ public class PlayScreen extends ScalableGameScreen {
             // Only transition to game over after death animation completes
             if (player.isDeathAnimationFinished()) {
                 GameApp.log("Death animation finished - showing game over");
+                
+                // Stop ingame music smoothly and play game over sound
+                if (soundManager != null) {
+                    // Fade out ingame music smoothly before stopping
+                    soundManager.setIngameMusicVolumeTemporary(0.0f);
+                    // Small delay to allow music fade, then stop and play gameover sound
+                    soundManager.stopIngameMusic();
+                    soundManager.playSound("gameover", 0.3f); // Volume at 0.3f (30%)
+                }
+                
                 gameStateManager.setCurrentState(GameState.GAME_OVER);
-                gameStateManager.setScore(score);
-                gameStateManager.resetGameOverFade(); // Reset fade for smooth transition
+                gameOverScreen.setScore(score);
+                gameOverScreen.resetFade(); // Reset fade for smooth transition
             }
         }
 
@@ -536,6 +579,10 @@ public class PlayScreen extends ScalableGameScreen {
             // Check if collected
             if (orb.isCollected()) {
                 player.addXP(orb.getXPValue());
+                // Play pickup item sound at 10% volume
+                if (soundManager != null) {
+                    soundManager.playSound("pickupitem", 0.1f);
+                }
                 it.remove();
                 continue;
             }
@@ -564,6 +611,16 @@ public class PlayScreen extends ScalableGameScreen {
     private void showLevelUpMenu() {
         isLevelUpActive = true;
         levelUpOptions.clear();
+
+        // Play level up sound
+        if (soundManager != null) {
+            soundManager.playSound("levelup", 1.0f);
+        }
+        
+        // Reduce ingame music volume to 30% when level up menu is open
+        if (soundManager != null) {
+            soundManager.setIngameMusicVolumeTemporary(0.3f);
+        }
 
         // Generate 3 random stat upgrades
         StatUpgradeType[] allUpgrades = StatUpgradeType.values();
@@ -636,6 +693,11 @@ public class PlayScreen extends ScalableGameScreen {
 
         isLevelUpActive = false;
         levelUpOptions.clear();
+        
+        // Restore ingame music volume to normal after closing level up menu
+        if (soundManager != null) {
+            soundManager.restoreIngameMusicVolume();
+        }
     }
 
     // Handle cursor switching for game over screen
@@ -644,7 +706,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Check if hovering over any game over button
         boolean hoveringAnyButton = false;
-        List<Button> gameOverButtons = gameStateManager.getGameOverButtons();
+        List<Button> gameOverButtons = gameOverScreen.getButtons();
         if (gameOverButtons != null) {
             for (Button button : gameOverButtons) {
                 if (button.containsPoint(worldMouseX, worldMouseY)) {
@@ -710,6 +772,10 @@ public class PlayScreen extends ScalableGameScreen {
         enemySpawner.reset();
         collisionHandler.reset();
         damageTextSystem.reset();
+        
+        // Reset ingame music delay timer
+        ingameMusicDelayTimer = 0f;
+        ingameMusicStarted = false;
 
         // Set initial player world position
         playerWorldX = MapRenderer.getMapTileWidth() / 2f; // 480

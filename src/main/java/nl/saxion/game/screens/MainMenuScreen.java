@@ -1,5 +1,6 @@
 package nl.saxion.game.screens;
 
+import nl.saxion.game.systems.SoundManager;
 import nl.saxion.game.ui.Button;
 import nl.saxion.game.utils.DebugLogger;
 import nl.saxion.gameapp.GameApp;
@@ -16,14 +17,15 @@ public class MainMenuScreen extends ScalableGameScreen {
 
     private List<Button> buttons;
     private boolean resourcesLoaded = false;
+    private SoundManager soundManager;
 
     // Button dimensions (will be set based on sprite size)
     private float buttonWidth = 280f; // Increased width for better appearance
     private float buttonHeight = 50f;
     private float buttonSpacing = 20f;
 
-    // Delay for button press animation
-    private float pressDelay = 0.15f; // 150ms delay
+    // Delay for button press animation (increased to allow sound to play fully)
+    private float pressDelay = 0.5f; // 300ms delay to allow sound to play
     private float pressTimer = 0f;
     private Runnable pendingAction = null;
     private Button pressedButton = null;
@@ -45,6 +47,15 @@ public class MainMenuScreen extends ScalableGameScreen {
 
         // Load cursors
         loadPusheenCursors();
+        
+        // Initialize sound manager for button clicks and background music
+        soundManager = new SoundManager();
+        soundManager.loadAllSounds();
+        
+        // Start background music for menu
+        if (soundManager != null) {
+            soundManager.playMusic(true);
+        }
 
         loadResources();
         createButtons();
@@ -234,6 +245,13 @@ public class MainMenuScreen extends ScalableGameScreen {
 
     @Override
     public void hide() {
+        // Stop background music when leaving menu
+        if (soundManager != null) {
+            soundManager.stopMusic();
+            // Don't dispose here - keep sounds loaded for other screens
+            // Only dispose when game is closing
+        }
+        
         // Dispose font
         GameApp.disposeFont("buttonFont");
 
@@ -487,6 +505,11 @@ public class MainMenuScreen extends ScalableGameScreen {
                     pressedButton = button;
                     button.setPressed(true);
 
+                    // Play button click sound at higher volume (0.7f = 70% volume)
+                    if (soundManager != null) {
+                        soundManager.playSound("clickbutton", 2.5f);
+                    }
+                    
                     // Create delayed action based on button
                     if (i == 0) {
                         // PLAY button

@@ -19,6 +19,9 @@ public class CollisionHandler {
 
     // Damage text system for spawning damage numbers
     private DamageTextSystem damageTextSystem;
+    
+    // Sound manager for playing damage sound
+    private SoundManager soundManager;
 
     public void update(float delta) {
         // Player Damage cooldown
@@ -112,6 +115,11 @@ public class CollisionHandler {
                 if (playerDamageCooldown <= 0f) {
                     player.takeDamage(ENEMY_TOUCH_DAMAGE);
                     playerDamageCooldown = DAMAGE_COOLDOWN_DURATION;
+                    
+                    // Play damage sound (only if player is not dying)
+                    if (soundManager != null && !player.isDying()) {
+                        soundManager.playSound("damaged", 0.9f);
+                    }
                 }
             }
         }
@@ -140,6 +148,10 @@ public class CollisionHandler {
 
     public void setDamageTextSystem(DamageTextSystem system) {
         this.damageTextSystem = system;
+    }
+    
+    public void setSoundManager(SoundManager soundManager) {
+        this.soundManager = soundManager;
     }
 
     public void reset() {

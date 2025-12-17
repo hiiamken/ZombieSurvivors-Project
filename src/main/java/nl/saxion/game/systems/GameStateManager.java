@@ -19,10 +19,18 @@ public class GameStateManager {
     private List<Button> gameOverButtons;
     private boolean buttonsInitialized = false;
     private float colorPulseTimer = 0f;
+    
+    // Sound manager for button clicks
+    private SoundManager soundManager;
 
     // Getter for game over buttons (for cursor switching)
     public List<Button> getGameOverButtons() {
         return gameOverButtons;
+    }
+    
+    // Set sound manager for button clicks
+    public void setSoundManager(SoundManager soundManager) {
+        this.soundManager = soundManager;
     }
 
     // Delay for button press animation
@@ -133,6 +141,11 @@ public class GameStateManager {
                 if (button.containsPoint(mouseX, mouseY)) {
                     String buttonName = i == 0 ? "PLAY AGAIN" : "BACK TO MENU";
                     DebugLogger.log("%s button clicked! Starting press delay...", buttonName);
+                    
+                    // Play button click sound at 2.5f volume
+                    if (soundManager != null) {
+                        soundManager.playSound("clickbutton", 2.5f);
+                    }
 
                     // Store button and action for delayed execution
                     pressedButton = button;

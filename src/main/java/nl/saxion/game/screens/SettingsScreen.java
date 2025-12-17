@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.Pixmap;
 import nl.saxion.game.config.ConfigManager;
 import nl.saxion.game.config.GameConfig;
+import nl.saxion.game.systems.SoundManager;
 import nl.saxion.game.ui.Button;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
@@ -27,6 +28,9 @@ public class SettingsScreen extends ScalableGameScreen {
 
     // Back button
     private Button backButton;
+    
+    // Sound manager for background music
+    private SoundManager soundManager;
 
     // Cursor management
     private Cursor cursorPointer; // Left side (pointer/default)
@@ -49,6 +53,15 @@ public class SettingsScreen extends ScalableGameScreen {
     public void show() {
         // Load cursors
         loadPusheenCursors();
+        
+        // Initialize sound manager for background music
+        soundManager = new SoundManager();
+        soundManager.loadAllSounds();
+        
+        // Start background music for menu (if not already playing)
+        if (soundManager != null) {
+            soundManager.playMusic(true);
+        }
 
         loadResources();
         loadSettingsFromConfig();
@@ -169,6 +182,9 @@ public class SettingsScreen extends ScalableGameScreen {
     public void hide() {
         // Save settings when leaving screen
         saveSettingsToConfig();
+        
+        // Don't stop music when leaving settings - keep it playing for menu
+        // Music will continue in MainMenuScreen
 
         // Dispose cursors
         if (cursorPointer != null) {
@@ -280,6 +296,10 @@ public class SettingsScreen extends ScalableGameScreen {
         // Enter to go back if back button is selected
         if (GameApp.isKeyJustPressed(Input.Keys.ENTER) || GameApp.isKeyJustPressed(Input.Keys.SPACE)) {
             if (selectedItemIndex == settingItems.size()) {
+                // Play button click sound at 2.5f volume
+                if (soundManager != null) {
+                    soundManager.playSound("clickbutton", 2.5f);
+                }
                 backButton.click();
             }
         }
@@ -287,12 +307,20 @@ public class SettingsScreen extends ScalableGameScreen {
         // Escape to go back (saves settings)
         if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
             saveSettingsToConfig();
+            // Play button click sound at 2.5f volume
+            if (soundManager != null) {
+                soundManager.playSound("clickbutton", 2.5f);
+            }
             backButton.click();
         }
 
         // Mouse click on back button
         if (GameApp.isButtonJustPressed(0)) {
             if (backButton.containsPoint(mouseX, mouseY)) {
+                // Play button click sound at 2.5f volume
+                if (soundManager != null) {
+                    soundManager.playSound("clickbutton", 2.5f);
+                }
                 backButton.click();
             }
 
