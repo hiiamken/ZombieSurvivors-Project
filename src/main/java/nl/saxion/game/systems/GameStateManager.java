@@ -20,6 +20,11 @@ public class GameStateManager {
     private boolean buttonsInitialized = false;
     private float colorPulseTimer = 0f;
 
+    // Getter for game over buttons (for cursor switching)
+    public List<Button> getGameOverButtons() {
+        return gameOverButtons;
+    }
+
     // Delay for button press animation
     private float pressDelay = 0.15f; // 150ms delay
     private float pressTimer = 0f;

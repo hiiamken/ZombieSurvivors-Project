@@ -19,6 +19,7 @@ import nl.saxion.game.systems.GameStateManager;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.systems.MapRenderer;
 import nl.saxion.game.systems.ResourceLoader;
+import nl.saxion.game.ui.Button;
 import nl.saxion.game.ui.HUD;
 import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.game.utils.DebugLogger;
@@ -26,7 +27,10 @@ import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Cursor;
+import com.badlogic.gdx.graphics.Pixmap;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +40,11 @@ public class PlayScreen extends ScalableGameScreen {
 
     private InputController input;
     private HUD hud;
+
+    // Cursor management
+    private Cursor cursorPointer; // For click/default state
+    private Cursor cursorHover;   // For hover state
+    private boolean isHoveringButton = false;
 
     private Player player;
     private Weapon weapon;
@@ -122,10 +131,59 @@ public class PlayScreen extends ScalableGameScreen {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
 
+        // Load cursors
+        loadCursors();
+
         // Start game immediately (no splash screen - menu is handled by MainMenuScreen)
         gameStateManager.setCurrentState(GameState.PLAYING);
 
         resetGame();
+    }
+
+    // Load cursor images (pointer.png and cursor.png)
+    private void loadCursors() {
+        try {
+            // Load pointer cursor (for click/default state)
+            String pointerPath = "assets/ui/pointer.png";
+            Pixmap pointerSource = new Pixmap(Gdx.files.internal(pointerPath));
+            int pointerSourceWidth = pointerSource.getWidth();
+            int pointerSourceHeight = pointerSource.getHeight();
+
+            // Resize to 32x32
+            int targetSize = 32;
+            Pixmap pointerPixmap = new Pixmap(targetSize, targetSize, pointerSource.getFormat());
+            pointerPixmap.drawPixmap(pointerSource,
+                    0, 0, pointerSourceWidth, pointerSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorPointer = Gdx.graphics.newCursor(pointerPixmap, 0, 0);
+            pointerPixmap.dispose();
+            pointerSource.dispose();
+
+            // Load hover cursor (for hover state)
+            String cursorPath = "assets/ui/cursor.png";
+            Pixmap cursorSource = new Pixmap(Gdx.files.internal(cursorPath));
+            int cursorSourceWidth = cursorSource.getWidth();
+            int cursorSourceHeight = cursorSource.getHeight();
+
+            // Resize to 32x32
+            Pixmap cursorPixmap = new Pixmap(targetSize, targetSize, cursorSource.getFormat());
+            cursorPixmap.drawPixmap(cursorSource,
+                    0, 0, cursorSourceWidth, cursorSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorHover = Gdx.graphics.newCursor(cursorPixmap, 0, 0);
+            cursorPixmap.dispose();
+            cursorSource.dispose();
+
+            // Set default to pointer
+            if (cursorPointer != null) {
+                Gdx.graphics.setCursor(cursorPointer);
+            } else {
+                GameApp.showCursor();
+            }
+        } catch (Exception e) {
+            GameApp.log("Could not load cursors: " + e.getMessage());
+            GameApp.showCursor(); // Fallback to default
+        }
     }
 
     @Override
@@ -138,6 +196,16 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.disposeFont("scoreFont");
         GameApp.disposeFont("timerFont");
         GameApp.disposeFont("damageFont");
+
+        // Dispose cursors
+        if (cursorPointer != null) {
+            cursorPointer.dispose();
+            cursorPointer = null;
+        }
+        if (cursorHover != null) {
+            cursorHover.dispose();
+            cursorHover = null;
+        }
 
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
@@ -192,6 +260,9 @@ public class PlayScreen extends ScalableGameScreen {
             // Show cursor for mouse interaction
             GameApp.showCursor();
 
+            // Handle cursor switching for game over buttons
+            handleGameOverCursor(worldMouseX, worldMouseY);
+
             // Handle input with converted coordinates
             gameStateManager.handleGameOverInput(worldMouseX, worldMouseY,
                     () -> {
@@ -213,6 +284,21 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Handle level up menu (pause game when active)
         if (isLevelUpActive) {
+            // Get mouse position for cursor switching
+            float mouseX = GameApp.getMousePositionInWindowX();
+            float mouseY = GameApp.getMousePositionInWindowY();
+            float screenWidth = GameApp.getWorldWidth();
+            float screenHeight = GameApp.getWorldHeight();
+            float windowWidth = GameApp.getWindowWidth();
+            float windowHeight = GameApp.getWindowHeight();
+            float scaleX = screenWidth / windowWidth;
+            float scaleY = screenHeight / windowHeight;
+            float worldMouseX = mouseX * scaleX;
+            float worldMouseY = (windowHeight - mouseY) * scaleY;
+
+            // Handle cursor switching for level up menu (though it's keyboard-only, show cursor)
+            handleLevelUpCursor(worldMouseX, worldMouseY);
+
             handleLevelUpInput();
             // Still render game in background
             mapRenderer.render(playerWorldX, playerWorldY);
@@ -550,6 +636,51 @@ public class PlayScreen extends ScalableGameScreen {
 
         isLevelUpActive = false;
         levelUpOptions.clear();
+    }
+
+    // Handle cursor switching for game over screen
+    private void handleGameOverCursor(float worldMouseX, float worldMouseY) {
+        if (cursorPointer == null || cursorHover == null) return;
+
+        // Check if hovering over any game over button
+        boolean hoveringAnyButton = false;
+        List<Button> gameOverButtons = gameStateManager.getGameOverButtons();
+        if (gameOverButtons != null) {
+            for (Button button : gameOverButtons) {
+                if (button.containsPoint(worldMouseX, worldMouseY)) {
+                    hoveringAnyButton = true;
+                    break;
+                }
+            }
+        }
+
+        // Switch cursor based on hover state and click state
+        boolean isMouseDown = GameApp.isButtonPressed(0);
+        boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+        if (isMouseDown || isMouseJustPressed) {
+            // When clicking, use pointer cursor
+            Gdx.graphics.setCursor(cursorPointer);
+            isHoveringButton = false;
+        } else if (hoveringAnyButton) {
+            // Hovering over button - use hover cursor
+            if (!isHoveringButton) {
+                Gdx.graphics.setCursor(cursorHover);
+                isHoveringButton = true;
+            }
+        } else {
+            // Not hovering - use pointer cursor
+            if (isHoveringButton) {
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringButton = false;
+            }
+        }
+    }
+
+    // Handle cursor switching for level up menu (show pointer cursor, no hover needed as it's keyboard-only)
+    private void handleLevelUpCursor(float worldMouseX, float worldMouseY) {
+        if (cursorPointer != null) {
+            Gdx.graphics.setCursor(cursorPointer);
+        }
     }
 
     // =========================

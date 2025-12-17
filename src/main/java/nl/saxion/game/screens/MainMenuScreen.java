@@ -5,6 +5,9 @@ import nl.saxion.game.utils.DebugLogger;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Cursor;
+import com.badlogic.gdx.graphics.Pixmap;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +28,12 @@ public class MainMenuScreen extends ScalableGameScreen {
     private Runnable pendingAction = null;
     private Button pressedButton = null;
 
+    // Cursor management
+    private Cursor cursorPointer; // Left side (pointer/default)
+    private Cursor cursorHover;   // Right side (hover)
+    private boolean isHoveringButton = false;
+
+
     public MainMenuScreen() {
         super(1280, 720); // 16:9 aspect ratio
     }
@@ -34,14 +43,59 @@ public class MainMenuScreen extends ScalableGameScreen {
         // Initialize debug logger
         DebugLogger.log("MainMenuScreen.show() called");
 
-        // Show cursor for mouse interaction
-        GameApp.showCursor();
-        DebugLogger.log("Cursor shown");
+        // Load cursors
+        loadPusheenCursors();
 
         loadResources();
         createButtons();
 
         DebugLogger.log("MainMenuScreen initialized with %d buttons", buttons.size());
+    }
+
+    // Load cursor images (pointer.png and cursor.png)
+    private void loadPusheenCursors() {
+        try {
+            // Load pointer cursor (for click/default state)
+            String pointerPath = "assets/ui/pointer.png";
+            Pixmap pointerSource = new Pixmap(Gdx.files.internal(pointerPath));
+            int pointerSourceWidth = pointerSource.getWidth();
+            int pointerSourceHeight = pointerSource.getHeight();
+
+            // Resize to 32x32
+            int targetSize = 32;
+            Pixmap pointerPixmap = new Pixmap(targetSize, targetSize, pointerSource.getFormat());
+            pointerPixmap.drawPixmap(pointerSource,
+                    0, 0, pointerSourceWidth, pointerSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorPointer = Gdx.graphics.newCursor(pointerPixmap, 0, 0);
+            pointerPixmap.dispose();
+            pointerSource.dispose();
+
+            // Load hover cursor (for hover state)
+            String cursorPath = "assets/ui/cursor.png";
+            Pixmap cursorSource = new Pixmap(Gdx.files.internal(cursorPath));
+            int cursorSourceWidth = cursorSource.getWidth();
+            int cursorSourceHeight = cursorSource.getHeight();
+
+            // Resize to 32x32
+            Pixmap cursorPixmap = new Pixmap(targetSize, targetSize, cursorSource.getFormat());
+            cursorPixmap.drawPixmap(cursorSource,
+                    0, 0, cursorSourceWidth, cursorSourceHeight,
+                    0, 0, targetSize, targetSize);
+            cursorHover = Gdx.graphics.newCursor(cursorPixmap, 0, 0);
+            cursorPixmap.dispose();
+            cursorSource.dispose();
+
+            // Set default to pointer
+            if (cursorPointer != null) {
+                Gdx.graphics.setCursor(cursorPointer);
+            } else {
+                GameApp.showCursor();
+            }
+        } catch (Exception e) {
+            GameApp.log("Could not load cursors: " + e.getMessage());
+            GameApp.showCursor(); // Fallback to default
+        }
     }
 
     private void loadResources() {
@@ -96,6 +150,18 @@ public class MainMenuScreen extends ScalableGameScreen {
                 DebugLogger.log("Loaded red_pressed_long: %s", GameApp.hasTexture("red_pressed_long") ? "SUCCESS" : "FAILED");
             } else {
                 DebugLogger.log("red_pressed_long already loaded");
+            }
+
+            // Load title image
+            if (!GameApp.hasTexture("zombiesTitle")) {
+                GameApp.addTexture("zombiesTitle", "assets/ui/ZombiesTitle.png");
+                boolean loaded = GameApp.hasTexture("zombiesTitle");
+                DebugLogger.log("Loaded zombiesTitle: %s", loaded ? "SUCCESS" : "FAILED");
+                if (!loaded) {
+                    GameApp.log("ERROR: Could not load ZombiesTitle.png from assets/ui/");
+                }
+            } else {
+                DebugLogger.log("zombiesTitle already loaded");
             }
 
             resourcesLoaded = true;
@@ -170,6 +236,16 @@ public class MainMenuScreen extends ScalableGameScreen {
     public void hide() {
         // Dispose font
         GameApp.disposeFont("buttonFont");
+
+        // Dispose cursors
+        if (cursorPointer != null) {
+            cursorPointer.dispose();
+            cursorPointer = null;
+        }
+        if (cursorHover != null) {
+            cursorHover.dispose();
+            cursorHover = null;
+        }
     }
 
     @Override
@@ -192,6 +268,9 @@ public class MainMenuScreen extends ScalableGameScreen {
 
         // Draw gradient background (purplish-blue like in image)
         drawGradientBackground();
+
+        // Draw title image at top
+        drawTitle();
 
         // Get mouse position
         float mouseX = GameApp.getMousePositionInWindowX();
@@ -287,6 +366,52 @@ public class MainMenuScreen extends ScalableGameScreen {
         GameApp.endShapeRendering();
     }
 
+    // Draw title image at top center of screen
+    private void drawTitle() {
+        if (!GameApp.hasTexture("zombiesTitle")) {
+            // Try to load again if not found
+            GameApp.addTexture("zombiesTitle", "assets/ui/ZombiesTitle.png");
+            if (!GameApp.hasTexture("zombiesTitle")) {
+                DebugLogger.log("ERROR: zombiesTitle texture still not found after reload!");
+                return; // Still not found, skip rendering
+            }
+        }
+
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+
+        // Get actual texture dimensions
+        float titleWidth = 800f; // Default size
+        float titleHeight = 250f; // Default size
+
+        try {
+            int texWidth = GameApp.getTextureWidth("zombiesTitle");
+            int texHeight = GameApp.getTextureHeight("zombiesTitle");
+            if (texWidth > 0 && texHeight > 0) {
+                // Scale to fit screen width (70% of screen)
+                float targetWidth = screenWidth * 0.7f;
+                float aspectRatio = (float)texHeight / texWidth;
+                titleWidth = targetWidth;
+                titleHeight = targetWidth * aspectRatio;
+                DebugLogger.log("Title texture size: %dx%d, rendering at %.1fx%.1f", texWidth, texHeight, titleWidth, titleHeight);
+            }
+        } catch (Exception e) {
+            DebugLogger.log("Could not get texture dimensions, using default size");
+        }
+
+        // Center horizontally, position at top (more space from top)
+        float titleX = (screenWidth - titleWidth) / 2f;
+        float titleY = screenHeight - titleHeight - 100f; // 100px from top for better visibility
+
+        // Render title (must be in sprite batch)
+        GameApp.startSpriteRendering();
+        GameApp.drawTexture("zombiesTitle", titleX, titleY, titleWidth, titleHeight);
+        GameApp.endSpriteRendering();
+
+        DebugLogger.log("Title rendered at (%.1f, %.1f) size (%.1f x %.1f), screen size: %.1f x %.1f",
+                titleX, titleY, titleWidth, titleHeight, screenWidth, screenHeight);
+    }
+
     private void handleInput(float mouseX, float mouseY) {
         // Only mouse interaction - no keyboard navigation
         boolean isMouseDown = GameApp.isButtonPressed(0);
@@ -296,6 +421,39 @@ public class MainMenuScreen extends ScalableGameScreen {
         if (System.currentTimeMillis() % 1000 < 16) {
             DebugLogger.log("Mouse position (world): (%.1f, %.1f), isMouseDown: %s, isMouseJustPressed: %s",
                     mouseX, mouseY, isMouseDown, isMouseJustPressed);
+        }
+
+        // Check if hovering over any button for cursor switching
+        boolean hoveringAnyButton = false;
+        for (int i = 0; i < buttons.size(); i++) {
+            Button button = buttons.get(i);
+            if (button.containsPoint(mouseX, mouseY)) {
+                hoveringAnyButton = true;
+                break;
+            }
+        }
+
+        // Switch cursor based on hover state and click state
+        if (cursorPointer != null && cursorHover != null) {
+            if (isMouseDown || isMouseJustPressed) {
+                // When clicking, use pointer cursor and reset hover state
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringButton = false; // Reset to allow hover cursor after release
+            } else if (hoveringAnyButton) {
+                // Hovering over button - use hover cursor
+                if (!isHoveringButton) {
+                    // Just started hovering
+                    Gdx.graphics.setCursor(cursorHover);
+                    isHoveringButton = true;
+                }
+            } else {
+                // Not hovering - use pointer cursor
+                if (isHoveringButton) {
+                    // Just stopped hovering
+                    Gdx.graphics.setCursor(cursorPointer);
+                    isHoveringButton = false;
+                }
+            }
         }
 
         // Update button pressed states based on mouse

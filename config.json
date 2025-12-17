@@ -7,4 +7,4 @@ keyMoveDown=S
 keyMoveLeft=A
 keyMoveRight=D
 keyShoot=SPACE
-debugEnabled=false
+debugEnabled=true

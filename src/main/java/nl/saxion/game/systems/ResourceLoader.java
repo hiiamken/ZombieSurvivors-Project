@@ -67,9 +67,6 @@ public class ResourceLoader {
         }
 
         GameApp.log("Loaded " + loadedCount + " map textures (room_00.png to room_15.png)");
-
-        // Hide cursor for better game experience
-        GameApp.hideCursor();
     }
 
     public Map<Integer, TMXMapData> loadTMXMaps() {
