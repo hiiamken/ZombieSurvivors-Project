@@ -23,7 +23,30 @@ public class Player {
     private int xpToNextLevel = 100;
     private float xpMagnetRange = 100f;
     private float damageMultiplier = 1f;
-    private float healthRegenRate = 0f;
+    
+    // ===== UPGRADE LEVELS =====
+    private int healthRegenLevel = 0; // HEALTH_REGEN level (max 5)
+    private int maxHealthLevel = 0; // MAX_HEALTH level (max 3)
+    private int damageLevel = 0; // DAMAGE level (max 5)
+    private int speedLevel = 0; // SPEED level (max 2)
+    private int xpMagnetLevel = 0; // XP_MAGNET level (max 2)
+    
+    // ===== HEALTH REGEN SYSTEM =====
+    private float healthRegenAccumulator = 0f; // Accumulated regen (not applied to health bar yet)
+    private float healthRegenUpdateTimer = 0f; // Timer for 10-second updates
+    private static final float REGEN_UPDATE_INTERVAL = 10f; // Update health every 10 seconds
+    private static final float REGEN_PER_LEVEL = 0.1f; // 0.1 HP/s per level
+    private static final int MAX_REGEN_LEVEL = 5; // Max level (0.5 HP/s)
+    private HealthTextCallback healthTextCallback = null;
+    
+    // Base stats (stored for percentage calculations)
+    private float baseSpeed;
+    private int baseMaxHealth;
+    
+    // Callback interface for health text
+    public interface HealthTextCallback {
+        void onHeal(int amount, float playerX, float playerY);
+    }
 
     // Speed
     private float speed;
@@ -70,8 +93,10 @@ public class Player {
         this.worldX = startWorldX;
         this.worldY = startWorldY;
         this.speed = speed;
+        this.baseSpeed = speed; // Store base speed for percentage calculations
 
         this.maxHealth = maxHealth;
+        this.baseMaxHealth = maxHealth; // Store base max health for percentage calculations
         this.health = maxHealth;
 
         // Wall hitbox: smaller than sprite, centered (world coordinates)
@@ -93,10 +118,31 @@ public class Player {
             return;
         }
 
-        // Health regen (continuous)
-        if (healthRegenRate > 0f && health < maxHealth) {
-            float regen = healthRegenRate * delta;
-            if (regen >= 1f) heal((int) regen);
+        // Health regen: 0.1 HP/s per level (max 0.5 HP/s), accumulates and updates every 10 seconds
+        if (healthRegenLevel > 0 && health < maxHealth && !isDying) {
+            // Calculate regen rate: 0.1 HP/s per level, capped at 5 levels (0.5 HP/s)
+            int effectiveLevel = Math.min(healthRegenLevel, MAX_REGEN_LEVEL);
+            float regenRate = REGEN_PER_LEVEL * effectiveLevel;
+            
+            // Accumulate regen (not applied to health bar yet)
+            healthRegenAccumulator += regenRate * delta;
+            
+            // Update timer for 10-second health updates
+            healthRegenUpdateTimer += delta;
+            
+            if (healthRegenUpdateTimer >= REGEN_UPDATE_INTERVAL) {
+                // Round accumulated regen to integer and heal
+                int healAmount = Math.round(healthRegenAccumulator);
+                if (healAmount > 0) {
+                    heal(healAmount);
+                    healthRegenAccumulator = 0f; // Reset accumulator after healing
+                }
+                healthRegenUpdateTimer = 0f;
+            }
+        } else {
+            // Reset timers if no regen or at full health
+            healthRegenAccumulator = 0f;
+            healthRegenUpdateTimer = 0f;
         }
 
         // Update hit animation timer
@@ -339,9 +385,25 @@ public class Player {
     }
 
     public void heal(int amount) {
+        int oldHealth = health;
         health += amount;
         health = (int) GameApp.clamp(health, 0, maxHealth);
-        System.out.println("Player healed " + amount + ". HP: " + health + "/" + maxHealth);
+        int actualHeal = health - oldHealth;
+        
+        // Spawn health text if callback is set
+        if (actualHeal > 0 && healthTextCallback != null) {
+            // Use damage hitbox center for health text position
+            float centerX = worldX + (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f + DAMAGE_HITBOX_WIDTH / 2f;
+            float centerY = worldY + (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f + DAMAGE_HITBOX_HEIGHT / 2f;
+            healthTextCallback.onHeal(actualHeal, centerX, centerY);
+        }
+        
+        System.out.println("Player healed " + actualHeal + ". HP: " + health + "/" + maxHealth);
+    }
+    
+    // Set callback for health text
+    public void setHealthTextCallback(HealthTextCallback callback) {
+        this.healthTextCallback = callback;
     }
 
     public boolean isDead() {
@@ -508,16 +570,71 @@ public class Player {
 
     public void applyStatUpgrade(StatUpgradeType type) {
         switch (type) {
-            case SPEED -> speed *= 1.15f;
-            case DAMAGE -> damageMultiplier *= 1.2f;
-            case XP_MAGNET -> xpMagnetRange *= 1.5f;
-            case MAX_HEALTH -> {
-                maxHealth += 20;
-                // Keep current health, don't auto-heal (like Vampire Survivors)
-                // Health percentage will decrease as max increases
+            case SPEED -> {
+                if (speedLevel < 2) { // Max 2 levels
+                    speedLevel++;
+                    // Recalculate speed: base + 5% per level
+                    speed = baseSpeed * (1f + (speedLevel * 0.05f));
+                }
             }
-            case HEALTH_REGEN -> healthRegenRate += 0.5f;
+            case DAMAGE -> {
+                if (damageLevel < 5) { // Max 5 levels
+                    damageLevel++;
+                    // Recalculate damage multiplier: +5% per level
+                    damageMultiplier = 1f + (damageLevel * 0.05f);
+                }
+            }
+            case XP_MAGNET -> {
+                if (xpMagnetLevel < 2) { // Max 2 levels
+                    xpMagnetLevel++;
+                    // Recalculate magnet range: base + 25% per level
+                    xpMagnetRange = 100f * (1f + (xpMagnetLevel * 0.25f));
+                }
+            }
+            case MAX_HEALTH -> {
+                if (maxHealthLevel < 3) { // Max 3 levels
+                    maxHealthLevel++;
+                    // Recalculate max health: base + 10% per level
+                    int newMaxHealth = (int)(baseMaxHealth * (1f + (maxHealthLevel * 0.1f)));
+                    maxHealth = newMaxHealth;
+                    // Keep current health, don't auto-heal (like Vampire Survivors)
+                    // Health percentage will decrease as max increases
+                }
+            }
+            case HEALTH_REGEN -> {
+                // Cap at 5 levels (0.5 HP/s max)
+                if (healthRegenLevel < MAX_REGEN_LEVEL) {
+                    healthRegenLevel++;
+                }
+            }
         }
+    }
+    
+    // Get upgrade level for display
+    public int getUpgradeLevel(StatUpgradeType type) {
+        return switch (type) {
+            case SPEED -> speedLevel;
+            case DAMAGE -> damageLevel;
+            case XP_MAGNET -> xpMagnetLevel;
+            case MAX_HEALTH -> maxHealthLevel;
+            case HEALTH_REGEN -> healthRegenLevel;
+        };
+    }
+    
+    // Get max level for upgrade type
+    public int getMaxUpgradeLevel(StatUpgradeType type) {
+        return switch (type) {
+            case SPEED -> 2;
+            case DAMAGE -> 5;
+            case XP_MAGNET -> 2;
+            case MAX_HEALTH -> 3;
+            case HEALTH_REGEN -> 5;
+        };
+    }
+    
+    // Check if upgrade is at max level
+    public boolean isUpgradeMaxed(StatUpgradeType type) {
+        return getUpgradeLevel(type) >= getMaxUpgradeLevel(type);
     }
 
 }

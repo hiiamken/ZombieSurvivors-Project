@@ -436,7 +436,8 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler.removeDestroyedBullets(bullets);
 
         // Player death check - wait for death animation to finish
-        if (player.isDying()) {
+        // Guard: only trigger game over once (avoid multiple triggers)
+        if (player.isDying() && gameStateManager.getCurrentState() != GameState.GAME_OVER) {
             // Only transition to game over after death animation completes
             if (player.isDeathAnimationFinished()) {
                 GameApp.log("Death animation finished - showing game over");
@@ -622,17 +623,34 @@ public class PlayScreen extends ScalableGameScreen {
             soundManager.setIngameMusicVolumeTemporary(0.3f);
         }
 
-        // Generate 3 random stat upgrades
+        // Generate 3 random stat upgrades (exclude maxed upgrades)
         StatUpgradeType[] allUpgrades = StatUpgradeType.values();
         List<StatUpgradeType> available = new ArrayList<>();
         for (StatUpgradeType upgrade : allUpgrades) {
-            available.add(upgrade);
+            // Only add if not maxed
+            if (!player.isUpgradeMaxed(upgrade)) {
+                available.add(upgrade);
+            }
         }
 
-        // Pick 3 random upgrades
-        for (int i = 0; i < 3 && !available.isEmpty(); i++) {
+        // If no upgrades available (all maxed), skip menu and just level up
+        if (available.isEmpty()) {
+            player.levelUp();
+            isLevelUpActive = false;
+            // Restore music volume
+            if (soundManager != null) {
+                soundManager.restoreIngameMusicVolume();
+            }
+            return;
+        }
+
+        // Pick 3 random upgrades (or as many as available)
+        int optionsToPick = Math.min(3, available.size());
+        for (int i = 0; i < optionsToPick && !available.isEmpty(); i++) {
             int index = GameApp.randomInt(0, available.size());
-            levelUpOptions.add(new LevelUpOption(available.get(index)));
+            StatUpgradeType selected = available.get(index);
+            int currentLevel = player.getUpgradeLevel(selected);
+            levelUpOptions.add(new LevelUpOption(selected, currentLevel));
             available.remove(index);
         }
     }
@@ -750,16 +768,25 @@ public class PlayScreen extends ScalableGameScreen {
     // =========================
 
     private void resetGame() {
+        // Reset game state to PLAYING (important for Play Again button)
+        gameStateManager.setCurrentState(GameState.PLAYING);
+        
         float startX = 300;
         float startY = 250;
         float speed = 80f;
-        int maxHealth = 5;
+        int maxHealth = 10; // Increased base health
 
         player = new Player(startX, startY, speed, maxHealth, null);
+        
+        // Set health text callback for regen display
+        player.setHealthTextCallback((amount, x, y) -> {
+            damageTextSystem.spawnHealthText(x, y, amount);
+        });
 
         bullets = new ArrayList<>();
         // Weapon với random damage: 5-15 (enemy health 15, chết trong 1-3 hit)
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 1.5f, 5, 15, 400f, 10f, 10f);
+        // Increased fire rate from 1.5 to 2.5 shots per second for faster shooting
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 2.5f, 5, 15, 400f, 10f, 10f);
 
         enemies = new ArrayList<>();
         xpOrbs = new ArrayList<>();
