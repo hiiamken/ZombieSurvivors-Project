@@ -6,23 +6,25 @@ import nl.saxion.gameapp.GameApp;
 import java.util.List;
 
 // Handles enemy spawning with difficulty scaling
+// Balanced for 10-minute survival - lots of zombies but manageable
 public class EnemySpawner {
-    private static final int MAX_ENEMIES = 150; // Increased for more enemies like Vampire Survivors
+    private static final int MAX_ENEMIES = 200; // More zombies for exciting gameplay
 
     private float enemySpawnTimer = 0f;
-    private float enemySpawnInterval = 1.5f; // spawn every 1.5 seconds (faster spawns)
-    private float enemyBaseSpeed = 34f;
-    private int enemyBaseHealth = 15;
+    private float enemySpawnInterval = 1.0f; // Fast spawns from start
+    private float enemyBaseSpeed = 28f; // Slower base speed for balance
+    private int enemyBaseHealth = 8; // Low health = easy to kill but lots of them
 
-    public void update(float delta, float gameTime, float playerWorldX, float playerWorldY, List<Enemy> enemies) {
+    public void update(float delta, float gameTime, float playerWorldX, float playerWorldY, float playerMoveDirX, float playerMoveDirY, List<Enemy> enemies) {
         // Max enemy limit
         if (enemies.size() >= MAX_ENEMIES) {
             return;
         }
 
-        // Spawn interval scaling based on gameTime (faster spawns over time)
-        enemySpawnInterval = 1.5f - (gameTime * 0.03f);
-        enemySpawnInterval = GameApp.clamp(enemySpawnInterval, 0.3f, 1.5f);
+        // Spawn interval - fast spawns, gets faster over time
+        // Starts at 1.0s, decreases to 0.3s over 10 minutes
+        enemySpawnInterval = 1.0f - (gameTime * 0.00117f); // reaches 0.3 at 600s
+        enemySpawnInterval = GameApp.clamp(enemySpawnInterval, 0.3f, 1.0f);
 
         // Spawn timer (count up)
         enemySpawnTimer += delta;
@@ -33,10 +35,14 @@ public class EnemySpawner {
         // Time to spawn
         enemySpawnTimer = 0f;
 
-        // Spawn multiple enemies at once for more intensity (like Vampire Survivors)
-        int enemiesToSpawn = 1;
-        if (gameTime > 30f) enemiesToSpawn = 2; // After 30 seconds, spawn 2 at a time
-        if (gameTime > 60f) enemiesToSpawn = 3; // After 60 seconds, spawn 3 at a time
+        // Spawn multiple enemies at once - many zombies like Vampire Survivors!
+        int enemiesToSpawn = 2; // Start with 2 zombies
+        if (gameTime > 30f) enemiesToSpawn = 3;   // After 30 seconds
+        if (gameTime > 90f) enemiesToSpawn = 4;   // After 1.5 minutes
+        if (gameTime > 180f) enemiesToSpawn = 5;  // After 3 minutes
+        if (gameTime > 300f) enemiesToSpawn = 6;  // After 5 minutes
+        if (gameTime > 420f) enemiesToSpawn = 7;  // After 7 minutes
+        if (gameTime > 540f) enemiesToSpawn = 8;  // After 9 minutes (final push!)
 
         for (int i = 0; i < enemiesToSpawn; i++) {
             // Check if we've reached max enemies
@@ -45,44 +51,60 @@ public class EnemySpawner {
             }
 
             // Spawn enemy at world coordinates, relative to player position
-            // Spawn at a distance from player (off-screen) so enemies come from all directions
+            // Spawn behind player (opposite to movement direction) like Vampire Survivors
             float spawnDistance = 400f; // Distance from player to spawn enemy
-
-            // Choose edge: 0 = top, 1 = right, 2 = bottom, 3 = left
-            int edge = GameApp.randomInt(0, 4);
+            float spreadRange = 200f; // Spread range for multiple enemies
 
             float spawnX;
             float spawnY;
 
-            // Spawn enemy ở world coordinates, offset từ player position
-            if (edge == 0) {
-                // TOP - spawn above player
-                float offsetX = GameApp.random(-spawnDistance, spawnDistance);
-                spawnX = playerWorldX + offsetX;
-                spawnY = playerWorldY + spawnDistance;
-            } else if (edge == 1) {
-                // RIGHT - spawn to the right of player
-                spawnX = playerWorldX + spawnDistance;
-                float offsetY = GameApp.random(-spawnDistance, spawnDistance);
-                spawnY = playerWorldY + offsetY;
-            } else if (edge == 2) {
-                // BOTTOM - spawn below player
-                float offsetX = GameApp.random(-spawnDistance, spawnDistance);
-                spawnX = playerWorldX + offsetX;
-                spawnY = playerWorldY - spawnDistance;
+            // Determine spawn direction based on player movement
+            // If player is moving, spawn behind them (opposite direction)
+            // If player is not moving, spawn randomly
+            float moveLength = (float) Math.sqrt(playerMoveDirX * playerMoveDirX + playerMoveDirY * playerMoveDirY);
+            
+            if (moveLength > 0.1f) {
+                // Player is moving - spawn behind them
+                // Normalize direction
+                float normalizedDirX = playerMoveDirX / moveLength;
+                float normalizedDirY = playerMoveDirY / moveLength;
+                
+                // Spawn behind player (opposite direction)
+                float behindDirX = -normalizedDirX;
+                float behindDirY = -normalizedDirY;
+                
+                // Base spawn position behind player
+                float baseSpawnX = playerWorldX + behindDirX * spawnDistance;
+                float baseSpawnY = playerWorldY + behindDirY * spawnDistance;
+                
+                // Add perpendicular spread for multiple enemies
+                // Perpendicular vector: rotate 90 degrees
+                float perpX = -behindDirY;
+                float perpY = behindDirX;
+                
+                // Random offset along perpendicular direction
+                float spreadOffset = GameApp.random(-spreadRange, spreadRange);
+                spawnX = baseSpawnX + perpX * spreadOffset;
+                spawnY = baseSpawnY + perpY * spreadOffset;
             } else {
-                // LEFT - spawn to the left of player
-                spawnX = playerWorldX - spawnDistance;
-                float offsetY = GameApp.random(-spawnDistance, spawnDistance);
-                spawnY = playerWorldY + offsetY;
+                // Player is not moving - spawn randomly around player
+                float angle = GameApp.random(0f, (float)(Math.PI * 2));
+                float randomDistance = spawnDistance + GameApp.random(-50f, 50f);
+                spawnX = playerWorldX + (float)(Math.cos(angle) * randomDistance);
+                spawnY = playerWorldY + (float)(Math.sin(angle) * randomDistance);
             }
 
-            // Difficulty scaling: 1.0x → 3.0x
-            float difficultyMultiplier = 1f + (gameTime * 0.01f);
-            difficultyMultiplier = GameApp.clamp(difficultyMultiplier, 1f, 3f);
+            // Difficulty scaling - health grows slowly, speed grows moderately
+            // Health: 1.0x → 2.0x over 10 minutes (zombies stay killable)
+            float healthMultiplier = 1f + (gameTime * 0.00167f); // 2.0x at 600s
+            healthMultiplier = GameApp.clamp(healthMultiplier, 1f, 2.0f);
 
-            float currentSpeed = enemyBaseSpeed * difficultyMultiplier;
-            int currentHealth = (int) (enemyBaseHealth * difficultyMultiplier);
+            // Speed: 1.0x → 1.5x over 10 minutes (manageable)
+            float speedMultiplier = 1f + (gameTime * 0.00083f); // 1.5x at 600s
+            speedMultiplier = GameApp.clamp(speedMultiplier, 1f, 1.5f);
+
+            float currentSpeed = enemyBaseSpeed * speedMultiplier;
+            int currentHealth = (int) (enemyBaseHealth * healthMultiplier);
 
             // Spawn enemy
             enemies.add(new Enemy(spawnX, spawnY, currentSpeed, currentHealth));
@@ -90,7 +112,7 @@ public class EnemySpawner {
     }
 
     public void reset() {
-        enemySpawnInterval = 1.5f;
+        enemySpawnInterval = 1.0f;
         enemySpawnTimer = 0f;
     }
 

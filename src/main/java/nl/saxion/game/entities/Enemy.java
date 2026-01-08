@@ -42,6 +42,14 @@ public class Enemy {
     private static final float SEPARATION_RADIUS = 20f;  // Minimum distance between zombies
     private static final float SEPARATION_FORCE = 80f;   // Push force strength
 
+    // Soft despawn zones (like Vampire Survivors)
+    public static final float ACTIVE_RADIUS = 600f;   // Active zone: update AI, move, attack
+    public static final float SLEEP_RADIUS = 1200f;   // Sleep zone: freeze but keep HP
+    public static final float KILL_RADIUS = 2000f;    // Kill zone: delete enemy (very far)
+
+    // Active/visible state for soft despawn
+    private boolean isActive = true;   // Update AI, move, attack
+    private boolean isVisible = true;  // Render on screen
 
     // Animation state
     private String currentAnimation = "zombie_run";
@@ -59,13 +67,55 @@ public class Enemy {
     // Damage hitbox: for player interaction
     private Rectangle damageHitBox;
 
+    // Zombie type: 1 = original, 3 = zombie3, 4 = zombie4
+    private int zombieType = 1;
+
+    // AI behavior type for smarter movement
+    private enum AIBehavior {
+        CHASE,      // Direct chase (default)
+        FLANK_LEFT, // Try to go around player's left
+        FLANK_RIGHT // Try to go around player's right
+    }
+    private AIBehavior aiBehavior = AIBehavior.CHASE;
+    private float flankTimer = 0f; // Timer to periodically adjust flanking
+    private float flankAngle = 0f; // Current flanking angle
+    private static final float FLANK_UPDATE_INTERVAL = 1.5f; // Adjust flanking every 1.5s
+    private static final float FLANK_ANGLE_MAX = 45f; // Max flanking angle in degrees
+
+    // Constructor with random zombie type
     public Enemy(float startX, float startY, float speed, int maxHealth) {
+        this(startX, startY, speed, maxHealth, getRandomZombieType());
+    }
+
+    // Constructor with specific zombie type
+    public Enemy(float startX, float startY, float speed, int maxHealth, int zombieType) {
         this.x = startX;
         this.y = startY;
         this.speed = speed;
+        this.zombieType = zombieType;
 
         this.maxHealth = maxHealth;
         this.health = maxHealth;
+        this.isActive = true;
+        this.isVisible = true;
+
+        // Set initial animation based on zombie type
+        this.currentAnimation = getAnimationName("run");
+        this.previousAnimation = this.currentAnimation;
+
+        // Randomly assign AI behavior for variety (40% chase, 30% flank left, 30% flank right)
+        float behaviorRoll = (float) Math.random();
+        if (behaviorRoll < 0.4f) {
+            this.aiBehavior = AIBehavior.CHASE;
+        } else if (behaviorRoll < 0.7f) {
+            this.aiBehavior = AIBehavior.FLANK_LEFT;
+        } else {
+            this.aiBehavior = AIBehavior.FLANK_RIGHT;
+        }
+        
+        // Randomize initial flank angle
+        this.flankAngle = (float)(Math.random() * FLANK_ANGLE_MAX);
+        this.flankTimer = (float)(Math.random() * FLANK_UPDATE_INTERVAL);
 
         // Wall hitbox position = sprite position + offset
         this.wallHitBox = new Rectangle((int) (x + WALL_OFFSET_X), (int) (y + WALL_OFFSET_Y), HITBOX_WIDTH, HITBOX_HEIGHT);
@@ -74,10 +124,77 @@ public class Enemy {
         this.damageHitBox = new Rectangle((int) (x + DAMAGE_OFFSET_X), (int) (y + DAMAGE_OFFSET_Y), DAMAGE_HITBOX_WIDTH, DAMAGE_HITBOX_HEIGHT);
     }
 
+    // Random zombie type: 1, 3, or 4
+    private static int getRandomZombieType() {
+        int[] types = {1, 3, 4};
+        int randomIndex = (int)(Math.random() * types.length);
+        return types[randomIndex];
+    }
+
+    // Get animation name based on zombie type
+    // Type 1: zombie_run, zombie_hit, zombie_death
+    // Type 3: zombie3_run, zombie3_hit, zombie3_death
+    // Type 4: zombie4_run, zombie4_hit, zombie4_death
+    private String getAnimationName(String action) {
+        if (zombieType == 1) {
+            return "zombie_" + action;
+        } else {
+            return "zombie" + zombieType + "_" + action;
+        }
+    }
+    
+    // Update active/visible state based on distance to player (soft despawn)
+    public void updateSoftDespawnState(float playerX, float playerY) {
+        float dx = playerX - x;
+        float dy = playerY - y;
+        float distance = (float) Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < ACTIVE_RADIUS) {
+            // Active zone: update AI, move, attack
+            isActive = true;
+            isVisible = true;
+        } else {
+            // Sleep zone or beyond: freeze but keep HP (enemy stays in memory until KILL_RADIUS)
+            isActive = false;
+            isVisible = false;
+        }
+    }
+    
+    // Check if enemy should be deleted (too far from player - beyond kill radius)
+    public boolean shouldBeDeleted(float playerX, float playerY) {
+        float dx = playerX - x;
+        float dy = playerY - y;
+        float distance = (float) Math.sqrt(dx * dx + dy * dy);
+        return distance >= KILL_RADIUS;
+    }
+    
+    public boolean isActive() {
+        return isActive;
+    }
+    
+    public boolean isVisible() {
+        return isVisible;
+    }
+
     // Enemy chases player with collision detection
     public void update(float delta, float playerX, float playerY, CollisionChecker collisionChecker, java.util.List<Enemy> allEnemies) {
+        // Update soft despawn state first
+        updateSoftDespawnState(playerX, playerY);
 
-        updateAnimationState(delta);
+        // Update animation if active, visible, or dying (optimization: skip animation tick for sleeping enemies)
+        if (isActive || isVisible || isDying) {
+            updateAnimationState(delta);
+        }
+
+        // Only update movement and AI if active
+        if (!isActive) {
+            // Update hitboxes even when not moving (for collision checks)
+            wallHitBox.x = (int)(x + WALL_OFFSET_X);
+            wallHitBox.y = (int)(y + WALL_OFFSET_Y);
+            damageHitBox.x = (int)(x + DAMAGE_OFFSET_X);
+            damageHitBox.y = (int)(y + DAMAGE_OFFSET_Y);
+            return;
+        }
 
         if (isDying || collisionChecker == null) {
             // Update hitboxes even when not moving
@@ -88,6 +205,14 @@ public class Enemy {
             return;
         }
 
+        // Update flanking timer and angle
+        flankTimer += delta;
+        if (flankTimer >= FLANK_UPDATE_INTERVAL) {
+            flankTimer = 0f;
+            // Slightly adjust flank angle for unpredictable movement
+            flankAngle = (float)(Math.random() * FLANK_ANGLE_MAX);
+        }
+
         // Direction vector to player
         float dirX = playerX - x;
         float dirY = playerY - y;
@@ -96,6 +221,32 @@ public class Enemy {
         if (dist > 0.001f) {
             dirX /= dist;
             dirY /= dist;
+        }
+
+        // Apply flanking behavior when not too close to player
+        // Close range: direct chase, Far range: flank to surround
+        if (aiBehavior != AIBehavior.CHASE && dist > 60f) {
+            float angleRadians = (float) Math.toRadians(flankAngle);
+            
+            // Rotate direction vector based on flanking behavior
+            if (aiBehavior == AIBehavior.FLANK_LEFT) {
+                float newDirX = dirX * (float)Math.cos(angleRadians) - dirY * (float)Math.sin(angleRadians);
+                float newDirY = dirX * (float)Math.sin(angleRadians) + dirY * (float)Math.cos(angleRadians);
+                dirX = newDirX;
+                dirY = newDirY;
+            } else if (aiBehavior == AIBehavior.FLANK_RIGHT) {
+                float newDirX = dirX * (float)Math.cos(-angleRadians) - dirY * (float)Math.sin(-angleRadians);
+                float newDirY = dirX * (float)Math.sin(-angleRadians) + dirY * (float)Math.cos(-angleRadians);
+                dirX = newDirX;
+                dirY = newDirY;
+            }
+            
+            // Re-normalize after rotation
+            float length = (float)Math.sqrt(dirX*dirX + dirY*dirY);
+            if (length > 0.001f) {
+                dirX /= length;
+                dirY /= length;
+            }
         }
 
         // Update facing direction based on movement
@@ -175,7 +326,8 @@ public class Enemy {
             float separationY = 0f;
 
             for (Enemy other : allEnemies) {
-                if (other == this || other.isDying || other.isDead()) {
+                // Skip self, dead, dying, or inactive enemies (separation only for active enemies)
+                if (other == this || other.isDying || other.isDead() || !other.isActive()) {
                     continue;
                 }
 
@@ -240,28 +392,32 @@ public class Enemy {
     private void updateAnimationState(float delta) {
         previousAnimation = currentAnimation;
 
+        String deathAnim = getAnimationName("death");
+        String hitAnim = getAnimationName("hit");
+        String runAnim = getAnimationName("run");
+
         if (isDying) {
-            currentAnimation = "zombie_death";
+            currentAnimation = deathAnim;
             deathAnimationTimer += delta;
 
             // Reset animation when first entering death state
-            if (!previousAnimation.equals("zombie_death") && GameApp.hasAnimation("zombie_death")) {
-                GameApp.resetAnimation("zombie_death");
+            if (!previousAnimation.equals(deathAnim) && GameApp.hasAnimation(deathAnim)) {
+                GameApp.resetAnimation(deathAnim);
             }
         } else if (hitAnimationTimer > 0f) {
-            currentAnimation = "zombie_hit";
+            currentAnimation = hitAnim;
             hitAnimationTimer -= delta;
 
             // Reset animation when first entering hit state
-            if (!previousAnimation.equals("zombie_hit") && GameApp.hasAnimation("zombie_hit")) {
-                GameApp.resetAnimation("zombie_hit");
+            if (!previousAnimation.equals(hitAnim) && GameApp.hasAnimation(hitAnim)) {
+                GameApp.resetAnimation(hitAnim);
             }
 
             if (hitAnimationTimer <= 0f) {
                 hitAnimationTimer = 0f;
             }
         } else {
-            currentAnimation = "zombie_run";
+            currentAnimation = runAnim;
         }
     }
 
@@ -322,7 +478,8 @@ public class Enemy {
         }
 
         // Check by GameApp API (if animation is finished)
-        if (GameApp.hasAnimation("zombie_death") && GameApp.isAnimationFinished("zombie_death")) {
+        String deathAnim = getAnimationName("death");
+        if (GameApp.hasAnimation(deathAnim) && GameApp.isAnimationFinished(deathAnim)) {
             return deathAnimationTimer >= 0.3f;
         }
 
@@ -351,6 +508,11 @@ public class Enemy {
     // Get facing direction for sprite flipping
     public boolean isFacingRight() {
         return facingRight;
+    }
+
+    // Get zombie type (1, 3, or 4)
+    public int getZombieType() {
+        return zombieType;
     }
 
 }

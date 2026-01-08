@@ -1,5 +1,7 @@
 package nl.saxion.game.systems;
 
+import nl.saxion.game.config.ConfigManager;
+import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.game.utils.TMXParser;
 import nl.saxion.gameapp.GameApp;
@@ -15,6 +17,13 @@ public class ResourceLoader {
         // Load audio resources
         soundManager = new SoundManager();
         soundManager.loadAllSounds();
+        
+        // Load volume settings from config and apply to sound manager
+        GameConfig config = ConfigManager.loadConfig();
+        soundManager.setMasterVolume(config.masterVolume);
+        soundManager.setMusicVolume(config.musicVolume);
+        soundManager.setSFXVolume(config.sfxVolume);
+        
         GameApp.log("PlayScreen loaded");
 
         GameApp.addTexture("bullet", "assets/Bullet/Bullet.png");
@@ -33,18 +42,42 @@ public class ResourceLoader {
         GameApp.addAnimationFromSpritesheet("player_death", "player_death_sheet", 0.2f, false);
         GameApp.addAnimationFromSpritesheet("player_hit", "player_hit_sheet", 0.1f, false);
 
-        // Load zombie sprite sheets
+        // Load zombie sprite sheets - Type 1 (original)
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
         GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32,32);
         GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
         GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
         GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
 
-        // Create zombie animations
+        // Load zombie sprite sheets - Type 3
+        GameApp.addSpriteSheet("zombie3_idle_sheet", "assets/enemy/Zombie 3_idle .png", 32, 32);
+        GameApp.addSpriteSheet("zombie3_run_sheet", "assets/enemy/Zombie 3_run .png", 32, 32);
+        GameApp.addSpriteSheet("zombie3_hit_sheet", "assets/enemy/Zombie 3_Hit .png", 32, 32);
+        GameApp.addSpriteSheet("zombie3_death_sheet", "assets/enemy/Zombie 3_death.png", 32, 32);
+
+        // Load zombie sprite sheets - Type 4
+        GameApp.addSpriteSheet("zombie4_idle_sheet", "assets/enemy/Zombie 4_idle.png", 32, 32);
+        GameApp.addSpriteSheet("zombie4_run_sheet", "assets/enemy/Zombie 4_run.png", 32, 32);
+        GameApp.addSpriteSheet("zombie4_hit_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
+        GameApp.addSpriteSheet("zombie4_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
+
+        // Create zombie animations - Type 1 (original)
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
         GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
         GameApp.addAnimationFromSpritesheet("zombie_death", "zombie_death1_sheet", 0.2f, false);
+
+        // Create zombie animations - Type 3
+        GameApp.addAnimationFromSpritesheet("zombie3_idle", "zombie3_idle_sheet", 0.2f, true);
+        GameApp.addAnimationFromSpritesheet("zombie3_run", "zombie3_run_sheet", 0.1f, true);
+        GameApp.addAnimationFromSpritesheet("zombie3_hit", "zombie3_hit_sheet", 0.15f, false);
+        GameApp.addAnimationFromSpritesheet("zombie3_death", "zombie3_death_sheet", 0.2f, false);
+
+        // Create zombie animations - Type 4
+        GameApp.addAnimationFromSpritesheet("zombie4_idle", "zombie4_idle_sheet", 0.2f, true);
+        GameApp.addAnimationFromSpritesheet("zombie4_run", "zombie4_run_sheet", 0.1f, true);
+        GameApp.addAnimationFromSpritesheet("zombie4_hit", "zombie4_hit_sheet", 0.15f, false);
+        GameApp.addAnimationFromSpritesheet("zombie4_death", "zombie4_death_sheet", 0.2f, false);
 
         GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");
 
@@ -59,11 +92,17 @@ public class ResourceLoader {
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 22);
 
         // Load 16 individual map textures
+        // Note: Game uses room_00.png to room_15.png, NOT map1.png
+        // If you change map images, update room_XX.png files, not map1.png
         int loadedCount = 0;
         for (int i = 0; i < 16; i++) {
             String roomKey = getRoomTextureKey(i);
             String roomPath = "assets/maps/room_" + String.format("%02d", i) + ".png";
             try {
+                // Dispose old texture if exists to force reload (allows seeing file changes)
+                if (GameApp.hasTexture(roomKey)) {
+                    GameApp.disposeTexture(roomKey);
+                }
                 GameApp.addTexture(roomKey, roomPath);
                 loadedCount++;
             } catch (Exception e) {
@@ -118,7 +157,7 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("player_death_sheet");
         GameApp.disposeSpritesheet("player_hit_sheet");
 
-        // Dispose zombie animations
+        // Dispose zombie animations - Type 1
         GameApp.disposeAnimation("zombie_idle");
         GameApp.disposeAnimation("zombie_run");
         GameApp.disposeAnimation("zombie_hit");
@@ -129,6 +168,28 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("zombie_hit_sheet");
         GameApp.disposeSpritesheet("zombie_death1_sheet");
         GameApp.disposeSpritesheet("zombie_death2_sheet");
+
+        // Dispose zombie animations - Type 3
+        GameApp.disposeAnimation("zombie3_idle");
+        GameApp.disposeAnimation("zombie3_run");
+        GameApp.disposeAnimation("zombie3_hit");
+        GameApp.disposeAnimation("zombie3_death");
+
+        GameApp.disposeSpritesheet("zombie3_idle_sheet");
+        GameApp.disposeSpritesheet("zombie3_run_sheet");
+        GameApp.disposeSpritesheet("zombie3_hit_sheet");
+        GameApp.disposeSpritesheet("zombie3_death_sheet");
+
+        // Dispose zombie animations - Type 4
+        GameApp.disposeAnimation("zombie4_idle");
+        GameApp.disposeAnimation("zombie4_run");
+        GameApp.disposeAnimation("zombie4_hit");
+        GameApp.disposeAnimation("zombie4_death");
+
+        GameApp.disposeSpritesheet("zombie4_idle_sheet");
+        GameApp.disposeSpritesheet("zombie4_run_sheet");
+        GameApp.disposeSpritesheet("zombie4_hit_sheet");
+        GameApp.disposeSpritesheet("zombie4_death_sheet");
 
         // Dispose XP orb animation and sprite sheet
         GameApp.disposeAnimation("orb_animation");

@@ -19,8 +19,8 @@ public class Button {
     private Runnable onClickAction;
 
     // Colors for button states
-    private String normalColor = "darkgray";
-    private String hoverColor = "gray";
+    private String normalColor = "gray-600";
+    private String hoverColor = "gray-400";
     private String borderColor = "white";
     private String textColor = "white";
 

@@ -18,6 +18,7 @@ public class MainGame {
         GameApp.addScreen("menu", new MainMenuScreen());
         GameApp.addScreen("play", new PlayScreen());
         GameApp.addScreen("settings", new SettingsScreen());
+        // GameOverScreen is no longer needed - game over is now an overlay on PlayScreen
 
 
         //heyy!!
@@ -33,15 +34,22 @@ public class MainGame {
             GameApp.log("Debug logging enabled");
         }
 
-
         // Window size: 16:9 aspect ratio (HD)
+        // Enable resizable window (true) - allows user to resize window with mouse
         GameApp.start(
                 "Zombie Survivors",
                 1280, 720,
                 60,
-                false,
+                true,  // resizable = true - allows window resizing
                 "menu"
         );
+        
+        // Apply fullscreen setting from config after game starts
+        if (config.fullscreen) {
+            com.badlogic.gdx.Gdx.graphics.setFullscreenMode(com.badlogic.gdx.Gdx.graphics.getDisplayMode());
+        } else {
+            com.badlogic.gdx.Gdx.graphics.setWindowedMode(1280, 720);
+        }
 
     }
     public static GameConfig getConfig() {

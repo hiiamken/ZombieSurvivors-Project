@@ -15,6 +15,7 @@ public class GameConfig {
     public int keyShoot;
 
     public boolean debugEnabled;
+    public boolean fullscreen;
 
     public GameConfig() {}
 
@@ -32,6 +33,7 @@ public class GameConfig {
         cfg.keyShoot = com.badlogic.gdx.Input.Keys.SPACE;
 
         cfg.debugEnabled = false; // Debug disabled by default
+        cfg.fullscreen = true; // Fullscreen enabled by default
 
         return cfg;
     }
