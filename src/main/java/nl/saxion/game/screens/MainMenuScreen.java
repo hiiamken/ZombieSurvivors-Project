@@ -130,20 +130,40 @@ public class MainMenuScreen extends ScalableGameScreen {
         if (!resourcesLoaded) {
             DebugLogger.log("Loading fonts...");
 
-            // Register custom button text colors (RGB values from hex)
+            // Register unified button text colors for all menus
+            // GREEN button - dark green-gray for contrast on bright green
             if (!GameApp.hasColor("button_play_color")) {
-                GameApp.addColor("button_play_color", 47, 87, 83); // #2f5753
+                GameApp.addColor("button_play_color", 25, 50, 25); // Dark green-gray
             }
+            if (!GameApp.hasColor("button_green_text")) {
+                GameApp.addColor("button_green_text", 25, 50, 25);
+            }
+            // ORANGE button - dark brown for contrast on orange
             if (!GameApp.hasColor("button_settings_color")) {
-                GameApp.addColor("button_settings_color", 171, 81, 48); // #ab5130
+                GameApp.addColor("button_settings_color", 70, 30, 10); // Dark brown
             }
+            if (!GameApp.hasColor("button_orange_text")) {
+                GameApp.addColor("button_orange_text", 70, 30, 10);
+            }
+            // RED button - dark maroon for contrast on red/pink
             if (!GameApp.hasColor("button_quit_color")) {
-                GameApp.addColor("button_quit_color", 79, 29, 76); // #4f1d4c
+                GameApp.addColor("button_quit_color", 60, 15, 30); // Dark maroon
+            }
+            if (!GameApp.hasColor("button_red_text")) {
+                GameApp.addColor("button_red_text", 60, 15, 30);
+            }
+            // Yellow button text color (dark brown for contrast on yellow)
+            if (!GameApp.hasColor("button_yellow_text")) {
+                GameApp.addColor("button_yellow_text", 70, 50, 10); // Dark brown/olive
+            }
+            // Blue button text color (dark navy for contrast on blue)
+            if (!GameApp.hasColor("button_blue_text")) {
+                GameApp.addColor("button_blue_text", 20, 30, 70); // Dark navy blue
             }
             
-            // Load upheavtt font for button text with larger size
-            GameApp.addStyledFont("buttonFont", "fonts/upheavtt.ttf", 50,
-                    "gray-200", 2f, "black", 2, 2, "gray-600", true);
+            // Button font with subtle shadow (size 40 for smaller buttons)
+            GameApp.addStyledFont("buttonFont", "fonts/upheavtt.ttf", 40,
+                    "white", 0f, "black", 2, 2, "gray-700", true);
             DebugLogger.log("Loaded buttonFont: upheavtt.ttf (size 32)");
 
             DebugLogger.log("Loading button sprites...");
@@ -174,6 +194,26 @@ public class MainMenuScreen extends ScalableGameScreen {
                 DebugLogger.log("Loaded orange_pressed_long: %s", GameApp.hasTexture("orange_pressed_long") ? "SUCCESS" : "FAILED");
             } else {
                 DebugLogger.log("orange_pressed_long already loaded");
+            }
+
+            // Load yellow button sprites (LEADERBOARD)
+            if (!GameApp.hasTexture("yellow_long")) {
+                GameApp.addTexture("yellow_long", "assets/ui/yellow_long.png");
+                DebugLogger.log("Loaded yellow_long: %s", GameApp.hasTexture("yellow_long") ? "SUCCESS" : "FAILED");
+            }
+            if (!GameApp.hasTexture("yellow_pressed_long")) {
+                GameApp.addTexture("yellow_pressed_long", "assets/ui/yellow_pressed_long.png");
+                DebugLogger.log("Loaded yellow_pressed_long: %s", GameApp.hasTexture("yellow_pressed_long") ? "SUCCESS" : "FAILED");
+            }
+
+            // Load blue button sprites (CREDITS)
+            if (!GameApp.hasTexture("blue_long")) {
+                GameApp.addTexture("blue_long", "assets/ui/blue_long.png");
+                DebugLogger.log("Loaded blue_long: %s", GameApp.hasTexture("blue_long") ? "SUCCESS" : "FAILED");
+            }
+            if (!GameApp.hasTexture("blue_pressed_long")) {
+                GameApp.addTexture("blue_pressed_long", "assets/ui/blue_pressed_long.png");
+                DebugLogger.log("Loaded blue_pressed_long: %s", GameApp.hasTexture("blue_pressed_long") ? "SUCCESS" : "FAILED");
             }
 
             // Load red button sprites (QUIT)
@@ -225,7 +265,7 @@ public class MainMenuScreen extends ScalableGameScreen {
         // Calculate button size from texture dimensions with scale
         int texW = GameApp.getTextureWidth("green_long");
         int texH = GameApp.getTextureHeight("green_long");
-        int scale = 1; // 2 or 3
+        float scale = 0.8f; // Smaller buttons
         
         buttonWidth = texW * scale;
         buttonHeight = texH * scale;
@@ -233,62 +273,73 @@ public class MainMenuScreen extends ScalableGameScreen {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
 
-        // Calculate total height of all buttons with spacing
-        float totalHeight = (buttonHeight * 3) + (buttonSpacing * 2);
-        float startY = (screenHeight - totalHeight) / 2 + buttonHeight;
+        // Calculate total height of all buttons with spacing (5 buttons now)
+        float totalHeight = (buttonHeight * 5) + (buttonSpacing * 4);
+        float startY = (screenHeight - totalHeight) / 2 + buttonHeight * 2 + buttonSpacing + 40f; // Move up 10f more
 
         // Center buttons horizontally
         float buttonX = (screenWidth - buttonWidth) / 2;
 
-        // PLAY button (green) - top
+        // 1. PLAY button (green) - top
         Button playButton = new Button(buttonX, startY, buttonWidth, buttonHeight, "");
         playButton.setOnClick(() -> {
             DebugLogger.log("PLAY button clicked!");
             GameApp.log("Starting game...");
-            // Action will be executed after delay in render()
         });
         if (GameApp.hasTexture("green_long")) {
             playButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
-            DebugLogger.log("PLAY button: sprites set (green_long, green_pressed_long)");
-        } else {
-            DebugLogger.log("PLAY button: green_long texture NOT FOUND!");
         }
         buttons.add(playButton);
-        DebugLogger.log("PLAY button created at (%.1f, %.1f) size (%.1f x %.1f)", buttonX, startY, buttonWidth, buttonHeight);
 
-        // OPTIONS button (orange) - middle
-        float optionsY = startY - buttonHeight - buttonSpacing;
-        Button optionsButton = new Button(buttonX, optionsY, buttonWidth, buttonHeight, "");
-        optionsButton.setOnClick(() -> {
-            DebugLogger.log("OPTIONS button clicked!");
+        // 2. LEADERBOARD button (yellow)
+        float leaderboardY = startY - buttonHeight - buttonSpacing;
+        Button leaderboardButton = new Button(buttonX, leaderboardY, buttonWidth, buttonHeight, "");
+        leaderboardButton.setOnClick(() -> {
+            DebugLogger.log("LEADERBOARD button clicked!");
+            GameApp.log("Opening leaderboard...");
+        });
+        if (GameApp.hasTexture("yellow_long")) {
+            leaderboardButton.setSprites("yellow_long", "yellow_long", "yellow_long", "yellow_pressed_long");
+        }
+        buttons.add(leaderboardButton);
+
+        // 3. SETTINGS button (orange)
+        float settingsY = leaderboardY - buttonHeight - buttonSpacing;
+        Button settingsButton = new Button(buttonX, settingsY, buttonWidth, buttonHeight, "");
+        settingsButton.setOnClick(() -> {
+            DebugLogger.log("SETTINGS button clicked!");
             GameApp.log("Opening settings...");
-            // Action will be executed after delay in render()
         });
         if (GameApp.hasTexture("orange_long")) {
-            optionsButton.setSprites("orange_long", "orange_long", "orange_long", "orange_pressed_long");
-            DebugLogger.log("OPTIONS button: sprites set (orange_long, orange_pressed_long)");
-        } else {
-            DebugLogger.log("OPTIONS button: orange_long texture NOT FOUND!");
+            settingsButton.setSprites("orange_long", "orange_long", "orange_long", "orange_pressed_long");
         }
-        buttons.add(optionsButton);
-        DebugLogger.log("OPTIONS button created at (%.1f, %.1f) size (%.1f x %.1f)", buttonX, optionsY, buttonWidth, buttonHeight);
+        buttons.add(settingsButton);
 
-        // QUIT button (red) - bottom
-        float quitY = startY - (buttonHeight + buttonSpacing) * 2;
+        // 4. CREDITS button (blue)
+        float creditsY = settingsY - buttonHeight - buttonSpacing;
+        Button creditsButton = new Button(buttonX, creditsY, buttonWidth, buttonHeight, "");
+        creditsButton.setOnClick(() -> {
+            DebugLogger.log("CREDITS button clicked!");
+            GameApp.log("Opening credits...");
+        });
+        if (GameApp.hasTexture("blue_long")) {
+            creditsButton.setSprites("blue_long", "blue_long", "blue_long", "blue_pressed_long");
+        }
+        buttons.add(creditsButton);
+
+        // 5. QUIT button (red) - bottom
+        float quitY = creditsY - buttonHeight - buttonSpacing;
         Button quitButton = new Button(buttonX, quitY, buttonWidth, buttonHeight, "");
         quitButton.setOnClick(() -> {
             DebugLogger.log("QUIT button clicked!");
             GameApp.log("Quitting game...");
-            // Action will be executed after delay in render()
         });
         if (GameApp.hasTexture("red_long")) {
             quitButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
-            DebugLogger.log("QUIT button: sprites set (red_long, red_pressed_long)");
-        } else {
-            DebugLogger.log("QUIT button: red_long texture NOT FOUND!");
         }
         buttons.add(quitButton);
-        DebugLogger.log("QUIT button created at (%.1f, %.1f) size (%.1f x %.1f)", buttonX, quitY, buttonWidth, buttonHeight);
+        
+        DebugLogger.log("Created 5 menu buttons: PLAY, LEADERBOARD, SETTINGS, CREDITS, QUIT");
     }
 
     @Override
@@ -379,20 +430,13 @@ public class MainMenuScreen extends ScalableGameScreen {
     private void drawButtonText() {
         GameApp.startSpriteRendering();
 
-        for (int i = 0; i < buttons.size(); i++) {
+        String[] buttonTexts = {"PLAY", "RANKS", "SETTINGS", "CREDITS", "QUIT"};
+        String[] buttonColors = {"button_green_text", "button_yellow_text", "button_orange_text", "button_blue_text", "button_red_text"};
+
+        for (int i = 0; i < buttons.size() && i < buttonTexts.length; i++) {
             Button button = buttons.get(i);
-            String text = "";
-            String colorName = "";
-            if (i == 0) {
-                text = "PLAY";
-                colorName = "button_play_color";
-            } else if (i == 1) {
-                text = "SETTINGS";
-                colorName = "button_settings_color";
-            } else {
-                text = "QUIT";
-                colorName = "button_quit_color";
-            }
+            String text = buttonTexts[i];
+            String colorName = buttonColors[i];
 
             // Calculate center of button
             float buttonCenterX = button.getX() + button.getWidth() / 2;
@@ -433,18 +477,18 @@ public class MainMenuScreen extends ScalableGameScreen {
             int texWidth = GameApp.getTextureWidth("mainmenu_bg");
             int texHeight = GameApp.getTextureHeight("mainmenu_bg");
             if (texWidth > 0 && texHeight > 0) {
-                // Scale to fill screen while maintaining aspect ratio
+                // Scale to COVER entire screen (fill, may crop)
                 float screenAspect = screenWidth / screenHeight;
                 float texAspect = (float) texWidth / texHeight;
 
                 if (screenAspect > texAspect) {
-                    // Screen is wider, fit to height
-                    bgHeight = screenHeight;
-                    bgWidth = bgHeight * texAspect;
-                } else {
-                    // Screen is taller, fit to width
+                    // Screen is wider, fit to width (crop top/bottom)
                     bgWidth = screenWidth;
                     bgHeight = bgWidth / texAspect;
+                } else {
+                    // Screen is taller, fit to height (crop left/right)
+                    bgHeight = screenHeight;
+                    bgWidth = bgHeight * texAspect;
                 }
             }
         } catch (Exception e) {
@@ -514,8 +558,8 @@ public class MainMenuScreen extends ScalableGameScreen {
             int texWidth = GameApp.getTextureWidth("zombiesTitle");
             int texHeight = GameApp.getTextureHeight("zombiesTitle");
             if (texWidth > 0 && texHeight > 0) {
-                // Scale to fit screen width (60% of screen - reduced from 70% to make it less dominant)
-                float targetWidth = screenWidth * 0.45f;
+                // Scale to fit screen width (90% of screen - doubled from 45%)
+                float targetWidth = screenWidth * 0.65f;
                 float aspectRatio = (float)texHeight / texWidth;
                 titleWidth = targetWidth;
                 titleHeight = targetWidth * aspectRatio;
@@ -524,9 +568,9 @@ public class MainMenuScreen extends ScalableGameScreen {
             // Use default size if texture dimensions unavailable
         }
 
-        // Center horizontally, position at top (moved up 30px to give more space for buttons)
+        // Center horizontally, position at top (moved up for better balance)
         float titleX = (screenWidth - titleWidth) / 2f;
-        float titleY = screenHeight - titleHeight - 10f; // 70px from top (reduced from 100px)
+        float titleY = screenHeight - titleHeight + 70f; // Move up 20f for better balance
 
         // Render title (must be in sprite batch)
         GameApp.startSpriteRendering();
@@ -572,6 +616,9 @@ public class MainMenuScreen extends ScalableGameScreen {
             }
         }
 
+        // Button names for debugging
+        String[] buttonNames = {"PLAY", "LEADERBOARD", "SETTINGS", "CREDITS", "QUIT"};
+
         // Update button pressed states based on mouse
         for (int i = 0; i < buttons.size(); i++) {
             Button button = buttons.get(i);
@@ -581,10 +628,9 @@ public class MainMenuScreen extends ScalableGameScreen {
             button.setPressed(isMouseDown && isMouseOver);
 
             // Debug button state
-            if (isMouseOver && isMouseJustPressed) {
-                String buttonName = i == 0 ? "PLAY" : (i == 1 ? "OPTIONS" : "QUIT");
+            if (isMouseOver && isMouseJustPressed && i < buttonNames.length) {
                 DebugLogger.log("%s button: Mouse clicked! Button bounds: (%.1f, %.1f) size (%.1f x %.1f)",
-                        buttonName, button.getX(), button.getY(), button.getWidth(), button.getHeight());
+                        buttonNames[i], button.getX(), button.getY(), button.getWidth(), button.getHeight());
             }
         }
 
@@ -596,37 +642,52 @@ public class MainMenuScreen extends ScalableGameScreen {
             for (int i = 0; i < buttons.size(); i++) {
                 Button button = buttons.get(i);
                 if (button.containsPoint(mouseX, mouseY)) {
-                    String buttonName = i == 0 ? "PLAY" : (i == 1 ? "OPTIONS" : "QUIT");
+                    String buttonName = i < buttonNames.length ? buttonNames[i] : "UNKNOWN";
                     DebugLogger.log("%s button: Click detected! Starting press delay...", buttonName);
 
                     // Store button and action for delayed execution
                     pressedButton = button;
                     button.setPressed(true);
 
-                    // Play button click sound at higher volume (0.7f = 70% volume)
+                    // Play button click sound at higher volume
                     if (soundManager != null) {
                         soundManager.playSound("clickbutton", 2.5f);
                     }
                     
-                    // Create delayed action based on button
-                    if (i == 0) {
-                        // PLAY button
-                        pendingAction = () -> {
-                            DebugLogger.log("PLAY button action executing after delay");
-                            GameApp.switchScreen("play");
-                        };
-                    } else if (i == 1) {
-                        // OPTIONS button
-                        pendingAction = () -> {
-                            DebugLogger.log("OPTIONS button action executing after delay");
-                            GameApp.switchScreen("settings");
-                        };
-                    } else {
-                        // QUIT button
-                        pendingAction = () -> {
-                            DebugLogger.log("QUIT button action executing after delay");
-                            GameApp.quit();
-                        };
+                    // Create delayed action based on button index
+                    final int buttonIndex = i;
+                    switch (buttonIndex) {
+                        case 0: // PLAY
+                            pendingAction = () -> {
+                                DebugLogger.log("PLAY button action executing after delay");
+                                // Go to player input screen first to collect player info
+                                GameApp.switchScreen("playerinput");
+                            };
+                            break;
+                        case 1: // RANKS (LEADERBOARD)
+                            pendingAction = () -> {
+                                DebugLogger.log("RANKS button action executing after delay");
+                                GameApp.switchScreen("ranks");
+                            };
+                            break;
+                        case 2: // SETTINGS
+                            pendingAction = () -> {
+                                DebugLogger.log("SETTINGS button action executing after delay");
+                                GameApp.switchScreen("settings");
+                            };
+                            break;
+                        case 3: // CREDITS
+                            pendingAction = () -> {
+                                DebugLogger.log("CREDITS button action executing after delay");
+                                GameApp.switchScreen("credits");
+                            };
+                            break;
+                        case 4: // QUIT
+                            pendingAction = () -> {
+                                DebugLogger.log("QUIT button action executing after delay");
+                                GameApp.quit();
+                            };
+                            break;
                     }
 
                     pressTimer = 0f;

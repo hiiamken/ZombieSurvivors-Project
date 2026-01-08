@@ -18,13 +18,13 @@ public class Enemy {
     private int maxHealth;
 
     // Sprite size constant
-    public static final int SPRITE_SIZE = 24;
+    public static final int SPRITE_SIZE = 36; // Larger sprite for zoomed out view
     // Wall hitbox (small, for wall collision)
-    public static final int HITBOX_WIDTH = 8;
-    public static final int HITBOX_HEIGHT = 8;
+    public static final int HITBOX_WIDTH = 12;
+    public static final int HITBOX_HEIGHT = 12;
     // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 12;
-    public static final int DAMAGE_HITBOX_HEIGHT = 14;
+    public static final int DAMAGE_HITBOX_WIDTH = 18;
+    public static final int DAMAGE_HITBOX_HEIGHT = 20;
 
     // Wall hitbox offset: adjusted to match sprite position
     private static final float WALL_OFFSET_X = 20f;
@@ -34,18 +34,14 @@ public class Enemy {
     private static final float DAMAGE_OFFSET_X = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f;
     private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f;
 
-    // Collision constants (for smooth movement near walls)
-    private static final float EPSILON = 2.0f;
-    private static final float SLIDE_MARGIN = 1.0f;
-
     // Separation constants (to prevent zombies from overlapping - like Vampire Survivors)
-    private static final float SEPARATION_RADIUS = 20f;  // Minimum distance between zombies
-    private static final float SEPARATION_FORCE = 80f;   // Push force strength
+    private static final float SEPARATION_RADIUS = 28f;  // Minimum distance between zombies (larger for bigger sprites)
+    private static final float SEPARATION_FORCE = 90f;   // Push force strength
 
-    // Soft despawn zones (like Vampire Survivors)
-    public static final float ACTIVE_RADIUS = 600f;   // Active zone: update AI, move, attack
-    public static final float SLEEP_RADIUS = 1200f;   // Sleep zone: freeze but keep HP
-    public static final float KILL_RADIUS = 2000f;    // Kill zone: delete enemy (very far)
+    // Soft despawn zones (like Vampire Survivors) - adjusted for 960x540 world view
+    public static final float ACTIVE_RADIUS = 700f;   // Active zone: update AI, move, attack
+    public static final float RESPAWN_RADIUS = 550f;  // Distance to respawn enemy at (edge of screen)
+    public static final float TELEPORT_RADIUS = 900f; // If enemy goes beyond this, teleport to random edge
 
     // Active/visible state for soft despawn
     private boolean isActive = true;   // Update AI, move, attack
@@ -160,12 +156,31 @@ public class Enemy {
         }
     }
     
-    // Check if enemy should be deleted (too far from player - beyond kill radius)
-    public boolean shouldBeDeleted(float playerX, float playerY) {
+    // Check if enemy should be teleported (too far from player - like VS)
+    public boolean shouldTeleport(float playerX, float playerY) {
         float dx = playerX - x;
         float dy = playerY - y;
         float distance = (float) Math.sqrt(dx * dx + dy * dy);
-        return distance >= KILL_RADIUS;
+        return distance >= TELEPORT_RADIUS;
+    }
+    
+    // Teleport enemy to random edge position around player (like VS respawn mechanic)
+    // When enemy goes too far, it reappears from a different direction
+    public void teleportToRandomEdge(float playerX, float playerY) {
+        // Random angle (0 to 2*PI)
+        double angle = Math.random() * 2 * Math.PI;
+        
+        // Spawn at RESPAWN_RADIUS distance from player
+        float newX = playerX + (float)(Math.cos(angle) * RESPAWN_RADIUS);
+        float newY = playerY + (float)(Math.sin(angle) * RESPAWN_RADIUS);
+        
+        // Set new position
+        this.x = newX;
+        this.y = newY;
+        
+        // Reset to active state
+        this.isActive = true;
+        this.isVisible = true;
     }
     
     public boolean isActive() {
@@ -261,12 +276,6 @@ public class Enemy {
 
         float dx = dirX * speed * delta;
         float dy = dirY * speed * delta;
-        float offsetX = WALL_OFFSET_X;
-        float offsetY = WALL_OFFSET_Y;
-
-        // Save original position
-        float originalX = x;
-        float originalY = y;
 
         // Normalize diagonal movement for consistent speed
         if (dx != 0 && dy != 0) {
@@ -277,48 +286,9 @@ public class Enemy {
             dy = normalizedDy * speed * delta;
         }
 
-        // Move X first (standard 2D game approach)
-        if (dx != 0 && collisionChecker != null) {
-            float newX = originalX + dx;
-            float hitboxWorldX = newX + offsetX;
-            float hitboxWorldY = originalY + offsetY;
-
-            // When moving horizontal, shrink height to avoid friction with ceiling/floor
-            float checkWidth = (float)HITBOX_WIDTH - EPSILON;
-            float checkHeight = (float)HITBOX_HEIGHT - EPSILON - SLIDE_MARGIN;
-            float checkX = hitboxWorldX + EPSILON / 2f;
-            float checkY = hitboxWorldY + (EPSILON + SLIDE_MARGIN) / 2f;
-
-            boolean collisionX = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
-
-            if (!collisionX) {
-                x = newX;
-            }
-            // Enemy doesn't need corner correction - it chases player and finds path naturally
-        } else if (dx != 0) {
-            x = originalX + dx;
-        }
-
-        // Move Y (using updated X position)
-        if (dy != 0 && collisionChecker != null) {
-            float newY = originalY + dy;
-            float hitboxWorldX = x + offsetX;
-            float hitboxWorldY = newY + offsetY;
-
-            // When moving vertical, shrink width to avoid friction with left/right walls
-            float checkWidth = (float)HITBOX_WIDTH - EPSILON - SLIDE_MARGIN;
-            float checkHeight = (float)HITBOX_HEIGHT - EPSILON;
-            float checkX = hitboxWorldX + (EPSILON + SLIDE_MARGIN) / 2f;
-            float checkY = hitboxWorldY + EPSILON / 2f;
-
-            boolean collisionY = collisionChecker.checkCollision(checkX, checkY, checkWidth, checkHeight);
-
-            if (!collisionY) {
-                y = newY;
-            }
-        } else if (dy != 0) {
-            y = originalY + dy;
-        }
+        // Move freely (no wall collision - enemies can pass through walls like VS)
+        x += dx;
+        y += dy;
 
         // ===== SEPARATION: Push each other to prevent overlapping (like Vampire Survivors) =====
         if (allEnemies != null) {
@@ -354,29 +324,9 @@ public class Enemy {
                 }
             }
 
-            // Apply separation force (with wall collision check)
-            if (separationX != 0 || separationY != 0) {
-                float newX = x + separationX;
-                float newY = y + separationY;
-
-                // Check wall collision for separation X
-                if (separationX != 0) {
-                    float hitboxWorldX = newX + offsetX;
-                    float hitboxWorldY = y + offsetY;
-                    if (!collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, HITBOX_WIDTH - EPSILON, HITBOX_HEIGHT - EPSILON)) {
-                        x = newX;
-                    }
-                }
-
-                // Check wall collision for separation Y
-                if (separationY != 0) {
-                    float hitboxWorldX = x + offsetX;
-                    float hitboxWorldY = newY + offsetY;
-                    if (!collisionChecker.checkCollision(hitboxWorldX, hitboxWorldY, HITBOX_WIDTH - EPSILON, HITBOX_HEIGHT - EPSILON)) {
-                        y = newY;
-                    }
-                }
-            }
+            // Apply separation force (no wall collision - enemies pass through walls)
+            x += separationX;
+            y += separationY;
         }
 
         // Update hitboxes after movement

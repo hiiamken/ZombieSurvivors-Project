@@ -1,7 +1,7 @@
 package nl.saxion.game.entities;
 
 public enum StatUpgradeType {
-    SPEED("Speed Boost", 2), // Max 2 levels, +5% per level
+    SPEED("Wings", 5), // Max 5 levels, +10% per level (like VS Wings item, +50% total)
     DAMAGE("Damage Boost", 5), // Max 5 levels, +5% per level
     MAX_HEALTH("Max Health", 3), // Max 3 levels, +10% per level
     HEALTH_REGEN("Health Regen", 5), // Max 5 levels, +0.1 HP/s per level
@@ -23,7 +23,7 @@ public enum StatUpgradeType {
     // Get description for specific level
     public String getDescriptionForLevel(int level) {
         return switch (this) {
-            case SPEED -> String.format("+%d%% movement speed", level * 5);
+            case SPEED -> String.format("+%d%% movement speed", level * 10);
             case DAMAGE -> String.format("+%d%% damage", level * 5);
             case MAX_HEALTH -> String.format("+%d%% max health", level * 10);
             case HEALTH_REGEN -> String.format("+%.1f HP/sec", level * 0.1f);

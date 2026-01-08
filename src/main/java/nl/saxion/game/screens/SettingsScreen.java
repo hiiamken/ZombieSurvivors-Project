@@ -13,6 +13,26 @@ import nl.saxion.gameapp.screens.ScalableGameScreen;
 // Settings screen with volume controls
 public class SettingsScreen extends ScalableGameScreen {
 
+    // Static field to track which screen to return to
+    // "menu" = return to main menu (default)
+    // "pause" = return to pause menu in PlayScreen
+    private static String returnScreen = "menu";
+    
+    /**
+     * Set the screen to return to when closing settings.
+     * @param screen "menu" or "pause"
+     */
+    public static void setReturnScreen(String screen) {
+        returnScreen = screen;
+    }
+    
+    /**
+     * Get the current return screen.
+     */
+    public static String getReturnScreen() {
+        return returnScreen;
+    }
+
     // Volume settings (0-100)
     private int masterVolume = 100;
     private int sfxVolume = 100;
@@ -100,8 +120,9 @@ public class SettingsScreen extends ScalableGameScreen {
         soundManager = new SoundManager();
         soundManager.loadAllSounds();
         
-        // Start background music for menu (if not already playing)
-        if (soundManager != null) {
+        // Only start background music if returning to menu (not from pause)
+        // When coming from pause, the ingame music is already playing (at reduced volume)
+        if (soundManager != null && !"pause".equals(returnScreen)) {
             soundManager.playMusic(true);
         }
 
@@ -195,9 +216,9 @@ public class SettingsScreen extends ScalableGameScreen {
             GameApp.addTexture("tab_1", "assets/ui/Tab_1.png");
         }
         
-        // Load custom font for settings screen
+        // Load custom font for settings screen title (large, like Credits)
         if (!GameApp.hasFont(SETTINGS_FONT)) {
-            GameApp.addFont(SETTINGS_FONT, "fonts/PixelOperatorMono-Bold.ttf", 12);
+            GameApp.addFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 20);
         }
         
         // Load smaller font for tab labels
@@ -260,6 +281,11 @@ public class SettingsScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("close_button")) {
             GameApp.addTexture("close_button", "assets/ui/close.png");
         }
+        
+        // Load background texture
+        if (!GameApp.hasTexture("mainmenu_bg")) {
+            GameApp.addTexture("mainmenu_bg", "assets/ui/mainmenu.png");
+        }
     }
 
 
@@ -288,6 +314,9 @@ public class SettingsScreen extends ScalableGameScreen {
 
         // Clear screen with dark background
         GameApp.clearScreen(BG_COLOR);
+        
+        // Draw background texture
+        drawBackground();
 
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
@@ -329,7 +358,7 @@ public class SettingsScreen extends ScalableGameScreen {
         // Draw Sound Effect slider
         drawSfxSlider(panelX, panelY, panelWidth, panelHeight);
         
-        // Draw OPTIONS title at cells 15-16 (row 2, columns 5-6)
+        // Draw SETTINGS title at cells 15-16 (row 2, columns 5-6)
         drawTitle(panelX, panelY, panelWidth, panelHeight);
         
         GameApp.endSpriteRendering();
@@ -355,6 +384,39 @@ public class SettingsScreen extends ScalableGameScreen {
         
         // Grid disabled - uncomment to debug positioning
         // drawCoordinateGrid(panelX, panelY, panelWidth, panelHeight);
+    }
+    
+    private void drawBackground() {
+        if (!GameApp.hasTexture("mainmenu_bg")) return;
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        
+        int texWidth = GameApp.getTextureWidth("mainmenu_bg");
+        int texHeight = GameApp.getTextureHeight("mainmenu_bg");
+        
+        float bgWidth = screenWidth;
+        float bgHeight = screenHeight;
+        
+        if (texWidth > 0 && texHeight > 0) {
+            float screenAspect = screenWidth / screenHeight;
+            float texAspect = (float) texWidth / texHeight;
+            
+            if (screenAspect > texAspect) {
+                bgWidth = screenWidth;
+                bgHeight = bgWidth / texAspect;
+            } else {
+                bgHeight = screenHeight;
+                bgWidth = bgHeight * texAspect;
+            }
+        }
+        
+        float bgX = (screenWidth - bgWidth) / 2f;
+        float bgY = (screenHeight - bgHeight) / 2f;
+        
+        GameApp.startSpriteRendering();
+        GameApp.drawTexture("mainmenu_bg", bgX, bgY, bgWidth, bgHeight);
+        GameApp.endSpriteRendering();
     }
     
     // Handle mouse input for toggle button and volume controls
@@ -512,8 +574,19 @@ public class SettingsScreen extends ScalableGameScreen {
             
             if (worldMouseX >= closeButtonX && worldMouseX <= closeButtonX + closeButtonSize &&
                 worldMouseY >= closeButtonY && worldMouseY <= closeButtonY + closeButtonSize) {
-                // Switch back to main menu
-                GameApp.switchScreen("menu");
+                // Check which screen to return to
+                if ("pause".equals(returnScreen)) {
+                    // Return to pause menu in PlayScreen
+                    // Set flags to preserve pause state
+                    PlayScreen.setReturningFromSettings(true);
+                    PlayScreen.setWasPausedBeforeSettings(true);
+                    // Reset returnScreen for next time
+                    returnScreen = "menu";
+                    GameApp.switchScreen("play");
+                } else {
+                    // Switch back to main menu (default)
+                    GameApp.switchScreen("menu");
+                }
             }
         }
     }
@@ -925,7 +998,7 @@ public class SettingsScreen extends ScalableGameScreen {
         }
     }
     
-    // Draw OPTIONS title at cells 15-16 (row 2, columns 5-6)
+    // Draw SETTINGS title at cells 15-16 (row 2, columns 5-6)
     private void drawTitle(float panelX, float panelY, float panelWidth, float panelHeight) {
         float cellWidth = panelWidth / 10f;
         float cellHeight = panelHeight / 10f;
@@ -937,7 +1010,7 @@ public class SettingsScreen extends ScalableGameScreen {
         float titleX = panelX + (4.5f * cellWidth) + (cellWidth / 2f);
         float titleY = panelY + (8.3f * cellHeight) + (cellHeight / 2f);
         
-        drawTextWithOutline("OPTIONS", titleX, titleY);
+        drawTextWithOutline("SETTINGS", titleX, titleY);
         
         // Draw close button on the same row, right side (column 9, shifted left)
         float closeButtonSize = cellHeight * 0.8f;
