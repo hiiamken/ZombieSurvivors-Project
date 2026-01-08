@@ -660,14 +660,14 @@ public class MainMenuScreen extends ScalableGameScreen {
                         case 0: // PLAY
                             pendingAction = () -> {
                                 DebugLogger.log("PLAY button action executing after delay");
-                                GameApp.switchScreen("play");
+                                // Go to player input screen first to collect player info
+                                GameApp.switchScreen("playerinput");
                             };
                             break;
-                        case 1: // LEADERBOARD
+                        case 1: // RANKS (LEADERBOARD)
                             pendingAction = () -> {
-                                DebugLogger.log("LEADERBOARD button action executing after delay");
-                                // TODO: Implement leaderboard screen
-                                GameApp.log("Leaderboard not yet implemented");
+                                DebugLogger.log("RANKS button action executing after delay");
+                                GameApp.switchScreen("ranks");
                             };
                             break;
                         case 2: // SETTINGS

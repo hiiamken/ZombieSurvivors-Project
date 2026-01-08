@@ -3,6 +3,7 @@ package nl.saxion.game.screens;
 
 import nl.saxion.game.MainGame;
 import nl.saxion.game.core.GameState;
+import nl.saxion.game.core.PlayerData;
 import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
@@ -17,6 +18,7 @@ import nl.saxion.game.systems.EnemySpawner;
 import nl.saxion.game.systems.GameRenderer;
 import nl.saxion.game.systems.GameStateManager;
 import nl.saxion.game.systems.InputController;
+import nl.saxion.game.systems.LeaderboardManager;
 import nl.saxion.game.systems.MapRenderer;
 import nl.saxion.game.systems.ResourceLoader;
 import nl.saxion.game.systems.SoundManager;
@@ -159,6 +161,7 @@ public class PlayScreen extends ScalableGameScreen {
     private boolean isGameOver = false;
     private float gameOverFadeTimer = 0f;
     private static final float GAME_OVER_FADE_DURATION = 1.0f;
+    private boolean scoreSaved = false; // Flag to prevent saving score twice
     private List<Button> gameOverButtons;
     private boolean gameOverButtonsInitialized = false;
     private float gameOverPressDelay = 0.15f;
@@ -180,7 +183,7 @@ public class PlayScreen extends ScalableGameScreen {
     private boolean isHoveringPauseButton = false;
 
     public PlayScreen() {
-        super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
+        super(960, 540); // 16:9 aspect ratio - larger world size for zoomed out view (can see more of the map)
     }
 
     @Override
@@ -311,19 +314,19 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
                 "gray-200", 2f, "black", 2, 2, "gray-600", true);
 
-        // Load level font for XP bar (pixel-perfect for HUD, smaller to fit bar height)
-        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 8,
+        // Load level font for XP bar (scaled up for 960x540 world view)
+        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 12,
                 "white", 1f, "black", 1, 1, "gray-800", true);
 
-        // Load score font (pixel-perfect for HUD, professional styling)
-        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
+        // Load score font (scaled up for better visibility)
+        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 14,
                 "white", 1.5f, "black", 2, 2, "gray-700", true);
 
-        // Load timer font (Press Start 2P for timer display)
-        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 14, true);
+        // Load timer font (larger for zoomed out view)
+        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 20, true);
 
-        // Load damage font (PixelOperatorMono-Bold for damage numbers - smaller size)
-        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 13,
+        // Load damage font (larger for better visibility when zoomed out)
+        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 18,
                 "orange-500", 0.4f, "black", 1, 1, "black", true);
 
         // Load game over button sprites
@@ -409,19 +412,19 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
                 "gray-200", 2f, "black", 2, 2, "gray-600", true);
 
-        // Load level font for XP bar
-        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 8,
+        // Load level font for XP bar (scaled up for 960x540 world view)
+        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 12,
                 "white", 1f, "black", 1, 1, "gray-800", true);
 
-        // Load score font
-        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
+        // Load score font (scaled up for better visibility)
+        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 14,
                 "white", 1.5f, "black", 2, 2, "gray-700", true);
 
-        // Load timer font
-        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 14, true);
+        // Load timer font (larger for zoomed out view)
+        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 20, true);
 
-        // Load damage font
-        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 13,
+        // Load damage font (larger for better visibility when zoomed out)
+        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 18,
                 "orange-500", 0.4f, "black", 1, 1, "black", true);
 
         // Load button sprites
@@ -698,6 +701,9 @@ public class PlayScreen extends ScalableGameScreen {
                     isGameOver = true;
                     gameOverFadeTimer = 0f;
                     initializeGameOverButtons();
+                    
+                    // Save score to leaderboard
+                    saveScoreToLeaderboard();
                 }
             }
         }
@@ -823,6 +829,9 @@ public class PlayScreen extends ScalableGameScreen {
                 isGameOver = true;
                 gameOverFadeTimer = 0f;
                 initializeGameOverButtons();
+                
+                // Save score to leaderboard
+                saveScoreToLeaderboard();
             }
         }
         
@@ -914,10 +923,10 @@ public class PlayScreen extends ScalableGameScreen {
         float playerScreenX = worldW / 2f;
         float playerScreenY = worldH / 2f;
 
-        // Health bar properties - smaller and closer to player
-        float barWidth = 18f;  // Narrower bar
-        float barHeight = 2f;  // Thinner bar
-        float barOffsetY = 6f; // Closer to player
+        // Health bar properties - scaled for larger sprite (36px)
+        float barWidth = 28f;  // Wider bar for larger sprite
+        float barHeight = 3f;  // Slightly thicker bar
+        float barOffsetY = 10f; // Offset below player
 
         // Calculate health percentage
         float hpPercent = player.getHealth() / (float) player.getMaxHealth();
@@ -1135,12 +1144,48 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     // =========================
+    // SCORE SAVING
+    // =========================
+    
+    /**
+     * Save the current score to the leaderboard.
+     * Called when the game ends (player dies or time runs out).
+     */
+    private void saveScoreToLeaderboard() {
+        // Only save once per game
+        if (scoreSaved) {
+            GameApp.log("Score already saved for this game session");
+            return;
+        }
+        
+        // Check if we have player data
+        PlayerData currentPlayer = PlayerData.getCurrentPlayer();
+        if (currentPlayer == null) {
+            GameApp.log("No player data found - score not saved to leaderboard");
+            return;
+        }
+        
+        // Calculate survival time (how long they survived)
+        float survivalTime = GAME_DURATION - gameTime; // Time played before dying/timeout
+        
+        // Save to leaderboard
+        LeaderboardManager.addEntry(currentPlayer, score, survivalTime);
+        scoreSaved = true;
+        
+        GameApp.log(String.format("Score saved: %s - %d points, survived %.1f seconds", 
+            currentPlayer.getUsername(), score, survivalTime));
+    }
+
+    // =========================
     // GAME FLOW / RESET
     // =========================
 
     private void resetGame() {
         // Reset game state to PLAYING (important for Play Again button)
         gameStateManager.setCurrentState(GameState.PLAYING);
+        
+        // Reset score saved flag for new game
+        scoreSaved = false;
         
         // Reset game over overlay state
         isGameOver = false;
@@ -1183,7 +1228,8 @@ public class PlayScreen extends ScalableGameScreen {
         // Increased fire rate from 1.5 to 2.5 shots per second for faster shooting
         // Fire rate 3.5 = fast shooting, damage 6-12, bullet speed 450
         // With 2 bullets per shot, effective DPS is very good for clearing hordes
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 3.5f, 6, 12, 450f, 10f, 10f);
+        // Bullet size increased from 10 to 14 for better visibility with zoomed out view
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 3.5f, 6, 12, 450f, 14f, 14f);
 
         enemies = new ArrayList<>();
         xpOrbs = new ArrayList<>();
@@ -1201,9 +1247,17 @@ public class PlayScreen extends ScalableGameScreen {
         ingameMusicDelayTimer = 0f;
         ingameMusicStarted = false;
 
-        // Set initial player world position
-        playerWorldX = MapRenderer.getMapTileWidth() / 2f; // 480
-        playerWorldY = MapRenderer.getMapTileHeight() / 2f; // 320
+        // Set initial player world position - RANDOM ROOM each game
+        // Pick a random room from 0-15 (4x4 grid)
+        int randomRoomIndex = GameApp.randomInt(0, 16); // 0 to 15
+        int roomRow = randomRoomIndex / 4; // 0-3
+        int roomCol = randomRoomIndex % 4; // 0-3
+        
+        // Calculate world position at center of the random room
+        playerWorldX = roomCol * MapRenderer.getMapTileWidth() + MapRenderer.getMapTileWidth() / 2f;
+        playerWorldY = roomRow * MapRenderer.getMapTileHeight() + MapRenderer.getMapTileHeight() / 2f;
+        
+        GameApp.log("Starting in random room " + randomRoomIndex + " (row=" + roomRow + ", col=" + roomCol + ")");
 
         // Check and adjust if spawn position has wall
         if (mapRenderer != null) {
@@ -1211,6 +1265,11 @@ public class PlayScreen extends ScalableGameScreen {
             if (spawnMapData != null) {
                 Rectangle testHitbox = new Rectangle((int)playerWorldX, (int)playerWorldY, 16, 16);
                 if (mapRenderer.checkWallCollision(testHitbox.x, testHitbox.y, testHitbox.width, testHitbox.height)) {
+                    // Calculate bounds for the current room
+                    float roomMinX = roomCol * MapRenderer.getMapTileWidth();
+                    float roomMaxX = roomMinX + MapRenderer.getMapTileWidth();
+                    float roomMinY = roomRow * MapRenderer.getMapTileHeight();
+                    float roomMaxY = roomMinY + MapRenderer.getMapTileHeight();
 
                     for (int offset = 50; offset < 300; offset += 50) {
 
@@ -1218,8 +1277,9 @@ public class PlayScreen extends ScalableGameScreen {
                             for (int dy = -offset; dy <= offset; dy += 50) {
                                 float testX = playerWorldX + dx;
                                 float testY = playerWorldY + dy;
-                                if (testX >= 0 && testX < MapRenderer.getMapTileWidth() &&
-                                        testY >= 0 && testY < MapRenderer.getMapTileHeight()) {
+                                // Stay within the current room bounds
+                                if (testX >= roomMinX && testX < roomMaxX &&
+                                        testY >= roomMinY && testY < roomMaxY) {
                                     if (!mapRenderer.checkWallCollision(testX, testY, 16, 16)) {
                                         playerWorldX = testX;
                                         playerWorldY = testY;
@@ -1243,13 +1303,14 @@ public class PlayScreen extends ScalableGameScreen {
         // Pass player reference to renderer
         gameRenderer.setPlayer(player);
 
-        // Reset enemies - spawn a few around the player
+        // Reset enemies - spawn a few at screen edges (outside visible area)
         enemies.clear();
         float enemyBaseSpeed = enemySpawner.getEnemyBaseSpeed();
         int enemyBaseHealth = enemySpawner.getEnemyBaseHealth();
-        enemies.add(new Enemy(playerWorldX + 200, playerWorldY + 150, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(playerWorldX + 400, playerWorldY + 200, enemyBaseSpeed, enemyBaseHealth));
-        enemies.add(new Enemy(playerWorldX + 600, playerWorldY + 100, enemyBaseSpeed, enemyBaseHealth));
+        // Spawn at screen edges (550-600 distance) to create feeling of zombies entering from outside
+        enemies.add(new Enemy(playerWorldX + 550, playerWorldY + 100, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(playerWorldX - 520, playerWorldY - 80, enemyBaseSpeed, enemyBaseHealth));
+        enemies.add(new Enemy(playerWorldX + 100, playerWorldY + 530, enemyBaseSpeed, enemyBaseHealth));
 
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
         GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");
@@ -1446,8 +1507,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Draw "GAME OVER" title image
         renderGameOverTitle(centerX, centerY);
         
-        // Draw score text
-        String scoreText = String.format("SCORE: %,d", score);
+        // Draw score and stats text
         float titleY = centerY + 90;
         float titleHeight = 200f;
         try {
@@ -1457,24 +1517,54 @@ public class PlayScreen extends ScalableGameScreen {
         } catch (Exception e) {
             // Use default
         }
-        float scoreTextHeight = GameApp.getTextHeight("gameOverText", scoreText);
-        float scoreY = titleY - titleHeight / 2 - scoreTextHeight * 2.2f;
+        
+        // Calculate survival time
+        float survivalTime = GAME_DURATION - gameTime;
+        int survivalMinutes = (int) survivalTime / 60;
+        int survivalSeconds = (int) survivalTime % 60;
+        String survivalTimeStr = String.format("%02d:%02d", survivalMinutes, survivalSeconds);
+        
+        // Get player name for display
+        String playerName = "PLAYER";
+        PlayerData currentPlayer = PlayerData.getCurrentPlayer();
+        if (currentPlayer != null) {
+            playerName = currentPlayer.getUsername().toUpperCase();
+        }
+        
+        // Get rank
+        int rank = LeaderboardManager.getRank(score, survivalTime);
+        String rankText = "#" + rank;
         
         // Load font and color if not loaded
-        // Fonts should be loaded by ResourceLoader or already exist
-        // Just use them if available
         if (!GameApp.hasColor("gameover_play_again_color")) {
-            GameApp.addColor("gameover_play_again_color", 34, 139, 34); // #228b22
+            GameApp.addColor("gameover_play_again_color", 34, 139, 34);
         }
         if (!GameApp.hasColor("gameover_back_menu_color")) {
-            GameApp.addColor("gameover_back_menu_color", 79, 29, 76); // #4f1d4c
-        }
-        if (!GameApp.hasFont("gameOverButtonFont")) {
-            // Font will be loaded by ResourceLoader or already exists
-            // Just check if it exists, don't create it here
+            GameApp.addColor("gameover_back_menu_color", 79, 29, 76);
         }
         
-        GameApp.drawTextCentered("gameOverText", scoreText, centerX, scoreY, "white");
+        // Display stats below title
+        float statsStartY = titleY - titleHeight / 2 - 20f;
+        float statsSpacing = 25f;
+        
+        // Player name
+        GameApp.drawTextCentered("gameOverText", playerName, centerX, statsStartY, "yellow-400");
+        
+        // Score
+        String scoreText = String.format("SCORE: %,d", score);
+        GameApp.drawTextCentered("gameOverText", scoreText, centerX, statsStartY - statsSpacing, "white");
+        
+        // Survival time
+        String timeText = "TIME: " + survivalTimeStr;
+        GameApp.drawTextCentered("gameOverText", timeText, centerX, statsStartY - statsSpacing * 2, "green-400");
+        
+        // Rank
+        String rankDisplayText = "RANK: " + rankText;
+        String rankColor = "white";
+        if (rank == 1) rankColor = "yellow-400";
+        else if (rank == 2) rankColor = "gray-300";
+        else if (rank == 3) rankColor = "orange-400";
+        GameApp.drawTextCentered("gameOverText", rankDisplayText, centerX, statsStartY - statsSpacing * 3, rankColor);
         
         // Draw button text labels
         renderGameOverButtonText(centerX, centerY);

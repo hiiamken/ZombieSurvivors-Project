@@ -218,7 +218,7 @@ public class SettingsScreen extends ScalableGameScreen {
         
         // Load custom font for settings screen title (large, like Credits)
         if (!GameApp.hasFont(SETTINGS_FONT)) {
-            GameApp.addFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 24);
+            GameApp.addFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 20);
         }
         
         // Load smaller font for tab labels
@@ -281,6 +281,11 @@ public class SettingsScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("close_button")) {
             GameApp.addTexture("close_button", "assets/ui/close.png");
         }
+        
+        // Load background texture
+        if (!GameApp.hasTexture("mainmenu_bg")) {
+            GameApp.addTexture("mainmenu_bg", "assets/ui/mainmenu.png");
+        }
     }
 
 
@@ -309,6 +314,9 @@ public class SettingsScreen extends ScalableGameScreen {
 
         // Clear screen with dark background
         GameApp.clearScreen(BG_COLOR);
+        
+        // Draw background texture
+        drawBackground();
 
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
@@ -376,6 +384,39 @@ public class SettingsScreen extends ScalableGameScreen {
         
         // Grid disabled - uncomment to debug positioning
         // drawCoordinateGrid(panelX, panelY, panelWidth, panelHeight);
+    }
+    
+    private void drawBackground() {
+        if (!GameApp.hasTexture("mainmenu_bg")) return;
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        
+        int texWidth = GameApp.getTextureWidth("mainmenu_bg");
+        int texHeight = GameApp.getTextureHeight("mainmenu_bg");
+        
+        float bgWidth = screenWidth;
+        float bgHeight = screenHeight;
+        
+        if (texWidth > 0 && texHeight > 0) {
+            float screenAspect = screenWidth / screenHeight;
+            float texAspect = (float) texWidth / texHeight;
+            
+            if (screenAspect > texAspect) {
+                bgWidth = screenWidth;
+                bgHeight = bgWidth / texAspect;
+            } else {
+                bgHeight = screenHeight;
+                bgWidth = bgHeight * texAspect;
+            }
+        }
+        
+        float bgX = (screenWidth - bgWidth) / 2f;
+        float bgY = (screenHeight - bgHeight) / 2f;
+        
+        GameApp.startSpriteRendering();
+        GameApp.drawTexture("mainmenu_bg", bgX, bgY, bgWidth, bgHeight);
+        GameApp.endSpriteRendering();
     }
     
     // Handle mouse input for toggle button and volume controls

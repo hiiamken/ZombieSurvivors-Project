@@ -19,14 +19,14 @@ public class HUD {
         GameApp.endSpriteRendering();
     }
 
-    // Draw XP bar shapes
+    // Draw XP bar shapes - scaled for 960x540 world view
     private void renderXPBar(PlayerStatus status) {
         float percent = status.currentXP / (float) status.xpToNext;
         percent = GameApp.clamp(percent, 0f, 1f);
 
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
-        float barHeight = 12f; // Thin bar at top
+        float barHeight = 18f; // Thicker bar at top for better visibility
         float barY = screenHeight - barHeight; // Top of screen
 
         GameApp.startShapeRenderingFilled();
@@ -61,11 +61,11 @@ public class HUD {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
 
-        // Position: centered horizontally, below XP bar
+        // Position: centered horizontally, below XP bar - adjusted for larger bar
         String fontName = GameApp.hasFont("timerFont") ? "timerFont" : "default";
         float textWidth = GameApp.getTextWidth(fontName, timeText);
         float x = (screenWidth - textWidth) / 2f; // Center horizontally
-        float y = screenHeight - 30f;
+        float y = screenHeight - 40f; // Adjusted for thicker XP bar
 
         GameApp.drawText(fontName, timeText, x, y, "white");
     }
@@ -74,15 +74,15 @@ public class HUD {
     private void renderXPText(PlayerStatus status) {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
-        float barHeight = 12f;
+        float barHeight = 18f; // Match the thicker bar height
         float barY = screenHeight - barHeight;
-        float textY = barY + barHeight - 10f;
+        float textY = barY + barHeight - 14f; // Adjusted for larger bar
 
         String levelText = "LV " + status.level;
         String fontName = GameApp.hasFont("levelFont") ? "levelFont" : "default";
 
         float textWidth = GameApp.getTextWidth(fontName, levelText);
-        float textX = screenWidth - textWidth - 5f;
+        float textX = screenWidth - textWidth - 8f; // More padding from edge
 
         GameApp.drawText(fontName, levelText, textX, textY, "white");
     }
@@ -90,15 +90,15 @@ public class HUD {
     private void renderScore(PlayerStatus status) {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
-        float barHeight = 12f;
+        float barHeight = 18f; // Match the thicker bar height
         float barY = screenHeight - barHeight;
 
-        float scoreY = barY - 18f;
+        float scoreY = barY - 22f; // Adjusted spacing below XP bar
         String scoreText = formatScore(status.score);
 
         String fontName = GameApp.hasFont("scoreFont") ? "scoreFont" : "default";
         float textWidth = GameApp.getTextWidth(fontName, scoreText);
-        float scoreX = screenWidth - textWidth - 10f;
+        float scoreX = screenWidth - textWidth - 12f; // More padding from edge
 
         GameApp.drawText(fontName, scoreText, scoreX, scoreY, "white");
     }

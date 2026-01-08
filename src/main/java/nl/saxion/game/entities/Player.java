@@ -64,13 +64,13 @@ public class Player {
     // Death state
     private boolean isDying = false;
 
-    public static final int SPRITE_SIZE = 24;
+    public static final int SPRITE_SIZE = 36; // Larger sprite for zoomed out view
     // Wall hitbox (small, for wall collision)
-    public static final int HITBOX_WIDTH = 8;
-    public static final int HITBOX_HEIGHT = 8;
+    public static final int HITBOX_WIDTH = 12;
+    public static final int HITBOX_HEIGHT = 12;
     // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 12;
-    public static final int DAMAGE_HITBOX_HEIGHT = 14;
+    public static final int DAMAGE_HITBOX_WIDTH = 18;
+    public static final int DAMAGE_HITBOX_HEIGHT = 20;
 
     private float targetShootDirX = 0f;
     private float targetShootDirY = -1f;

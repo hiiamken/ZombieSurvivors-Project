@@ -18,13 +18,13 @@ public class Enemy {
     private int maxHealth;
 
     // Sprite size constant
-    public static final int SPRITE_SIZE = 24;
+    public static final int SPRITE_SIZE = 36; // Larger sprite for zoomed out view
     // Wall hitbox (small, for wall collision)
-    public static final int HITBOX_WIDTH = 8;
-    public static final int HITBOX_HEIGHT = 8;
+    public static final int HITBOX_WIDTH = 12;
+    public static final int HITBOX_HEIGHT = 12;
     // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 12;
-    public static final int DAMAGE_HITBOX_HEIGHT = 14;
+    public static final int DAMAGE_HITBOX_WIDTH = 18;
+    public static final int DAMAGE_HITBOX_HEIGHT = 20;
 
     // Wall hitbox offset: adjusted to match sprite position
     private static final float WALL_OFFSET_X = 20f;
@@ -35,13 +35,13 @@ public class Enemy {
     private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f;
 
     // Separation constants (to prevent zombies from overlapping - like Vampire Survivors)
-    private static final float SEPARATION_RADIUS = 20f;  // Minimum distance between zombies
-    private static final float SEPARATION_FORCE = 80f;   // Push force strength
+    private static final float SEPARATION_RADIUS = 28f;  // Minimum distance between zombies (larger for bigger sprites)
+    private static final float SEPARATION_FORCE = 90f;   // Push force strength
 
-    // Soft despawn zones (like Vampire Survivors)
-    public static final float ACTIVE_RADIUS = 600f;   // Active zone: update AI, move, attack
-    public static final float RESPAWN_RADIUS = 400f;  // Distance to respawn enemy at (edge of screen)
-    public static final float TELEPORT_RADIUS = 800f; // If enemy goes beyond this, teleport to random edge
+    // Soft despawn zones (like Vampire Survivors) - adjusted for 960x540 world view
+    public static final float ACTIVE_RADIUS = 700f;   // Active zone: update AI, move, attack
+    public static final float RESPAWN_RADIUS = 550f;  // Distance to respawn enemy at (edge of screen)
+    public static final float TELEPORT_RADIUS = 900f; // If enemy goes beyond this, teleport to random edge
 
     // Active/visible state for soft despawn
     private boolean isActive = true;   // Update AI, move, attack

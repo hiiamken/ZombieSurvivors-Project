@@ -7,72 +7,91 @@ import com.badlogic.gdx.graphics.Pixmap;
 import nl.saxion.game.config.ConfigManager;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.systems.SoundManager;
+import nl.saxion.game.ui.Button;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * Credits screen - displays game credits with a popup panel.
- * Shares the same styling and behavior as SettingsScreen.
+ * Professional Credits Screen with scrolling animation.
+ * Displays game credits like a real game production.
  */
 public class CreditsScreen extends ScalableGameScreen {
 
-    // Sound manager for background music
+    // Sound manager
     private SoundManager soundManager;
 
     // Cursor management
     private Cursor cursorPointer;
     private Cursor cursorHover;
-    private boolean isHoveringCloseButton = false;
+    private boolean isHoveringButton = false;
 
-    // Colors
-    private static final String BG_COLOR = "black";
+    // Button
+    private List<Button> buttons;
+    private float buttonWidth;
+    private float buttonHeight;
+    
+    // Button press animation
+    private float pressDelay = 0.3f;
+    private float pressTimer = 0f;
+    private Runnable pendingAction = null;
+    private Button pressedButton = null;
 
-    // Panel configuration (SAME as SettingsScreen)
-    private static final float PANEL_WIDTH_RATIO = 0.75f;
-    private static final float PANEL_HEIGHT_RATIO = 0.85f;
+    // Scrolling animation
+    private float scrollY = 0f;
+    private float scrollSpeed = 25f; // pixels per second
+    private boolean autoScroll = true;
+    private float totalCreditsHeight = 0f;
+    
+    // Animation timer
+    private float animTimer = 0f;
 
-    // Font names
-    private static final String CREDITS_FONT = "credits_font";           // Title font (large)
-    private static final String CREDITS_FONT_HEADING = "credits_font_heading"; // Section headings (medium-bold)
-    private static final String CREDITS_FONT_SMALL = "credits_font_small";     // Names (small)
-
-    // Cached panel dimensions for click handling
-    private float cachedPanelX, cachedPanelY, cachedPanelWidth, cachedPanelHeight;
-
-    // Settings (loaded from config)
+    // Settings
     private int masterVolume = 100;
     private int sfxVolume = 100;
     private int musicVolume = 70;
     private boolean isFullscreen = true;
 
+    // Credits content structure
+    private static class CreditSection {
+        String title;
+        String[] names;
+        
+        CreditSection(String title, String[] names) {
+            this.title = title;
+            this.names = names;
+        }
+    }
+    
+    private List<CreditSection> creditSections;
+
     public CreditsScreen() {
-        super(640, 360); // 16:9 aspect ratio - SAME as SettingsScreen
+        super(1280, 720);
     }
 
     @Override
     public void show() {
-        // Load cursors
         loadCursors();
 
-        // Initialize sound manager for background music
         soundManager = new SoundManager();
         soundManager.loadAllSounds();
 
-        // Load resources
         loadResources();
-        
-        // Load settings from config and apply them
         loadSettingsFromConfig();
+        createButtons();
+        initCreditsContent();
         
-        // Play background music ONLY if music is enabled in config
+        // Reset scroll position - start at 0, content begins below visible area
+        scrollY = 0f;
+        autoScroll = true;
+
         if (soundManager != null && musicVolume > 0) {
             soundManager.playMusic(true);
         }
     }
 
-    /**
-     * Load settings from config file and apply them.
-     */
     private void loadSettingsFromConfig() {
         GameConfig config = ConfigManager.loadConfig();
         masterVolume = (int) (config.masterVolume * 100);
@@ -80,10 +99,10 @@ public class CreditsScreen extends ScalableGameScreen {
         musicVolume = (int) (config.musicVolume * 100);
         isFullscreen = config.fullscreen;
 
-        // Apply fullscreen setting
-        applyFullscreenSetting();
+        if (isFullscreen) {
+            Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+        }
 
-        // Apply volume to sound manager
         if (soundManager != null) {
             soundManager.setMasterVolume(masterVolume / 100f);
             soundManager.setMusicVolume(musicVolume / 100f);
@@ -91,61 +110,29 @@ public class CreditsScreen extends ScalableGameScreen {
         }
     }
 
-    /**
-     * Apply fullscreen setting to the game window.
-     */
-    private void applyFullscreenSetting() {
-        if (isFullscreen) {
-            Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
-        } else {
-            Gdx.graphics.setWindowedMode(1280, 720);
-        }
-    }
-
-    /**
-     * Save settings to config file.
-     */
-    private void saveSettingsToConfig() {
-        GameConfig config = ConfigManager.loadConfig();
-        config.masterVolume = masterVolume / 100f;
-        config.sfxVolume = sfxVolume / 100f;
-        config.musicVolume = musicVolume / 100f;
-        config.fullscreen = isFullscreen;
-        ConfigManager.saveConfig(config);
-    }
-
     private void loadCursors() {
         try {
-            // Load pointer cursor
             String pointerPath = "assets/ui/pointer.png";
             Pixmap pointerSource = new Pixmap(Gdx.files.internal(pointerPath));
-            int pointerSourceWidth = pointerSource.getWidth();
-            int pointerSourceHeight = pointerSource.getHeight();
-
             int targetSize = 32;
             Pixmap pointerPixmap = new Pixmap(targetSize, targetSize, pointerSource.getFormat());
             pointerPixmap.drawPixmap(pointerSource,
-                    0, 0, pointerSourceWidth, pointerSourceHeight,
+                    0, 0, pointerSource.getWidth(), pointerSource.getHeight(),
                     0, 0, targetSize, targetSize);
             cursorPointer = Gdx.graphics.newCursor(pointerPixmap, 0, 0);
             pointerPixmap.dispose();
             pointerSource.dispose();
 
-            // Load hover cursor
             String cursorPath = "assets/ui/cursor.png";
             Pixmap cursorSource = new Pixmap(Gdx.files.internal(cursorPath));
-            int cursorSourceWidth = cursorSource.getWidth();
-            int cursorSourceHeight = cursorSource.getHeight();
-
             Pixmap cursorPixmap = new Pixmap(targetSize, targetSize, cursorSource.getFormat());
             cursorPixmap.drawPixmap(cursorSource,
-                    0, 0, cursorSourceWidth, cursorSourceHeight,
+                    0, 0, cursorSource.getWidth(), cursorSource.getHeight(),
                     0, 0, targetSize, targetSize);
             cursorHover = Gdx.graphics.newCursor(cursorPixmap, 0, 0);
             cursorPixmap.dispose();
             cursorSource.dispose();
 
-            // Set default cursor
             if (cursorPointer != null) {
                 Gdx.graphics.setCursor(cursorPointer);
             } else {
@@ -158,44 +145,125 @@ public class CreditsScreen extends ScalableGameScreen {
     }
 
     private void loadResources() {
-        // Load popup panel texture
-        if (!GameApp.hasTexture("popup_panel")) {
-            GameApp.addTexture("popup_panel", "assets/ui/Popup_Panel.png");
+        // Background
+        if (!GameApp.hasTexture("mainmenu_bg")) {
+            GameApp.addTexture("mainmenu_bg", "assets/ui/mainmenu.png");
+        }
+        
+        // Buttons
+        if (!GameApp.hasTexture("red_long")) {
+            GameApp.addTexture("red_long", "assets/ui/red_long.png");
+        }
+        if (!GameApp.hasTexture("red_pressed_long")) {
+            GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
 
-        // Load close button texture
-        if (!GameApp.hasTexture("close_button")) {
-            GameApp.addTexture("close_button", "assets/ui/close.png");
+        // Fonts - Professional hierarchy
+        if (!GameApp.hasFont("creditsGameTitle")) {
+            GameApp.addStyledFont("creditsGameTitle", "fonts/upheavtt.ttf", 56,
+                    "yellow-400", 0f, "black", 4, 4, "gray-700", true);
+        }
+        if (!GameApp.hasFont("creditsSectionTitle")) {
+            GameApp.addStyledFont("creditsSectionTitle", "fonts/upheavtt.ttf", 28,
+                    "yellow-300", 0f, "black", 2, 2, "gray-700", true);
+        }
+        if (!GameApp.hasFont("creditsRole")) {
+            GameApp.addStyledFont("creditsRole", "fonts/PixelOperatorMono-Bold.ttf", 16,
+                    "gray-400", 0f, "black", 1, 1, "gray-700", true);
+        }
+        if (!GameApp.hasFont("creditsName")) {
+            GameApp.addStyledFont("creditsName", "fonts/PressStart2P-Regular.ttf", 18,
+                    "white", 0f, "black", 1, 1, "gray-700", true);
+        }
+        if (!GameApp.hasFont("creditsSmall")) {
+            GameApp.addStyledFont("creditsSmall", "fonts/PixelOperatorMono-Bold.ttf", 14,
+                    "gray-500", 0f, "black", 1, 1, "gray-700", true);
+        }
+        if (!GameApp.hasFont("creditsSpecial")) {
+            GameApp.addStyledFont("creditsSpecial", "fonts/upheavtt.ttf", 22,
+                    "cyan-400", 0f, "black", 2, 2, "gray-700", true);
+        }
+        if (!GameApp.hasFont("buttonFont")) {
+            GameApp.addStyledFont("buttonFont", "fonts/upheavtt.ttf", 40,
+                    "white", 0f, "black", 2, 2, "gray-700", true);
         }
 
-        // Load fonts - clean and professional sizes
-        if (!GameApp.hasFont(CREDITS_FONT)) {
-            GameApp.addFont(CREDITS_FONT, "fonts/upheavtt.ttf", 24); // Title only
+        // Colors
+        if (!GameApp.hasColor("button_red_text")) {
+            GameApp.addColor("button_red_text", 60, 15, 30);
         }
-        if (!GameApp.hasFont(CREDITS_FONT_HEADING)) {
-            GameApp.addFont(CREDITS_FONT_HEADING, "fonts/upheavtt.ttf", 11); // Section headings
+        if (!GameApp.hasColor("credits_gold")) {
+            GameApp.addColor("credits_gold", 255, 215, 0);
         }
-        if (!GameApp.hasFont(CREDITS_FONT_SMALL)) {
-            GameApp.addFont(CREDITS_FONT_SMALL, "fonts/upheavtt.ttf", 9); // Names
-        }
+    }
 
-        // Professional color scheme - subtle and clean
-        if (!GameApp.hasColor("credits_heading")) {
-            GameApp.addColor("credits_heading", 180, 180, 180); // Light gray for headings
+    private void createButtons() {
+        buttons = new ArrayList<>();
+
+        int texW = GameApp.getTextureWidth("red_long");
+        int texH = GameApp.getTextureHeight("red_long");
+        float scale = 0.7f;
+
+        buttonWidth = texW * scale;
+        buttonHeight = texH * scale;
+
+        float screenWidth = GameApp.getWorldWidth();
+        float centerX = screenWidth / 2;
+
+        float buttonY = 20f;
+        Button backButton = new Button(centerX - buttonWidth / 2, buttonY, buttonWidth, buttonHeight, "");
+        backButton.setOnClick(() -> {});
+        if (GameApp.hasTexture("red_long")) {
+            backButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
         }
-        if (!GameApp.hasColor("credits_name")) {
-            GameApp.addColor("credits_name", 255, 255, 255); // White for names
+        buttons.add(backButton);
+    }
+
+    private void initCreditsContent() {
+        creditSections = new ArrayList<>();
+        
+        // Developed by
+        creditSections.add(new CreditSection("DEVELOPED BY", new String[]{
+            "Team 72 - SP Class"
+        }));
+        
+        // Team members - all equal
+        creditSections.add(new CreditSection("TEAM MEMBERS", new String[]{
+            "Thuong Tran",
+            "Daniel Lehter",
+            "Arnold Ayiku",
+            "Mehmet Yildirim"
+        }));
+        
+        // Teacher Guide
+        creditSections.add(new CreditSection("TEACHER GUIDE", new String[]{
+            "Craig Bradley"
+        }));
+        
+        // Calculate total credits height
+        calculateTotalHeight();
+    }
+
+    private void calculateTotalHeight() {
+        float height = 100f; // Initial padding
+        
+        for (CreditSection section : creditSections) {
+            if (!section.title.isEmpty()) {
+                height += 60f; // Section title (matches drawing)
+            }
+            height += section.names.length * 45f; // Names (matches drawing)
+            height += 40f; // Section spacing (matches drawing)
         }
+        
+        height += 100f; // End padding
+        totalCreditsHeight = height;
     }
 
     @Override
     public void hide() {
-        // Stop background music
         if (soundManager != null) {
             soundManager.stopMusic();
         }
-
-        // Dispose cursors
         if (cursorPointer != null) {
             cursorPointer.dispose();
             cursorPointer = null;
@@ -208,221 +276,318 @@ public class CreditsScreen extends ScalableGameScreen {
 
     @Override
     public void render(float delta) {
-        // IMPORTANT: Call super.render() for proper scaling (same as SettingsScreen)
         super.render(delta);
+        
+        animTimer += delta;
 
-        // Handle F11 key to toggle fullscreen (same as SettingsScreen)
+        // Handle F11 for fullscreen
         if (GameApp.isKeyJustPressed(Input.Keys.F11)) {
             isFullscreen = !isFullscreen;
-            applyFullscreenSetting();
-            saveSettingsToConfig();
-        }
-
-        // Handle input
-        handleInput();
-
-        // Clear screen with black
-        GameApp.clearScreen(BG_COLOR);
-
-        // Draw panel
-        drawPanel();
-    }
-
-    private void handleInput() {
-        // Get mouse position and convert to world coordinates
-        float mouseX = GameApp.getMousePositionInWindowX();
-        float mouseY = GameApp.getMousePositionInWindowY();
-        float windowWidth = GameApp.getWindowWidth();
-        float windowHeight = GameApp.getWindowHeight();
-        float screenWidth = GameApp.getWorldWidth();
-        float screenHeight = GameApp.getWorldHeight();
-
-        float scaleX = screenWidth / windowWidth;
-        float scaleY = screenHeight / windowHeight;
-        float worldMouseX = mouseX * scaleX;
-        float worldMouseY = (windowHeight - mouseY) * scaleY; // Flip Y
-
-        // Check if hovering over close button
-        boolean hoveringClose = isOverCloseButton(worldMouseX, worldMouseY);
-
-        // Update cursor based on hover state
-        if (cursorPointer != null && cursorHover != null) {
-            if (hoveringClose) {
-                if (!isHoveringCloseButton) {
-                    Gdx.graphics.setCursor(cursorHover);
-                    isHoveringCloseButton = true;
-                }
+            if (isFullscreen) {
+                Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
             } else {
-                if (isHoveringCloseButton) {
-                    Gdx.graphics.setCursor(cursorPointer);
-                    isHoveringCloseButton = false;
-                }
+                Gdx.graphics.setWindowedMode(1280, 720);
+            }
+            GameConfig config = ConfigManager.loadConfig();
+            config.fullscreen = isFullscreen;
+            ConfigManager.saveConfig(config);
+        }
+
+        // Handle escape to go back
+        if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            if (soundManager != null) {
+                soundManager.playSound("clickbutton", 2.5f);
+            }
+            GameApp.switchScreen("menu");
+            return;
+        }
+
+        // Handle scroll input
+        handleScrollInput(delta);
+
+        // Auto scroll - credits move DOWN (scrollY increases)
+        if (autoScroll) {
+            scrollY += scrollSpeed * delta;
+            
+            // Reset when all credits have scrolled past - smooth loop
+            if (scrollY > totalCreditsHeight) {
+                scrollY = 0f; // Loop back to start
             }
         }
 
-        // Check for click on close button
-        if (GameApp.isButtonJustPressed(0)) {
-            if (hoveringClose) {
-                // Play click sound
-                if (soundManager != null) {
-                    soundManager.playSound("clickbutton", 2.5f);
-                }
-                // Return to main menu
-                GameApp.switchScreen("menu");
+        // Handle button press animation
+        if (pendingAction != null && pressedButton != null) {
+            pressTimer += delta;
+            if (pressTimer >= pressDelay) {
+                Runnable action = pendingAction;
+                pendingAction = null;
+                pressedButton = null;
+                pressTimer = 0f;
+                action.run();
             }
         }
+
+        if (pendingAction == null) {
+            handleButtonInput();
+        } else if (pressedButton != null) {
+            pressedButton.setPressed(true);
+        }
+
+        // Draw
+        GameApp.clearScreen("black");
+        drawBackground();
+        drawCreditsPanel();
+        drawScrollingCredits();
+        
+        // Draw buttons
+        for (Button button : buttons) {
+            button.render();
+        }
+        drawButtonText();
+        
+        // Draw scroll hint
+        drawScrollHint();
     }
 
-    private boolean isOverCloseButton(float worldMouseX, float worldMouseY) {
-        // Calculate close button bounds (same logic as drawTitle)
-        float cellHeight = cachedPanelHeight / 10f;
-        float cellWidth = cachedPanelWidth / 10f;
-
-        float closeButtonSize = cellHeight * 0.8f;
-        float closeButtonX = cachedPanelX + (9 * cellWidth) + (cellWidth - closeButtonSize) / 2f - 40f;
-        float closeButtonY = cachedPanelY + (8.3f * cellHeight) + (cellHeight - closeButtonSize) / 2f;
-
-        return worldMouseX >= closeButtonX && worldMouseX <= closeButtonX + closeButtonSize &&
-               worldMouseY >= closeButtonY && worldMouseY <= closeButtonY + closeButtonSize;
+    private void handleScrollInput(float delta) {
+        // Manual scroll with UP/DOWN
+        // DOWN = scroll faster (content moves down faster)
+        // UP = scroll backward (content moves up/back)
+        if (GameApp.isKeyPressed(Input.Keys.DOWN) || GameApp.isKeyPressed(Input.Keys.S)) {
+            scrollY += scrollSpeed * 3 * delta; // Speed up scrolling
+            autoScroll = false;
+        }
+        if (GameApp.isKeyPressed(Input.Keys.UP) || GameApp.isKeyPressed(Input.Keys.W)) {
+            scrollY -= scrollSpeed * 3 * delta; // Scroll back
+            autoScroll = false;
+        }
+        
+        // Space to toggle auto scroll
+        if (GameApp.isKeyJustPressed(Input.Keys.SPACE)) {
+            autoScroll = !autoScroll;
+        }
+        
+        // Clamp scroll - don't go below 0
+        scrollY = Math.max(0f, Math.min(scrollY, totalCreditsHeight + 50f));
     }
 
-    private void drawPanel() {
+    private void drawBackground() {
+        if (!GameApp.hasTexture("mainmenu_bg")) return;
+
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
 
-        // Calculate panel dimensions (SAME as SettingsScreen: 75% width, 85% height, centered)
-        float panelWidth = screenWidth * PANEL_WIDTH_RATIO;
-        float panelHeight = screenHeight * PANEL_HEIGHT_RATIO;
-        float panelX = (screenWidth - panelWidth) / 2f;
-        float panelY = (screenHeight - panelHeight) / 2f;
+        int texWidth = GameApp.getTextureWidth("mainmenu_bg");
+        int texHeight = GameApp.getTextureHeight("mainmenu_bg");
 
-        // Cache panel dimensions
-        cachedPanelX = panelX;
-        cachedPanelY = panelY;
-        cachedPanelWidth = panelWidth;
-        cachedPanelHeight = panelHeight;
+        float bgWidth = screenWidth;
+        float bgHeight = screenHeight;
 
-        // Draw panel background
-        GameApp.startSpriteRendering();
-        if (GameApp.hasTexture("popup_panel")) {
-            GameApp.drawTexture("popup_panel", panelX, panelY, panelWidth, panelHeight);
+        if (texWidth > 0 && texHeight > 0) {
+            float screenAspect = screenWidth / screenHeight;
+            float texAspect = (float) texWidth / texHeight;
+
+            if (screenAspect > texAspect) {
+                bgWidth = screenWidth;
+                bgHeight = bgWidth / texAspect;
+            } else {
+                bgHeight = screenHeight;
+                bgWidth = bgHeight * texAspect;
+            }
         }
 
-        // Draw title and close button
-        drawTitle(panelX, panelY, panelWidth, panelHeight);
+        float bgX = (screenWidth - bgWidth) / 2f;
+        float bgY = (screenHeight - bgHeight) / 2f;
 
-        // Draw credits content
-        drawCreditsContent(panelX, panelY, panelWidth, panelHeight);
+        GameApp.startSpriteRendering();
+        GameApp.drawTexture("mainmenu_bg", bgX, bgY, bgWidth, bgHeight);
+        GameApp.endSpriteRendering();
+    }
+
+    private void drawCreditsPanel() {
+        float screenWidth = GameApp.getWorldWidth();
+        float centerX = screenWidth / 2;
+        
+        float panelWidth = 800f;
+        float panelHeight = 550f;
+        float panelX = centerX - panelWidth / 2;
+        float panelY = 90f;
+        
+        // Dark semi-transparent panel
+        GameApp.enableTransparency();
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(15, 15, 25, 220);
+        GameApp.drawRect(panelX, panelY, panelWidth, panelHeight);
+        GameApp.endShapeRendering();
+        
+        // Panel border with gradient effect
+        GameApp.startShapeRenderingOutlined();
+        GameApp.setLineWidth(3f);
+        GameApp.setColor(80, 80, 120, 255);
+        GameApp.drawRect(panelX, panelY, panelWidth, panelHeight);
+        GameApp.endShapeRendering();
+        
+        // Inner border
+        GameApp.startShapeRenderingOutlined();
+        GameApp.setLineWidth(1f);
+        GameApp.setColor(50, 50, 80, 150);
+        GameApp.drawRect(panelX + 5f, panelY + 5f, panelWidth - 10f, panelHeight - 10f);
+        GameApp.endShapeRendering();
+        
+        // Top decorative line
+        GameApp.startShapeRenderingFilled();
+        float pulse = (float) (0.7f + 0.3f * Math.sin(animTimer * 2));
+        GameApp.setColor((int)(255 * pulse), (int)(200 * pulse), 50, 200);
+        GameApp.drawRect(panelX + 50f, panelY + panelHeight - 8f, panelWidth - 100f, 3f);
+        GameApp.endShapeRendering();
+        
+        // Title at top
+        GameApp.startSpriteRendering();
+        GameApp.drawTextCentered("creditsGameTitle", "CREDITS", centerX, panelY + panelHeight - 45f, "yellow-400");
+        GameApp.endSpriteRendering();
+    }
+
+    private void drawScrollingCredits() {
+        float screenWidth = GameApp.getWorldWidth();
+        float centerX = screenWidth / 2;
+        
+        // Panel bounds
+        float panelY = 90f;
+        float panelHeight = 550f;
+        
+        // STRICT visible area - text only shows in this zone
+        float visibleTop = panelY + panelHeight - 90f;   // Below CREDITS title
+        float visibleBottom = panelY + 70f;               // Above panel bottom (and BACK button)
+        
+        // Starting Y position - content starts ABOVE visible area and moves DOWN
+        float baseY = visibleTop + 50f;
+        float currentY = baseY - scrollY;
+        
+        GameApp.startSpriteRendering();
+        
+        for (CreditSection section : creditSections) {
+            // Section title
+            if (!section.title.isEmpty()) {
+                float titleY = currentY;
+                
+                // STRICT bounds check - only draw within visible area
+                if (titleY <= visibleTop && titleY >= visibleBottom) {
+                    GameApp.drawTextCentered("creditsSectionTitle", section.title, centerX, titleY, "yellow-300");
+                }
+                currentY -= 60f;
+            }
+            
+            // Names
+            for (String name : section.names) {
+                float nameY = currentY;
+                
+                // STRICT bounds check
+                if (nameY <= visibleTop && nameY >= visibleBottom) {
+                    GameApp.drawTextCentered("creditsName", name, centerX, nameY, "white");
+                }
+                currentY -= 45f;
+            }
+            
+            currentY -= 40f; // Section spacing
+        }
+        
+        GameApp.endSpriteRendering();
+    }
+
+    private void drawButtonText() {
+        GameApp.startSpriteRendering();
+
+        for (Button button : buttons) {
+            float buttonCenterX = button.getX() + button.getWidth() / 2;
+            float buttonCenterY = button.getY() + button.getHeight() / 2;
+
+            float textHeight = GameApp.getTextHeight("buttonFont", "BACK");
+            float adjustedY = buttonCenterY + textHeight * 0.15f;
+
+            GameApp.drawTextCentered("buttonFont", "BACK", buttonCenterX, adjustedY, "button_red_text");
+        }
 
         GameApp.endSpriteRendering();
     }
 
-    private void drawTitle(float panelX, float panelY, float panelWidth, float panelHeight) {
-        float cellWidth = panelWidth / 10f;
-        float cellHeight = panelHeight / 10f;
-
-        // Title position (SAME as SettingsScreen)
-        float titleX = panelX + (4.5f * cellWidth) + (cellWidth / 2f);
-        float titleY = panelY + (8.3f * cellHeight) + (cellHeight / 2f);
-
-        drawTextWithOutline("CREDITS", titleX, titleY);
-
-        // Draw close button (SAME position as SettingsScreen)
-        float closeButtonSize = cellHeight * 0.8f;
-        float closeButtonX = panelX + (9 * cellWidth) + (cellWidth - closeButtonSize) / 2f - 40f;
-        float closeButtonY = panelY + (8.3f * cellHeight) + (cellHeight - closeButtonSize) / 2f;
-
-        if (GameApp.hasTexture("close_button")) {
-            GameApp.drawTexture("close_button", closeButtonX, closeButtonY, closeButtonSize, closeButtonSize);
+    private void drawScrollHint() {
+        float screenWidth = GameApp.getWorldWidth();
+        
+        GameApp.startSpriteRendering();
+        
+        String hint;
+        if (autoScroll) {
+            hint = "SPACE to pause  |  DOWN to speed up  |  UP to go back";
+        } else {
+            hint = "SPACE to resume  |  UP/DOWN to scroll";
         }
+        
+        GameApp.drawTextCentered("creditsSmall", hint, screenWidth / 2, 75f, "gray-500");
+        
+        GameApp.endSpriteRendering();
     }
 
-    private void drawCreditsContent(float panelX, float panelY, float panelWidth, float panelHeight) {
-        float cellHeight = panelHeight / 10f;
+    private void handleButtonInput() {
+        com.badlogic.gdx.math.Vector2 mouseWorld = getMouseWorldPosition();
+        float worldMouseX = mouseWorld.x;
+        float worldMouseY = mouseWorld.y;
 
-        // Center X for text
-        float centerX = panelX + panelWidth / 2f;
-
-        // Calculate content area (between title and bottom of panel)
-        float contentTop = panelY + (6.5f * cellHeight);  // Below title, moved down 30f
-        float contentBottom = panelY + (1.5f * cellHeight); // Above panel bottom
-        float contentHeight = contentTop - contentBottom;
-
-        // Total lines: 8 (DEVELOPED BY, TEAM, 4 members, TEACHER GUIDE, CRAIG)
-        float lineSpacing = contentHeight / 9f; // Divide evenly
-
-        float currentY = contentTop;
-
-        // --- DEVELOPED BY ---
-        drawTextWithColor("DEVELOPED BY", centerX, currentY, CREDITS_FONT_HEADING, "credits_heading");
-        currentY -= lineSpacing;
-
-        // Team name
-        drawTextWithColor("TEAM 72 - SP CLASS", centerX, currentY, CREDITS_FONT_SMALL, "credits_name");
-        currentY -= lineSpacing * 1.2f;
-
-        // Team members
-        String[] members = {"THUONG TRAN", "DANIEL LEHTER", "ARNOLD AYIKU", "MEHMET YILDIRIM"};
-        for (String member : members) {
-            drawTextWithColor(member, centerX, currentY, CREDITS_FONT_SMALL, "credits_name");
-            currentY -= lineSpacing * 0.9f;
+        boolean hoveringAnyButton = false;
+        for (Button button : buttons) {
+            if (button.containsPoint(worldMouseX, worldMouseY)) {
+                hoveringAnyButton = true;
+                break;
+            }
         }
 
-        currentY -= lineSpacing * 0.3f;
+        if (cursorPointer != null && cursorHover != null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
 
-        // --- TEACHER GUIDE ---
-        drawTextWithColor("TEACHER GUIDE", centerX, currentY, CREDITS_FONT_HEADING, "credits_heading");
-        currentY -= lineSpacing;
+            if (isMouseDown || isMouseJustPressed) {
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringButton = false;
+            } else if (hoveringAnyButton) {
+                if (!isHoveringButton) {
+                    Gdx.graphics.setCursor(cursorHover);
+                    isHoveringButton = true;
+                }
+            } else {
+                if (isHoveringButton) {
+                    Gdx.graphics.setCursor(cursorPointer);
+                    isHoveringButton = false;
+                }
+            }
+        }
 
-        // Teacher name
-        drawTextWithColor("CRAIG BRADLEY", centerX, currentY, CREDITS_FONT_SMALL, "credits_name");
-    }
+        for (Button button : buttons) {
+            button.update(worldMouseX, worldMouseY);
+        }
 
-    // Draw text with specific font and color (with black outline)
-    private void drawTextWithColor(String text, float x, float y, String fontName, String colorName) {
-        float offset = 1f;
-        // Draw black outline (8 directions)
-        GameApp.drawTextCentered(fontName, text, x - offset, y, "black");
-        GameApp.drawTextCentered(fontName, text, x + offset, y, "black");
-        GameApp.drawTextCentered(fontName, text, x, y - offset, "black");
-        GameApp.drawTextCentered(fontName, text, x, y + offset, "black");
-        GameApp.drawTextCentered(fontName, text, x - offset, y - offset, "black");
-        GameApp.drawTextCentered(fontName, text, x + offset, y - offset, "black");
-        GameApp.drawTextCentered(fontName, text, x - offset, y + offset, "black");
-        GameApp.drawTextCentered(fontName, text, x + offset, y + offset, "black");
-        // Draw colored text on top
-        GameApp.drawTextCentered(fontName, text, x, y, colorName);
-    }
+        boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+        if (isMouseJustPressed) {
+            for (Button button : buttons) {
+                if (button.containsPoint(worldMouseX, worldMouseY)) {
+                    if (soundManager != null) {
+                        soundManager.playSound("clickbutton", 2.5f);
+                    }
 
-    // Draw text with black outline - centered (large font)
-    private void drawTextWithOutline(String text, float x, float y) {
-        float offset = 1f;
-        // Draw black outline
-        GameApp.drawTextCentered(CREDITS_FONT, text, x - offset, y, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x + offset, y, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x, y + offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x - offset, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x + offset, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x - offset, y + offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT, text, x + offset, y + offset, "black");
-        // Draw white text
-        GameApp.drawTextCentered(CREDITS_FONT, text, x, y, "white");
-    }
+                    pressedButton = button;
+                    button.setPressed(true);
 
-    // Draw text with black outline - centered (small font)
-    private void drawTextWithOutlineSmall(String text, float x, float y) {
-        float offset = 1f;
-        // Draw black outline
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x - offset, y, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x + offset, y, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x, y + offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x - offset, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x + offset, y - offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x - offset, y + offset, "black");
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x + offset, y + offset, "black");
-        // Draw white text
-        GameApp.drawTextCentered(CREDITS_FONT_SMALL, text, x, y, "white");
+                    pendingAction = () -> GameApp.switchScreen("menu");
+
+                    pressTimer = 0f;
+                    break;
+                }
+            }
+        }
+
+        if (pendingAction == null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            for (Button button : buttons) {
+                button.setPressed(isMouseDown && button.containsPoint(worldMouseX, worldMouseY));
+            }
+        }
     }
 }

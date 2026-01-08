@@ -51,20 +51,22 @@ public class EnemySpawner {
             }
 
             // Spawn enemy at world coordinates, relative to player position
-            // Spawn behind player (opposite to movement direction) like Vampire Survivors
-            float spawnDistance = 400f; // Distance from player to spawn enemy
-            float spreadRange = 200f; // Spread range for multiple enemies
+            // Spawn at screen edge (outside visible area) to create feeling of zombies entering
+            // With world size 960x540, half = 480x270, so 550-600 ensures spawn outside view
+            float spawnDistanceMin = 520f; // Minimum distance - just outside screen edge
+            float spawnDistanceMax = 600f; // Maximum distance - slightly beyond edge
+            float spreadRange = 250f; // Spread range for multiple enemies
 
             float spawnX;
             float spawnY;
 
             // Determine spawn direction based on player movement
             // If player is moving, spawn behind them (opposite direction)
-            // If player is not moving, spawn randomly
+            // If player is not moving, spawn randomly from all edges
             float moveLength = (float) Math.sqrt(playerMoveDirX * playerMoveDirX + playerMoveDirY * playerMoveDirY);
             
             if (moveLength > 0.1f) {
-                // Player is moving - spawn behind them
+                // Player is moving - spawn behind them (from the direction they came from)
                 // Normalize direction
                 float normalizedDirX = playerMoveDirX / moveLength;
                 float normalizedDirY = playerMoveDirY / moveLength;
@@ -73,7 +75,10 @@ public class EnemySpawner {
                 float behindDirX = -normalizedDirX;
                 float behindDirY = -normalizedDirY;
                 
-                // Base spawn position behind player
+                // Random distance at screen edge
+                float spawnDistance = GameApp.random(spawnDistanceMin, spawnDistanceMax);
+                
+                // Base spawn position behind player at screen edge
                 float baseSpawnX = playerWorldX + behindDirX * spawnDistance;
                 float baseSpawnY = playerWorldY + behindDirY * spawnDistance;
                 
@@ -87,9 +92,9 @@ public class EnemySpawner {
                 spawnX = baseSpawnX + perpX * spreadOffset;
                 spawnY = baseSpawnY + perpY * spreadOffset;
             } else {
-                // Player is not moving - spawn randomly around player
+                // Player is not moving - spawn randomly from screen edges
                 float angle = GameApp.random(0f, (float)(Math.PI * 2));
-                float randomDistance = spawnDistance + GameApp.random(-50f, 50f);
+                float randomDistance = GameApp.random(spawnDistanceMin, spawnDistanceMax);
                 spawnX = playerWorldX + (float)(Math.cos(angle) * randomDistance);
                 spawnY = playerWorldY + (float)(Math.sin(angle) * randomDistance);
             }
