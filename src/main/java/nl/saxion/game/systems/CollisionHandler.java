@@ -148,23 +148,22 @@ public class CollisionHandler {
         }
     }
     
-    // Remove dead enemies and enemies too far from player (soft despawn cleanup)
+    // Remove dead enemies and teleport enemies too far from player (like VS)
     public void removeDeadOrFarEnemies(List<Enemy> enemies, float playerX, float playerY) {
-        Iterator<Enemy> it = enemies.iterator();
-        while (it.hasNext()) {
-            Enemy e = it.next();
-            
+        for (Enemy e : enemies) {
             // Remove dead enemy after death animation
             if (e.isDead() && e.isDeathAnimationFinished()) {
-                it.remove();
-                continue;
+                continue; // Will be handled by iterator removal below
             }
             
-            // Remove enemy too far away (beyond KILL_RADIUS)
-            if (e.shouldBeDeleted(playerX, playerY)) {
-                it.remove();
+            // Teleport enemy if too far away (like VS - respawn at random edge)
+            if (!e.isDead() && !e.isDying() && e.shouldTeleport(playerX, playerY)) {
+                e.teleportToRandomEdge(playerX, playerY);
             }
         }
+        
+        // Remove dead enemies after death animation
+        enemies.removeIf(e -> e.isDead() && e.isDeathAnimationFinished());
     }
 
     public void setDamageTextSystem(DamageTextSystem system) {

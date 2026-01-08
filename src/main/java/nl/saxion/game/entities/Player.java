@@ -571,10 +571,10 @@ public class Player {
     public void applyStatUpgrade(StatUpgradeType type) {
         switch (type) {
             case SPEED -> {
-                if (speedLevel < 2) { // Max 2 levels
+                if (speedLevel < 5) { // Max 5 levels (like VS Wings item)
                     speedLevel++;
-                    // Recalculate speed: base + 5% per level
-                    speed = baseSpeed * (1f + (speedLevel * 0.05f));
+                    // Recalculate speed: base + 10% per level (Wings gives +50% total at max)
+                    speed = baseSpeed * (1f + (speedLevel * 0.10f));
                 }
             }
             case DAMAGE -> {

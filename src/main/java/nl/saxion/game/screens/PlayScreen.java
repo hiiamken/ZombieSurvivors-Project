@@ -39,6 +39,83 @@ import java.util.Map;
 
 public class PlayScreen extends ScalableGameScreen {
 
+    // Static flag to track if returning from settings screen (to preserve pause state)
+    private static boolean returningFromSettings = false;
+    private static boolean wasPausedBeforeSettings = false;
+    
+    // Static game state preservation for settings return
+    private static Player savedPlayer = null;
+    private static Weapon savedWeapon = null;
+    private static List<Bullet> savedBullets = null;
+    private static List<Enemy> savedEnemies = null;
+    private static List<XPOrb> savedXpOrbs = null;
+    private static float savedGameTime = 0f;
+    private static int savedScore = 0;
+    private static float savedPlayerWorldX = 0f;
+    private static float savedPlayerWorldY = 0f;
+    private static boolean savedIngameMusicStarted = false;
+    
+    /**
+     * Set flag to indicate returning from settings.
+     */
+    public static void setReturningFromSettings(boolean value) {
+        returningFromSettings = value;
+    }
+    
+    /**
+     * Set the paused state before going to settings.
+     */
+    public static void setWasPausedBeforeSettings(boolean value) {
+        wasPausedBeforeSettings = value;
+    }
+    
+    /**
+     * Save current game state before going to settings.
+     */
+    private void saveGameState() {
+        savedPlayer = player;
+        savedWeapon = weapon;
+        savedBullets = bullets;
+        savedEnemies = enemies;
+        savedXpOrbs = xpOrbs;
+        savedGameTime = gameTime;
+        savedScore = score;
+        savedPlayerWorldX = playerWorldX;
+        savedPlayerWorldY = playerWorldY;
+        savedIngameMusicStarted = ingameMusicStarted;
+    }
+    
+    /**
+     * Restore game state after returning from settings.
+     */
+    private void restoreGameState() {
+        if (savedPlayer != null) {
+            player = savedPlayer;
+            weapon = savedWeapon;
+            bullets = savedBullets;
+            enemies = savedEnemies;
+            xpOrbs = savedXpOrbs;
+            gameTime = savedGameTime;
+            score = savedScore;
+            playerWorldX = savedPlayerWorldX;
+            playerWorldY = savedPlayerWorldY;
+            ingameMusicStarted = savedIngameMusicStarted;
+            
+            // Pass player reference to renderer
+            if (gameRenderer != null) {
+                gameRenderer.setPlayer(player);
+                gameRenderer.setPlayerWorldPosition(playerWorldX, playerWorldY);
+            }
+        }
+        
+        // Clear saved state
+        savedPlayer = null;
+        savedWeapon = null;
+        savedBullets = null;
+        savedEnemies = null;
+        savedXpOrbs = null;
+    }
+
     private InputController input;
     private HUD hud;
 
@@ -63,7 +140,8 @@ public class PlayScreen extends ScalableGameScreen {
     private SoundManager soundManager;
 
     // Game state
-    private float gameTime = 0f;
+    private static final float GAME_DURATION = 600f; // 10 minutes countdown
+    private float gameTime = GAME_DURATION;
     private int score = 0;
     private float playerWorldX;
     private float playerWorldY;
@@ -88,6 +166,18 @@ public class PlayScreen extends ScalableGameScreen {
     private Runnable gameOverPendingAction = null;
     private Button gameOverPressedButton = null;
     private boolean isHoveringGameOverButton = false;
+    
+    // Pause menu overlay
+    private boolean isPaused = false;
+    private float pauseFadeTimer = 0f;
+    private static final float PAUSE_FADE_DURATION = 0.3f;
+    private List<Button> pauseButtons;
+    private boolean pauseButtonsInitialized = false;
+    private float pausePressDelay = 0.15f;
+    private float pausePressTimer = 0f;
+    private Runnable pausePendingAction = null;
+    private Button pausePressedButton = null;
+    private boolean isHoveringPauseButton = false;
 
     public PlayScreen() {
         super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
@@ -95,6 +185,65 @@ public class PlayScreen extends ScalableGameScreen {
 
     @Override
     public void show() {
+        // Check if returning from settings - preserve game state
+        if (returningFromSettings && savedPlayer != null) {
+            returningFromSettings = false;
+            
+            // Re-initialize systems (resources need to be reloaded)
+            resourceLoader = new ResourceLoader();
+            resourceLoader.loadGameResources();
+            soundManager = resourceLoader.getSoundManager();
+            
+            Map<Integer, TMXMapData> tmxMapDataByRoomIndex = resourceLoader.loadTMXMaps();
+            mapRenderer = new MapRenderer(tmxMapDataByRoomIndex);
+            enemySpawner = new EnemySpawner();
+            collisionHandler = new CollisionHandler();
+            gameRenderer = new GameRenderer();
+            gameStateManager = new GameStateManager();
+            damageTextSystem = new DamageTextSystem();
+            
+            collisionHandler.setDamageTextSystem(damageTextSystem);
+            if (soundManager != null) {
+                collisionHandler.setSoundManager(soundManager);
+            }
+            
+            input = new InputController(MainGame.getConfig());
+            hud = new HUD();
+            
+            // Load fonts and textures
+            loadFontsAndTextures();
+            
+            // Load cursors
+            loadCursors();
+            
+            // Restore game state
+            restoreGameState();
+            
+            // Set game state to PLAYING
+            gameStateManager.setCurrentState(GameState.PLAYING);
+            
+            // Restore pause state
+            if (wasPausedBeforeSettings) {
+                isPaused = true;
+                pauseButtonsInitialized = false;
+                initializePauseButtons();
+                
+                // Keep music at reduced volume since we're still paused
+                if (soundManager != null) {
+                    // Start ingame music again at reduced volume
+                    soundManager.playIngameMusic(true);
+                    soundManager.setIngameMusicVolumeTemporary(0.3f);
+                }
+            }
+            wasPausedBeforeSettings = false;
+            
+            return; // Skip full initialization
+        }
+        
+        // Reset flags if not returning from settings
+        returningFromSettings = false;
+        wasPausedBeforeSettings = false;
+        
         // Initialize systems
         resourceLoader = new ResourceLoader();
         resourceLoader.loadGameResources();
@@ -136,12 +285,26 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
                 "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
-        // Register custom button text colors for game over screen
+        // Register unified button text colors for all menus
+        // GREEN button text - dark gray for best contrast on bright green
+        if (!GameApp.hasColor("button_green_text")) {
+            GameApp.addColor("button_green_text", 25, 50, 25); // Dark green-gray
+        }
+        // ORANGE button text - dark brown for best contrast on orange
+        if (!GameApp.hasColor("button_orange_text")) {
+            GameApp.addColor("button_orange_text", 70, 30, 10); // Dark brown
+        }
+        // RED button text - dark maroon for best contrast on red/pink
+        if (!GameApp.hasColor("button_red_text")) {
+            GameApp.addColor("button_red_text", 60, 15, 30); // Dark maroon
+        }
+        
+        // Legacy colors for game over screen (use unified colors)
         if (!GameApp.hasColor("gameover_play_again_color")) {
-            GameApp.addColor("gameover_play_again_color", 47, 87, 83); // #2f5753
+            GameApp.addColor("gameover_play_again_color", 25, 50, 25); // Same as green
         }
         if (!GameApp.hasColor("gameover_back_menu_color")) {
-            GameApp.addColor("gameover_back_menu_color", 79, 29, 76); // #4f1d4c
+            GameApp.addColor("gameover_back_menu_color", 60, 15, 30); // Same as red
         }
         
         // Font size 22 for GameOverScreen
@@ -176,6 +339,30 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
+        
+        // Load orange button sprites for pause menu settings button
+        if (!GameApp.hasTexture("orange_long")) {
+            GameApp.addTexture("orange_long", "assets/ui/orange_long.png");
+        }
+        if (!GameApp.hasTexture("orange_pressed_long")) {
+            GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
+        }
+        
+        // Pause menu uses unified button colors
+        if (!GameApp.hasColor("pause_resume_color")) {
+            GameApp.addColor("pause_resume_color", 25, 50, 25); // Same as button_green_text
+        }
+        if (!GameApp.hasColor("pause_settings_color")) {
+            GameApp.addColor("pause_settings_color", 70, 30, 10); // Same as button_orange_text
+        }
+        if (!GameApp.hasColor("pause_quit_color")) {
+            GameApp.addColor("pause_quit_color", 60, 15, 30); // Same as button_red_text
+        }
+        
+        // Button font for PlayScreen (640x360 world, half-size buttons)
+        // Size 18 for better readability
+        GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
+                "white", 0f, "black", 1, 1, "gray-700", true);
 
         // Load game over background image
         if (!GameApp.hasTexture("gameover_bg")) {
@@ -185,6 +372,11 @@ public class PlayScreen extends ScalableGameScreen {
         // Load game over title image
         if (!GameApp.hasTexture("gameover_title")) {
             GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
+        }
+        
+        // Load pause title image
+        if (!GameApp.hasTexture("pause_title")) {
+            GameApp.addTexture("pause_title", "assets/ui/pause.png");
         }
 
         // Load cursors
@@ -196,6 +388,100 @@ public class PlayScreen extends ScalableGameScreen {
         resetGame();
     }
 
+    /**
+     * Load fonts and textures needed for the play screen.
+     */
+    private void loadFontsAndTextures() {
+        // Load game over fonts - adjusted size for smaller world
+        GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
+                "red-500", 2f, "black", 3, 3, "red-900", true);
+        GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
+        
+        // Register custom button text colors for game over screen
+        if (!GameApp.hasColor("gameover_play_again_color")) {
+            GameApp.addColor("gameover_play_again_color", 47, 87, 83);
+        }
+        if (!GameApp.hasColor("gameover_back_menu_color")) {
+            GameApp.addColor("gameover_back_menu_color", 79, 29, 76);
+        }
+        
+        // Font for buttons
+        GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
+                "gray-200", 2f, "black", 2, 2, "gray-600", true);
+
+        // Load level font for XP bar
+        GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 8,
+                "white", 1f, "black", 1, 1, "gray-800", true);
+
+        // Load score font
+        GameApp.addStyledFont("scoreFont", "fonts/PressStart2P-Regular.ttf", 10,
+                "white", 1.5f, "black", 2, 2, "gray-700", true);
+
+        // Load timer font
+        GameApp.addFont("timerFont", "fonts/PressStart2P-Regular.ttf", 14, true);
+
+        // Load damage font
+        GameApp.addStyledFont("damageFont", "fonts/PixelOperatorMono-Bold.ttf", 13,
+                "orange-500", 0.4f, "black", 1, 1, "black", true);
+
+        // Load button sprites
+        if (!GameApp.hasTexture("green_long")) {
+            GameApp.addTexture("green_long", "assets/ui/green_long.png");
+        }
+        if (!GameApp.hasTexture("green_pressed_long")) {
+            GameApp.addTexture("green_pressed_long", "assets/ui/green_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("red_long")) {
+            GameApp.addTexture("red_long", "assets/ui/red_long.png");
+        }
+        if (!GameApp.hasTexture("red_pressed_long")) {
+            GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("orange_long")) {
+            GameApp.addTexture("orange_long", "assets/ui/orange_long.png");
+        }
+        if (!GameApp.hasTexture("orange_pressed_long")) {
+            GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
+        }
+        
+        // Unified button colors for all menus
+        if (!GameApp.hasColor("button_green_text")) {
+            GameApp.addColor("button_green_text", 25, 50, 25);
+        }
+        if (!GameApp.hasColor("button_orange_text")) {
+            GameApp.addColor("button_orange_text", 70, 30, 10);
+        }
+        if (!GameApp.hasColor("button_red_text")) {
+            GameApp.addColor("button_red_text", 60, 15, 30);
+        }
+        if (!GameApp.hasColor("pause_resume_color")) {
+            GameApp.addColor("pause_resume_color", 25, 50, 25);
+        }
+        if (!GameApp.hasColor("pause_settings_color")) {
+            GameApp.addColor("pause_settings_color", 70, 30, 10);
+        }
+        if (!GameApp.hasColor("pause_quit_color")) {
+            GameApp.addColor("pause_quit_color", 60, 15, 30);
+        }
+        
+        // Button font for PlayScreen (640x360 world, half-size buttons)
+        GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
+                "white", 0f, "black", 1, 1, "gray-700", true);
+
+        // Load game over background image
+        if (!GameApp.hasTexture("gameover_bg")) {
+            GameApp.addTexture("gameover_bg", "assets/ui/gameover.png");
+        }
+        if (!GameApp.hasTexture("gameover_title")) {
+            GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
+        }
+        
+        // Load pause title image
+        if (!GameApp.hasTexture("pause_title")) {
+            GameApp.addTexture("pause_title", "assets/ui/pause.png");
+        }
+    }
+    
     // Load cursor images (pointer.png and cursor.png)
     private void loadCursors() {
         try {
@@ -256,6 +542,18 @@ public class PlayScreen extends ScalableGameScreen {
             gameOverButtons.clear();
         }
         
+        // Reset pause state when leaving screen
+        isPaused = false;
+        pauseFadeTimer = 0f;
+        pauseButtonsInitialized = false;
+        pausePressTimer = 0f;
+        pausePendingAction = null;
+        pausePressedButton = null;
+        isHoveringPauseButton = false;
+        if (pauseButtons != null) {
+            pauseButtons.clear();
+        }
+        
         // Dispose fonts
         GameApp.disposeFont("gameOverTitle");
         GameApp.disposeFont("gameOverText");
@@ -293,6 +591,11 @@ public class PlayScreen extends ScalableGameScreen {
         if (GameApp.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F11)) {
             toggleFullscreen();
         }
+        
+        // Handle ESC key to toggle pause menu (only when not game over and not level up)
+        if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE) && !isGameOver && !isLevelUpActive) {
+            togglePause();
+        }
 
         GameApp.clearScreen("black");
 
@@ -300,12 +603,50 @@ public class PlayScreen extends ScalableGameScreen {
         // ----- GAMEPLAY STATE -----
         
         // Handle ingame music delay (start music after delay to allow click sound)
-        if (!ingameMusicStarted && soundManager != null) {
+        if (!ingameMusicStarted && soundManager != null && !isPaused) {
             ingameMusicDelayTimer += delta;
             if (ingameMusicDelayTimer >= INGAME_MUSIC_DELAY) {
                 soundManager.playIngameMusic(true);
                 ingameMusicStarted = true;
             }
+        }
+        
+        // Handle pause menu (pause game when active)
+        if (isPaused) {
+            // Update pause fade timer
+            if (pauseFadeTimer < PAUSE_FADE_DURATION) {
+                pauseFadeTimer += delta;
+            }
+            
+            // Update button press delay timer
+            if (pausePendingAction != null && pausePressedButton != null) {
+                pausePressTimer += delta;
+                if (pausePressTimer >= pausePressDelay) {
+                    Runnable action = pausePendingAction;
+                    pausePendingAction = null;
+                    pausePressedButton = null;
+                    pausePressTimer = 0f;
+                    action.run();
+                }
+            }
+            
+            // Handle pause menu input
+            handlePauseInput();
+            
+            // Still render game in background (frozen)
+            mapRenderer.render(playerWorldX, playerWorldY);
+            GameApp.startSpriteRendering();
+            gameRenderer.renderPlayer();
+            gameRenderer.renderEnemies(enemies);
+            gameRenderer.renderBullets(bullets);
+            GameApp.endSpriteRendering();
+            renderPlayerHealthBar();
+            renderXPOrbs();
+            renderHUD();
+            
+            // Render pause overlay on top
+            renderPauseOverlay();
+            return; // Skip game updates
         }
 
         // Handle level up menu (pause game when active)
@@ -340,8 +681,26 @@ public class PlayScreen extends ScalableGameScreen {
             return; // Skip game updates
         }
 
-        // Update game time for difficulty scaling
-        gameTime += delta;
+        // Update countdown timer (only if not game over)
+        if (!isGameOver && gameTime > 0) {
+            gameTime -= delta;
+            
+            // Check if time ran out
+            if (gameTime <= 0) {
+                gameTime = 0;
+                // Trigger game over when time runs out
+                if (!player.isDying()) {
+                    GameApp.log("Time ran out - showing game over overlay");
+                    if (soundManager != null) {
+                        soundManager.stopIngameMusic();
+                        soundManager.playSound("gameover");
+                    }
+                    isGameOver = true;
+                    gameOverFadeTimer = 0f;
+                    initializeGameOverButtons();
+                }
+            }
+        }
 
         // Update player
         CollisionChecker collisionChecker = mapRenderer::checkWallCollision;
@@ -415,7 +774,9 @@ public class PlayScreen extends ScalableGameScreen {
         // Enemy spawning (spawn behind player like Vampire Survivors)
         float playerMoveDirX = player.getLastMoveDirectionX();
         float playerMoveDirY = player.getLastMoveDirectionY();
-        enemySpawner.update(delta, gameTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
+        // Pass elapsed time (not countdown) for difficulty scaling
+        float elapsedTime = GAME_DURATION - gameTime;
+        enemySpawner.update(delta, elapsedTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
 
         // Collision detection
         collisionHandler.update(delta);
@@ -793,6 +1154,18 @@ public class PlayScreen extends ScalableGameScreen {
             gameOverButtons.clear();
         }
         
+        // Reset pause overlay state
+        isPaused = false;
+        pauseFadeTimer = 0f;
+        pauseButtonsInitialized = false;
+        pausePressTimer = 0f;
+        pausePendingAction = null;
+        pausePressedButton = null;
+        isHoveringPauseButton = false;
+        if (pauseButtons != null) {
+            pauseButtons.clear();
+        }
+        
         float startX = 300;
         float startY = 250;
         float speed = 80f;
@@ -818,7 +1191,7 @@ public class PlayScreen extends ScalableGameScreen {
         levelUpOptions.clear();
 
         // Reset game state
-        gameTime = 0f;
+        gameTime = GAME_DURATION;
         score = 0;
         enemySpawner.reset();
         collisionHandler.reset();
@@ -1145,25 +1518,28 @@ public class PlayScreen extends ScalableGameScreen {
     
     /**
      * Draw button text labels.
+     * Using unified colors for all buttons.
      */
     private void renderGameOverButtonText(float centerX, float centerY) {
         if (gameOverButtons == null || gameOverButtons.size() < 2) return;
         
-        // Play Again button text
+        String fontName = "buttonFontSmall"; // Small font for 640x360 world
+        
+        // Play Again button text (green button)
         Button playAgainButton = gameOverButtons.get(0);
         float playAgainCenterX = playAgainButton.getX() + playAgainButton.getWidth() / 2;
         float playAgainCenterY = playAgainButton.getY() + playAgainButton.getHeight() / 2;
-        float playAgainTextHeight = GameApp.getTextHeight("gameOverButtonFont", "PLAY AGAIN");
+        float playAgainTextHeight = GameApp.getTextHeight(fontName, "PLAY AGAIN");
         float playAgainAdjustedY = playAgainCenterY + playAgainTextHeight * 0.15f;
-        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "gameover_play_again_color");
+        GameApp.drawTextCentered(fontName, "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "button_green_text");
         
-        // Back to Menu button text
+        // Back to Menu button text (red button)
         Button backToMenuButton = gameOverButtons.get(1);
         float backToMenuCenterX = backToMenuButton.getX() + backToMenuButton.getWidth() / 2;
         float backToMenuCenterY = backToMenuButton.getY() + backToMenuButton.getHeight() / 2;
-        float backToMenuTextHeight = GameApp.getTextHeight("gameOverButtonFont", "BACK TO MENU");
+        float backToMenuTextHeight = GameApp.getTextHeight(fontName, "BACK TO MENU");
         float backToMenuAdjustedY = backToMenuCenterY + backToMenuTextHeight * 0.15f;
-        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "gameover_back_menu_color");
+        GameApp.drawTextCentered(fontName, "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "button_red_text");
     }
     
     // Toggle fullscreen and update config
@@ -1177,5 +1553,360 @@ public class PlayScreen extends ScalableGameScreen {
         } else {
             com.badlogic.gdx.Gdx.graphics.setWindowedMode(1280, 720);
         }
+    }
+    
+    // =========================
+    // PAUSE MENU
+    // =========================
+    
+    /**
+     * Toggle pause state.
+     */
+    private void togglePause() {
+        isPaused = !isPaused;
+        if (isPaused) {
+            // Entering pause
+            pauseFadeTimer = 0f;
+            initializePauseButtons();
+            
+            // Reduce ingame music volume when paused
+            if (soundManager != null) {
+                soundManager.setIngameMusicVolumeTemporary(0.3f);
+            }
+        } else {
+            // Resuming game
+            pauseFadeTimer = 0f;
+            pausePendingAction = null;
+            pausePressedButton = null;
+            pausePressTimer = 0f;
+            
+            // Restore ingame music volume
+            if (soundManager != null) {
+                soundManager.restoreIngameMusicVolume();
+            }
+        }
+    }
+    
+    /**
+     * Initialize pause menu buttons.
+     */
+    private void initializePauseButtons() {
+        if (pauseButtonsInitialized) return;
+        
+        if (pauseButtons == null) {
+            pauseButtons = new ArrayList<>();
+        }
+        pauseButtons.clear();
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2;
+        float centerY = screenHeight / 2;
+        
+        // Load button textures if not loaded
+        if (!GameApp.hasTexture("green_long")) {
+            GameApp.addTexture("green_long", "assets/ui/green_long.png");
+        }
+        if (!GameApp.hasTexture("green_pressed_long")) {
+            GameApp.addTexture("green_pressed_long", "assets/ui/green_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("orange_long")) {
+            GameApp.addTexture("orange_long", "assets/ui/orange_long.png");
+        }
+        if (!GameApp.hasTexture("orange_pressed_long")) {
+            GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("red_long")) {
+            GameApp.addTexture("red_long", "assets/ui/red_long.png");
+        }
+        if (!GameApp.hasTexture("red_pressed_long")) {
+            GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
+        }
+        
+        // Load pause title texture if not loaded
+        if (!GameApp.hasTexture("pause_title")) {
+            GameApp.addTexture("pause_title", "assets/ui/pause.png");
+        }
+        
+        // Calculate button size from texture dimensions
+        int texW = GameApp.getTextureWidth("green_long");
+        int texH = GameApp.getTextureHeight("green_long");
+        
+        float buttonWidth = texW / 2f;
+        float buttonHeight = texH / 2f;
+        float buttonSpacing = 8f; // Reduced spacing for closer buttons
+        
+        // Position buttons below center to leave room for title above
+        // Resume button starts at centerY - 30, then Settings and Quit below it
+        float startY = centerY - 30f;
+        
+        // Resume button (green) - top
+        float resumeY = startY;
+        Button resumeButton = new Button(centerX - buttonWidth / 2, resumeY, buttonWidth, buttonHeight, "");
+        resumeButton.setOnClick(() -> {
+            // Handled by handlePauseInput with delay
+        });
+        if (GameApp.hasTexture("green_long")) {
+            resumeButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
+        }
+        pauseButtons.add(resumeButton);
+        
+        // Settings button (orange) - middle
+        float settingsY = resumeY - buttonHeight - buttonSpacing;
+        Button settingsButton = new Button(centerX - buttonWidth / 2, settingsY, buttonWidth, buttonHeight, "");
+        settingsButton.setOnClick(() -> {
+            // Handled by handlePauseInput with delay
+        });
+        if (GameApp.hasTexture("orange_long")) {
+            settingsButton.setSprites("orange_long", "orange_long", "orange_long", "orange_pressed_long");
+        }
+        pauseButtons.add(settingsButton);
+        
+        // Quit button (red) - bottom
+        float quitY = settingsY - buttonHeight - buttonSpacing;
+        Button quitButton = new Button(centerX - buttonWidth / 2, quitY, buttonWidth, buttonHeight, "");
+        quitButton.setOnClick(() -> {
+            // Handled by handlePauseInput with delay
+        });
+        if (GameApp.hasTexture("red_long")) {
+            quitButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
+        }
+        pauseButtons.add(quitButton);
+        
+        pauseButtonsInitialized = true;
+    }
+    
+    /**
+     * Handle input for pause menu.
+     */
+    private void handlePauseInput() {
+        // Get mouse position in world coordinates
+        com.badlogic.gdx.math.Vector2 mouseWorld = getMouseWorldPosition();
+        float worldMouseX = mouseWorld.x;
+        float worldMouseY = mouseWorld.y;
+        
+        if (pauseButtons == null || pauseButtons.isEmpty()) return;
+        
+        // Check if hovering over any button for cursor switching
+        boolean hoveringAnyButton = false;
+        for (Button button : pauseButtons) {
+            if (button.containsPoint(worldMouseX, worldMouseY)) {
+                hoveringAnyButton = true;
+                break;
+            }
+        }
+        
+        // Switch cursor based on hover state
+        if (cursorPointer != null && cursorHover != null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+            
+            if (isMouseDown || isMouseJustPressed) {
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringPauseButton = false;
+            } else if (hoveringAnyButton) {
+                if (!isHoveringPauseButton) {
+                    Gdx.graphics.setCursor(cursorHover);
+                    isHoveringPauseButton = true;
+                }
+            } else {
+                if (isHoveringPauseButton) {
+                    Gdx.graphics.setCursor(cursorPointer);
+                    isHoveringPauseButton = false;
+                }
+            }
+        }
+        
+        // Update buttons with world mouse position
+        for (Button button : pauseButtons) {
+            button.update(worldMouseX, worldMouseY);
+        }
+        
+        // Handle mouse click
+        boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+        if (isMouseJustPressed && pausePendingAction == null) {
+            for (int i = 0; i < pauseButtons.size(); i++) {
+                Button button = pauseButtons.get(i);
+                if (button.containsPoint(worldMouseX, worldMouseY)) {
+                    // Play button click sound
+                    if (soundManager != null) {
+                        soundManager.playSound("clickbutton", 2.5f);
+                    }
+                    
+                    // Store button and action for delayed execution
+                    pausePressedButton = button;
+                    button.setPressed(true);
+                    
+                    // Create delayed action based on button
+                    if (i == 0) {
+                        // Resume button
+                        pausePendingAction = () -> {
+                            togglePause(); // Resume game
+                        };
+                    } else if (i == 1) {
+                        // Settings button
+                        pausePendingAction = () -> {
+                            // Save game state before switching to settings
+                            saveGameState();
+                            // Set flags for returning from settings
+                            PlayScreen.setReturningFromSettings(true);
+                            PlayScreen.setWasPausedBeforeSettings(true);
+                            SettingsScreen.setReturnScreen("pause");
+                            GameApp.switchScreen("settings");
+                        };
+                    } else if (i == 2) {
+                        // Quit button
+                        pausePendingAction = () -> {
+                            // Stop ingame music and go to main menu
+                            if (soundManager != null) {
+                                soundManager.stopIngameMusic();
+                            }
+                            GameApp.switchScreen("menu");
+                        };
+                    }
+                    
+                    pausePressTimer = 0f;
+                    break;
+                }
+            }
+        }
+        
+        // Update button pressed states
+        if (pausePendingAction == null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            for (Button button : pauseButtons) {
+                button.setPressed(isMouseDown && button.containsPoint(worldMouseX, worldMouseY));
+            }
+        } else if (pausePressedButton != null) {
+            pausePressedButton.setPressed(true);
+        }
+    }
+    
+    /**
+     * Render pause menu overlay (dark screen + title + buttons).
+     */
+    private void renderPauseOverlay() {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2;
+        float centerY = screenHeight / 2;
+        
+        // Calculate fade alpha (0 to 1)
+        float fadeAlpha = Math.min(pauseFadeTimer / PAUSE_FADE_DURATION, 1.0f);
+        
+        // Draw dark overlay (semi-transparent black to darken the gameplay)
+        GameApp.enableTransparency();
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(0, 0, 0, (int)(fadeAlpha * 150)); // ~60% opacity for darker effect
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+        
+        // Render buttons (they manage their own sprite batch)
+        if (pauseButtons != null) {
+            for (Button button : pauseButtons) {
+                button.render();
+            }
+        }
+        
+        // Render title and text in sprite batch
+        GameApp.startSpriteRendering();
+        
+        // Draw pause title image
+        renderPauseTitle(centerX, centerY);
+        
+        // Draw button text labels
+        renderPauseButtonText(centerX, centerY);
+        
+        GameApp.endSpriteRendering();
+    }
+    
+    /**
+     * Draw pause title image.
+     * Same approach as renderGameOverTitle() - scale to 60% screen width, position at centerY - 60
+     */
+    private void renderPauseTitle(float centerX, float centerY) {
+        if (!GameApp.hasTexture("pause_title")) {
+            GameApp.addTexture("pause_title", "assets/ui/pause.png");
+            if (!GameApp.hasTexture("pause_title")) {
+                return;
+            }
+        }
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float titleWidth = 600f;
+        float titleHeight = 200f;
+        
+        try {
+            int texWidth = GameApp.getTextureWidth("pause_title");
+            int texHeight = GameApp.getTextureHeight("pause_title");
+            if (texWidth > 0 && texHeight > 0) {
+                float targetWidth = screenWidth * 0.75f; // Slightly larger than game over title
+                float aspectRatio = (float)texHeight / texWidth;
+                titleWidth = targetWidth;
+                titleHeight = targetWidth * aspectRatio;
+            }
+        } catch (Exception e) {
+            // Use default
+        }
+        
+        float titleX = (screenWidth - titleWidth) / 2f;
+        float titleY = centerY - 105f; // Lowered by 20f
+        
+        GameApp.drawTexture("pause_title", titleX, titleY, titleWidth, titleHeight);
+    }
+    
+    /**
+     * Draw pause menu button text labels.
+     * Using unified colors for better contrast on colored buttons.
+     */
+    private void renderPauseButtonText(float centerX, float centerY) {
+        if (pauseButtons == null || pauseButtons.size() < 3) return;
+        
+        String fontName = "buttonFontSmall"; // Small font for 640x360 world
+        
+        // Resume button text (green button)
+        Button resumeButton = pauseButtons.get(0);
+        float resumeCenterX = resumeButton.getX() + resumeButton.getWidth() / 2;
+        float resumeCenterY = resumeButton.getY() + resumeButton.getHeight() / 2;
+        float resumeTextHeight = GameApp.getTextHeight(fontName, "RESUME");
+        float resumeAdjustedY = resumeCenterY + resumeTextHeight * 0.15f;
+        GameApp.drawTextCentered(fontName, "RESUME", resumeCenterX, resumeAdjustedY, "button_green_text");
+        
+        // Settings button text (orange button)
+        Button settingsButton = pauseButtons.get(1);
+        float settingsCenterX = settingsButton.getX() + settingsButton.getWidth() / 2;
+        float settingsCenterY = settingsButton.getY() + settingsButton.getHeight() / 2;
+        float settingsTextHeight = GameApp.getTextHeight(fontName, "SETTINGS");
+        float settingsAdjustedY = settingsCenterY + settingsTextHeight * 0.15f;
+        GameApp.drawTextCentered(fontName, "SETTINGS", settingsCenterX, settingsAdjustedY, "button_orange_text");
+        
+        // Quit button text (red button)
+        Button quitButton = pauseButtons.get(2);
+        float quitCenterX = quitButton.getX() + quitButton.getWidth() / 2;
+        float quitCenterY = quitButton.getY() + quitButton.getHeight() / 2;
+        float quitTextHeight = GameApp.getTextHeight(fontName, "QUIT GAME");
+        float quitAdjustedY = quitCenterY + quitTextHeight * 0.15f;
+        GameApp.drawTextCentered(fontName, "QUIT GAME", quitCenterX, quitAdjustedY, "button_red_text");
+    }
+    
+    /**
+     * Resume game from pause (called by SettingsScreen when returning).
+     */
+    public void resumeFromSettings() {
+        // Game was paused when going to settings, keep it paused but reset button state
+        pausePendingAction = null;
+        pausePressedButton = null;
+        pausePressTimer = 0f;
+        
+        // Re-initialize buttons in case they were disposed
+        pauseButtonsInitialized = false;
+        initializePauseButtons();
+    }
+    
+    /**
+     * Check if game is currently paused.
+     */
+    public boolean isPaused() {
+        return isPaused;
     }
 }

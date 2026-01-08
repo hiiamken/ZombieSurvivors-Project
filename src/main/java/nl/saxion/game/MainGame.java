@@ -3,6 +3,7 @@ package nl.saxion.game;
 import nl.saxion.game.screens.MainMenuScreen;
 import nl.saxion.game.screens.PlayScreen;
 import nl.saxion.game.screens.SettingsScreen;
+import nl.saxion.game.screens.CreditsScreen;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.config.ConfigManager;
@@ -18,6 +19,7 @@ public class MainGame {
         GameApp.addScreen("menu", new MainMenuScreen());
         GameApp.addScreen("play", new PlayScreen());
         GameApp.addScreen("settings", new SettingsScreen());
+        GameApp.addScreen("credits", new CreditsScreen());
         // GameOverScreen is no longer needed - game over is now an overlay on PlayScreen
 
 

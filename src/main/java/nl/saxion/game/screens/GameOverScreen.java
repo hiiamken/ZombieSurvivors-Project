@@ -143,17 +143,26 @@ public class GameOverScreen extends ScalableGameScreen {
                 "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
         
-        // Register custom button text colors
+        // Register unified button text colors
+        // GREEN button - dark green-gray for contrast on bright green
         if (!GameApp.hasColor("gameover_play_again_color")) {
-            GameApp.addColor("gameover_play_again_color", 47, 87, 83); // #2f5753
+            GameApp.addColor("gameover_play_again_color", 25, 50, 25); // Dark green-gray
         }
+        if (!GameApp.hasColor("button_green_text")) {
+            GameApp.addColor("button_green_text", 25, 50, 25);
+        }
+        // RED button - dark maroon for contrast on red/pink
         if (!GameApp.hasColor("gameover_back_menu_color")) {
-            GameApp.addColor("gameover_back_menu_color", 79, 29, 76); // #4f1d4c
+            GameApp.addColor("gameover_back_menu_color", 60, 15, 30); // Dark maroon
+        }
+        if (!GameApp.hasColor("button_red_text")) {
+            GameApp.addColor("button_red_text", 60, 15, 30);
         }
         
-        // Font size for buttons
-        GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
-                "gray-200", 2f, "black", 2, 2, "gray-600", true);
+        // Button font for GameOverScreen (1280x720 world, half-size buttons)
+        // Size 28 fits well with medium buttons
+        GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 28,
+                "white", 0f, "black", 2, 2, "gray-700", true);
         
         // Load button sprites
         if (!GameApp.hasTexture("green_long")) {
@@ -590,7 +599,7 @@ public class GameOverScreen extends ScalableGameScreen {
         float playAgainCenterY = playAgainButton.getY() + playAgainButton.getHeight() / 2;
         float playAgainTextHeight = GameApp.getTextHeight("gameOverButtonFont", "PLAY AGAIN");
         float playAgainAdjustedY = playAgainCenterY + playAgainTextHeight * 0.15f; // Move up like main menu
-        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "gameover_play_again_color");
+        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "button_green_text");
         
         // Back to Menu button text
         Button backToMenuButton = gameOverButtons.get(1);
@@ -598,7 +607,7 @@ public class GameOverScreen extends ScalableGameScreen {
         float backToMenuCenterY = backToMenuButton.getY() + backToMenuButton.getHeight() / 2;
         float backToMenuTextHeight = GameApp.getTextHeight("gameOverButtonFont", "BACK TO MENU");
         float backToMenuAdjustedY = backToMenuCenterY + backToMenuTextHeight * 0.15f; // Move up like main menu
-        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "gameover_back_menu_color");
+        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "button_red_text");
     }
     
     /**
