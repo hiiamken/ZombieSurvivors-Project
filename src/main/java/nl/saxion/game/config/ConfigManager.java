@@ -108,6 +108,8 @@ public class ConfigManager {
                 cfg.keyShoot = parseKeyValue(value);
             } else if (key.equals("debugEnabled")) {
                 cfg.debugEnabled = Boolean.parseBoolean(value);
+            } else if (key.equals("fullscreen")) {
+                cfg.fullscreen = Boolean.parseBoolean(value);
             }
         } catch (NumberFormatException ex) {
             GameApp.log("Invalid value in config for " + key + ": " + value);
@@ -151,6 +153,8 @@ public class ConfigManager {
                     cfg.keyShoot = parseKeyValue(value);
                 } else if (key.equals("debugEnabled")) {
                     cfg.debugEnabled = Boolean.parseBoolean(value);
+                } else if (key.equals("fullscreen")) {
+                    cfg.fullscreen = Boolean.parseBoolean(value);
                 }
             } catch (NumberFormatException ex) {
                 GameApp.log("Invalid value in config for " + key + ": " + value);
@@ -235,7 +239,8 @@ public class ConfigManager {
             bw.write("  \"keyMoveLeft\": " + cfg.keyMoveLeft + ",\n");
             bw.write("  \"keyMoveRight\": " + cfg.keyMoveRight + ",\n");
             bw.write("  \"keyShoot\": " + cfg.keyShoot + ",\n");
-            bw.write("  \"debugEnabled\": " + cfg.debugEnabled + "\n");
+            bw.write("  \"debugEnabled\": " + cfg.debugEnabled + ",\n");
+            bw.write("  \"fullscreen\": " + cfg.fullscreen + "\n");
             bw.write("}");
 
             bw.flush();

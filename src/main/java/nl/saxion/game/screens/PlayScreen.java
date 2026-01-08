@@ -45,7 +45,6 @@ public class PlayScreen extends ScalableGameScreen {
     // Cursor management
     private Cursor cursorPointer; // For click/default state
     private Cursor cursorHover;   // For hover state
-    private boolean isHoveringButton = false;
 
     private Player player;
     private Weapon weapon;
@@ -62,7 +61,6 @@ public class PlayScreen extends ScalableGameScreen {
     private GameStateManager gameStateManager;
     private DamageTextSystem damageTextSystem;
     private SoundManager soundManager;
-    private GameOverScreen gameOverScreen;
 
     // Game state
     private float gameTime = 0f;
@@ -78,6 +76,18 @@ public class PlayScreen extends ScalableGameScreen {
     private float ingameMusicDelayTimer = 0f;
     private static final float INGAME_MUSIC_DELAY = 1.2f;
     private boolean ingameMusicStarted = false;
+    
+    // Game over overlay
+    private boolean isGameOver = false;
+    private float gameOverFadeTimer = 0f;
+    private static final float GAME_OVER_FADE_DURATION = 1.0f;
+    private List<Button> gameOverButtons;
+    private boolean gameOverButtonsInitialized = false;
+    private float gameOverPressDelay = 0.15f;
+    private float gameOverPressTimer = 0f;
+    private Runnable gameOverPendingAction = null;
+    private Button gameOverPressedButton = null;
+    private boolean isHoveringGameOverButton = false;
 
     public PlayScreen() {
         super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect (1.33x scale)
@@ -108,20 +118,7 @@ public class PlayScreen extends ScalableGameScreen {
             collisionHandler.setSoundManager(soundManager);
         }
         
-        // Initialize game over screen
-        gameOverScreen = new GameOverScreen();
-        gameOverScreen.setSoundManager(soundManager);
-        gameOverScreen.initialize(
-                () -> {
-                    // Play Again action
-                    gameOverScreen.resetFade();
-                    resetGame();
-                },
-                () -> {
-                    // Back to Menu action
-                    GameApp.switchScreen("menu");
-                }
-        );
+        // GameOverScreen is now a separate ScalableGameScreen, no need to initialize here
         
         // Stop menu music and start ingame music with delay
         // Delay allows clickbutton sound to play before music starts
@@ -139,8 +136,17 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
                 "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
-        GameApp.addStyledFont("gameOverButtonFont", "fonts/PressStart2P-Regular.ttf", 14,
-                "white", 1.5f, "black", 1, 1, "gray-600", true);
+        // Register custom button text colors for game over screen
+        if (!GameApp.hasColor("gameover_play_again_color")) {
+            GameApp.addColor("gameover_play_again_color", 47, 87, 83); // #2f5753
+        }
+        if (!GameApp.hasColor("gameover_back_menu_color")) {
+            GameApp.addColor("gameover_back_menu_color", 79, 29, 76); // #4f1d4c
+        }
+        
+        // Font size 22 for GameOverScreen
+        GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
+                "gray-200", 2f, "black", 2, 2, "gray-600", true);
 
         // Load level font for XP bar (pixel-perfect for HUD, smaller to fit bar height)
         GameApp.addStyledFont("levelFont", "fonts/PressStart2P-Regular.ttf", 8,
@@ -169,6 +175,16 @@ public class PlayScreen extends ScalableGameScreen {
         }
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
+        }
+
+        // Load game over background image
+        if (!GameApp.hasTexture("gameover_bg")) {
+            GameApp.addTexture("gameover_bg", "assets/ui/gameover.png");
+        }
+
+        // Load game over title image
+        if (!GameApp.hasTexture("gameover_title")) {
+            GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
         }
 
         // Load cursors
@@ -228,6 +244,18 @@ public class PlayScreen extends ScalableGameScreen {
 
     @Override
     public void hide() {
+        // Reset game over state when leaving screen
+        isGameOver = false;
+        gameOverFadeTimer = 0f;
+        gameOverButtonsInitialized = false;
+        gameOverPressTimer = 0f;
+        gameOverPendingAction = null;
+        gameOverPressedButton = null;
+        isHoveringGameOverButton = false;
+        if (gameOverButtons != null) {
+            gameOverButtons.clear();
+        }
+        
         // Dispose fonts
         GameApp.disposeFont("gameOverTitle");
         GameApp.disposeFont("gameOverText");
@@ -260,49 +288,14 @@ public class PlayScreen extends ScalableGameScreen {
     @Override
     public void render(float delta) {
         super.render(delta);
+        
+        // Handle F11 key to toggle fullscreen
+        if (GameApp.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F11)) {
+            toggleFullscreen();
+        }
 
         GameApp.clearScreen("black");
 
-        // Handle game over state
-        if (gameStateManager.getCurrentState() == GameState.GAME_OVER) {
-            // Update game over screen
-            gameOverScreen.update(delta);
-
-            // Get mouse position and convert to world coordinates
-            float mouseX = GameApp.getMousePositionInWindowX();
-            float mouseY = GameApp.getMousePositionInWindowY();
-            float screenWidth = GameApp.getWorldWidth();
-            float screenHeight = GameApp.getWorldHeight();
-
-            // Convert mouse coordinates from window to world
-            // Get window size and scale mouse coordinates accordingly
-            float windowWidth = GameApp.getWindowWidth();
-            float windowHeight = GameApp.getWindowHeight();
-            float scaleX = screenWidth / windowWidth;
-            float scaleY = screenHeight / windowHeight;
-
-            float worldMouseX = mouseX * scaleX;
-            float worldMouseY = (windowHeight - mouseY) * scaleY; // Flip Y and scale
-
-            // Debug: log conversion (only if debug enabled)
-            if (GameApp.isButtonJustPressed(0)) {
-                DebugLogger.log("Mouse conversion: window=(%.1f, %.1f) -> world=(%.1f, %.1f), scale=(%.3f, %.3f), windowSize=(%.0f, %.0f), worldSize=(%.0f, %.0f)",
-                        mouseX, mouseY, worldMouseX, worldMouseY, scaleX, scaleY, windowWidth, windowHeight, screenWidth, screenHeight);
-            }
-
-            // Show cursor for mouse interaction
-            GameApp.showCursor();
-
-            // Handle cursor switching for game over buttons
-            handleGameOverCursor(worldMouseX, worldMouseY);
-
-            // Handle input with converted coordinates
-            gameOverScreen.handleInput(worldMouseX, worldMouseY);
-
-            // Render game over screen
-            gameOverScreen.render();
-            return;
-        }
 
         // ----- GAMEPLAY STATE -----
         
@@ -362,9 +355,9 @@ public class PlayScreen extends ScalableGameScreen {
         // Update weapon and shooting (only if player is alive)
         weapon.update(delta);
         if (!player.isDying()) {
-            Bullet newBullet = weapon.tryFire(player, soundManager);
-            if (newBullet != null) {
-                bullets.add(newBullet);
+            java.util.List<Bullet> newBullets = weapon.tryFire(player, soundManager);
+            if (newBullets != null) {
+                bullets.addAll(newBullets);
             }
         }
 
@@ -398,17 +391,31 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.updateAnimation("player_hit");
         GameApp.updateAnimation("player_death");
 
-        // Update zombie animations
+        // Update zombie animations - Type 1
         GameApp.updateAnimation("zombie_idle");
         GameApp.updateAnimation("zombie_run");
         GameApp.updateAnimation("zombie_hit");
         GameApp.updateAnimation("zombie_death");
 
+        // Update zombie animations - Type 3
+        GameApp.updateAnimation("zombie3_idle");
+        GameApp.updateAnimation("zombie3_run");
+        GameApp.updateAnimation("zombie3_hit");
+        GameApp.updateAnimation("zombie3_death");
+
+        // Update zombie animations - Type 4
+        GameApp.updateAnimation("zombie4_idle");
+        GameApp.updateAnimation("zombie4_run");
+        GameApp.updateAnimation("zombie4_hit");
+        GameApp.updateAnimation("zombie4_death");
+
         // Update XP orb animation
         GameApp.updateAnimation("orb_animation");
 
-        // Enemy spawning
-        enemySpawner.update(delta, gameTime, playerWorldX, playerWorldY, enemies);
+        // Enemy spawning (spawn behind player like Vampire Survivors)
+        float playerMoveDirX = player.getLastMoveDirectionX();
+        float playerMoveDirY = player.getLastMoveDirectionY();
+        enemySpawner.update(delta, gameTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
 
         // Collision detection
         collisionHandler.update(delta);
@@ -431,16 +438,16 @@ public class PlayScreen extends ScalableGameScreen {
             showLevelUpMenu();
         }
 
-        // Cleanup
-        collisionHandler.removeDeadEnemies(enemies);
+        // Cleanup: remove dead enemies and enemies too far (soft despawn cleanup)
+        collisionHandler.removeDeadOrFarEnemies(enemies, playerWorldX, playerWorldY);
         collisionHandler.removeDestroyedBullets(bullets);
 
         // Player death check - wait for death animation to finish
         // Guard: only trigger game over once (avoid multiple triggers)
-        if (player.isDying() && gameStateManager.getCurrentState() != GameState.GAME_OVER) {
+        if (player.isDying() && !isGameOver) {
             // Only transition to game over after death animation completes
             if (player.isDeathAnimationFinished()) {
-                GameApp.log("Death animation finished - showing game over");
+                GameApp.log("Death animation finished - showing game over overlay");
                 
                 // Stop ingame music smoothly and play game over sound
                 if (soundManager != null) {
@@ -451,14 +458,38 @@ public class PlayScreen extends ScalableGameScreen {
                     soundManager.playSound("gameover", 0.3f); // Volume at 0.3f (30%)
                 }
                 
-                gameStateManager.setCurrentState(GameState.GAME_OVER);
-                gameOverScreen.setScore(score);
-                gameOverScreen.resetFade(); // Reset fade for smooth transition
+                // Initialize game over overlay
+                isGameOver = true;
+                gameOverFadeTimer = 0f;
+                initializeGameOverButtons();
             }
+        }
+        
+        // Pause game updates when game over (but still render)
+        if (isGameOver) {
+            // Update fade timer
+            if (gameOverFadeTimer < GAME_OVER_FADE_DURATION) {
+                gameOverFadeTimer += delta;
+            }
+            
+            // Update button press delay timer
+            if (gameOverPendingAction != null && gameOverPressedButton != null) {
+                gameOverPressTimer += delta;
+                if (gameOverPressTimer >= gameOverPressDelay) {
+                    Runnable action = gameOverPendingAction;
+                    gameOverPendingAction = null;
+                    gameOverPressedButton = null;
+                    gameOverPressTimer = 0f;
+                    action.run();
+                }
+            }
+            
+            // Handle game over input
+            handleGameOverInput();
         }
 
         // ----- RENDER -----
-        // Render map background first
+        // Render map background first (always render, even when game over)
         mapRenderer.render(playerWorldX, playerWorldY);
 
         GameApp.startSpriteRendering();
@@ -481,6 +512,11 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Render HUD after sprite rendering (HUD uses shapes and text)
         renderHUD();
+        
+        // Render game over overlay if game over
+        if (isGameOver) {
+            renderGameOverOverlay();
+        }
     }
 
     // =========================
@@ -597,11 +633,21 @@ public class PlayScreen extends ScalableGameScreen {
 
     // Render XP orbs
     private void renderXPOrbs() {
-        GameApp.startSpriteRendering();
-        for (XPOrb orb : xpOrbs) {
-            orb.render(playerWorldX, playerWorldY);
+        // Check if animation is available - if yes use sprite rendering, if no use shape rendering
+        if (GameApp.hasAnimation("orb_animation")) {
+            GameApp.startSpriteRendering();
+            for (XPOrb orb : xpOrbs) {
+                orb.renderWithAnimation(playerWorldX, playerWorldY);
+            }
+            GameApp.endSpriteRendering();
+        } else {
+            // Fallback: use shape rendering for circles
+            GameApp.startShapeRenderingFilled();
+            for (XPOrb orb : xpOrbs) {
+                orb.renderWithCircle(playerWorldX, playerWorldY);
+            }
+            GameApp.endShapeRendering();
         }
-        GameApp.endSpriteRendering();
     }
 
     // =========================
@@ -719,42 +765,6 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     // Handle cursor switching for game over screen
-    private void handleGameOverCursor(float worldMouseX, float worldMouseY) {
-        if (cursorPointer == null || cursorHover == null) return;
-
-        // Check if hovering over any game over button
-        boolean hoveringAnyButton = false;
-        List<Button> gameOverButtons = gameOverScreen.getButtons();
-        if (gameOverButtons != null) {
-            for (Button button : gameOverButtons) {
-                if (button.containsPoint(worldMouseX, worldMouseY)) {
-                    hoveringAnyButton = true;
-                    break;
-                }
-            }
-        }
-
-        // Switch cursor based on hover state and click state
-        boolean isMouseDown = GameApp.isButtonPressed(0);
-        boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
-        if (isMouseDown || isMouseJustPressed) {
-            // When clicking, use pointer cursor
-            Gdx.graphics.setCursor(cursorPointer);
-            isHoveringButton = false;
-        } else if (hoveringAnyButton) {
-            // Hovering over button - use hover cursor
-            if (!isHoveringButton) {
-                Gdx.graphics.setCursor(cursorHover);
-                isHoveringButton = true;
-            }
-        } else {
-            // Not hovering - use pointer cursor
-            if (isHoveringButton) {
-                Gdx.graphics.setCursor(cursorPointer);
-                isHoveringButton = false;
-            }
-        }
-    }
 
     // Handle cursor switching for level up menu (show pointer cursor, no hover needed as it's keyboard-only)
     private void handleLevelUpCursor(float worldMouseX, float worldMouseY) {
@@ -771,6 +781,18 @@ public class PlayScreen extends ScalableGameScreen {
         // Reset game state to PLAYING (important for Play Again button)
         gameStateManager.setCurrentState(GameState.PLAYING);
         
+        // Reset game over overlay state
+        isGameOver = false;
+        gameOverFadeTimer = 0f;
+        gameOverButtonsInitialized = false;
+        gameOverPressTimer = 0f;
+        gameOverPendingAction = null;
+        gameOverPressedButton = null;
+        isHoveringGameOverButton = false;
+        if (gameOverButtons != null) {
+            gameOverButtons.clear();
+        }
+        
         float startX = 300;
         float startY = 250;
         float speed = 80f;
@@ -786,7 +808,9 @@ public class PlayScreen extends ScalableGameScreen {
         bullets = new ArrayList<>();
         // Weapon với random damage: 5-15 (enemy health 15, chết trong 1-3 hit)
         // Increased fire rate from 1.5 to 2.5 shots per second for faster shooting
-        weapon = new Weapon(Weapon.WeaponType.PISTOL, 2.5f, 5, 15, 400f, 10f, 10f);
+        // Fire rate 3.5 = fast shooting, damage 6-12, bullet speed 450
+        // With 2 bullets per shot, effective DPS is very good for clearing hordes
+        weapon = new Weapon(Weapon.WeaponType.PISTOL, 3.5f, 6, 12, 450f, 10f, 10f);
 
         enemies = new ArrayList<>();
         xpOrbs = new ArrayList<>();
@@ -856,5 +880,302 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
         GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");
+    }
+    
+    // =========================
+    // GAME OVER OVERLAY
+    // =========================
+    
+    /**
+     * Initialize game over buttons.
+     */
+    private void initializeGameOverButtons() {
+        if (gameOverButtonsInitialized) return;
+        
+        if (gameOverButtons == null) {
+            gameOverButtons = new ArrayList<>();
+        }
+        gameOverButtons.clear();
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2;
+        float centerY = screenHeight / 2;
+        
+        // Load button textures if not loaded
+        if (!GameApp.hasTexture("green_long")) {
+            GameApp.addTexture("green_long", "assets/ui/green_long.png");
+        }
+        if (!GameApp.hasTexture("green_pressed_long")) {
+            GameApp.addTexture("green_pressed_long", "assets/ui/green_pressed_long.png");
+        }
+        if (!GameApp.hasTexture("red_long")) {
+            GameApp.addTexture("red_long", "assets/ui/red_long.png");
+        }
+        if (!GameApp.hasTexture("red_pressed_long")) {
+            GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
+        }
+        
+        // Calculate button size from texture dimensions
+        int texW = GameApp.getTextureWidth("green_long");
+        int texH = GameApp.getTextureHeight("green_long");
+        
+        float buttonWidth = texW / 2f;
+        float buttonHeight = texH / 2f;
+        float buttonSpacing = 20f;
+        
+        // Play Again button (green)
+        float playAgainY = centerY - 80;
+        Button playAgainButton = new Button(centerX - buttonWidth / 2, playAgainY, buttonWidth, buttonHeight, "");
+        playAgainButton.setOnClick(() -> {
+            // Handled by handleGameOverInput with delay
+        });
+        if (GameApp.hasTexture("green_long")) {
+            playAgainButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
+        }
+        gameOverButtons.add(playAgainButton);
+        
+        // Back to Menu button (red)
+        float backToMenuY = playAgainY - buttonHeight - buttonSpacing;
+        Button backToMenuButton = new Button(centerX - buttonWidth / 2, backToMenuY, buttonWidth, buttonHeight, "");
+        backToMenuButton.setOnClick(() -> {
+            // Handled by handleGameOverInput with delay
+        });
+        if (GameApp.hasTexture("red_long")) {
+            backToMenuButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
+        }
+        gameOverButtons.add(backToMenuButton);
+        
+        gameOverButtonsInitialized = true;
+    }
+    
+    /**
+     * Handle input for game over overlay.
+     */
+    private void handleGameOverInput() {
+        // Get mouse position in world coordinates
+        com.badlogic.gdx.math.Vector2 mouseWorld = getMouseWorldPosition();
+        float worldMouseX = mouseWorld.x;
+        float worldMouseY = mouseWorld.y;
+        
+        if (gameOverButtons == null || gameOverButtons.isEmpty()) return;
+        
+        // Check if hovering over any button for cursor switching
+        boolean hoveringAnyButton = false;
+        for (Button button : gameOverButtons) {
+            if (button.containsPoint(worldMouseX, worldMouseY)) {
+                hoveringAnyButton = true;
+                break;
+            }
+        }
+        
+        // Switch cursor based on hover state
+        if (cursorPointer != null && cursorHover != null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+            
+            if (isMouseDown || isMouseJustPressed) {
+                Gdx.graphics.setCursor(cursorPointer);
+                isHoveringGameOverButton = false;
+            } else if (hoveringAnyButton) {
+                if (!isHoveringGameOverButton) {
+                    Gdx.graphics.setCursor(cursorHover);
+                    isHoveringGameOverButton = true;
+                }
+            } else {
+                if (isHoveringGameOverButton) {
+                    Gdx.graphics.setCursor(cursorPointer);
+                    isHoveringGameOverButton = false;
+                }
+            }
+        }
+        
+        // Update buttons with world mouse position
+        for (Button button : gameOverButtons) {
+            button.update(worldMouseX, worldMouseY);
+        }
+        
+        // Handle mouse click
+        boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
+        if (isMouseJustPressed && gameOverPendingAction == null) {
+            for (int i = 0; i < gameOverButtons.size(); i++) {
+                Button button = gameOverButtons.get(i);
+                if (button.containsPoint(worldMouseX, worldMouseY)) {
+                    // Play button click sound
+                    if (soundManager != null) {
+                        soundManager.playSound("clickbutton", 2.5f);
+                    }
+                    
+                    // Store button and action for delayed execution
+                    gameOverPressedButton = button;
+                    button.setPressed(true);
+                    
+                    // Create delayed action based on button
+                    if (i == 0) {
+                        // Play Again button
+                        gameOverPendingAction = () -> {
+                            GameApp.switchScreen("play");
+                        };
+                    } else if (i == 1) {
+                        // Back to Menu button
+                        gameOverPendingAction = () -> {
+                            GameApp.switchScreen("menu");
+                        };
+                    }
+                    
+                    gameOverPressTimer = 0f;
+                    break;
+                }
+            }
+        }
+        
+        // Update button pressed states
+        if (gameOverPendingAction == null) {
+            boolean isMouseDown = GameApp.isButtonPressed(0);
+            for (Button button : gameOverButtons) {
+                button.setPressed(isMouseDown && button.containsPoint(worldMouseX, worldMouseY));
+            }
+        } else if (gameOverPressedButton != null) {
+            gameOverPressedButton.setPressed(true);
+        }
+    }
+    
+    /**
+     * Render game over overlay (dark screen + title + buttons).
+     */
+    private void renderGameOverOverlay() {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2;
+        float centerY = screenHeight / 2;
+        
+        // Calculate fade alpha (0 to 1)
+        float fadeAlpha = Math.min(gameOverFadeTimer / GAME_OVER_FADE_DURATION, 1.0f);
+        
+        // Draw dark overlay (semi-transparent black to darken the gameplay)
+        // Make it very light so gameplay is clearly visible behind (subtle darkening effect)
+        GameApp.enableTransparency(); // Enable transparency for semi-transparent overlay
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(0, 0, 0, (int)(fadeAlpha * 90)); // ~12% opacity - gameplay should be very clearly visible
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+        
+        // Render buttons first (they manage their own sprite batch)
+        if (gameOverButtons != null) {
+            for (Button button : gameOverButtons) {
+                button.render();
+            }
+        }
+        
+        // Render title and text in sprite batch
+        GameApp.startSpriteRendering();
+        
+        // Draw "GAME OVER" title image
+        renderGameOverTitle(centerX, centerY);
+        
+        // Draw score text
+        String scoreText = String.format("SCORE: %,d", score);
+        float titleY = centerY + 90;
+        float titleHeight = 200f;
+        try {
+            if (GameApp.hasTexture("gameover_title")) {
+                titleHeight = GameApp.getTextureHeight("gameover_title");
+            }
+        } catch (Exception e) {
+            // Use default
+        }
+        float scoreTextHeight = GameApp.getTextHeight("gameOverText", scoreText);
+        float scoreY = titleY - titleHeight / 2 - scoreTextHeight * 2.2f;
+        
+        // Load font and color if not loaded
+        // Fonts should be loaded by ResourceLoader or already exist
+        // Just use them if available
+        if (!GameApp.hasColor("gameover_play_again_color")) {
+            GameApp.addColor("gameover_play_again_color", 34, 139, 34); // #228b22
+        }
+        if (!GameApp.hasColor("gameover_back_menu_color")) {
+            GameApp.addColor("gameover_back_menu_color", 79, 29, 76); // #4f1d4c
+        }
+        if (!GameApp.hasFont("gameOverButtonFont")) {
+            // Font will be loaded by ResourceLoader or already exists
+            // Just check if it exists, don't create it here
+        }
+        
+        GameApp.drawTextCentered("gameOverText", scoreText, centerX, scoreY, "white");
+        
+        // Draw button text labels
+        renderGameOverButtonText(centerX, centerY);
+        
+        GameApp.endSpriteRendering();
+    }
+    
+    /**
+     * Draw game over title image.
+     */
+    private void renderGameOverTitle(float centerX, float centerY) {
+        if (!GameApp.hasTexture("gameover_title")) {
+            GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
+            if (!GameApp.hasTexture("gameover_title")) {
+                return;
+            }
+        }
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float titleWidth = 600f;
+        float titleHeight = 200f;
+        
+        try {
+            int texWidth = GameApp.getTextureWidth("gameover_title");
+            int texHeight = GameApp.getTextureHeight("gameover_title");
+            if (texWidth > 0 && texHeight > 0) {
+                float targetWidth = screenWidth * 0.6f;
+                float aspectRatio = (float)texHeight / texWidth;
+                titleWidth = targetWidth;
+                titleHeight = targetWidth * aspectRatio;
+            }
+        } catch (Exception e) {
+            // Use default
+        }
+        
+        float titleX = (screenWidth - titleWidth) / 2f;
+        float titleY = centerY - 60f;
+        
+        GameApp.drawTexture("gameover_title", titleX, titleY, titleWidth, titleHeight);
+    }
+    
+    /**
+     * Draw button text labels.
+     */
+    private void renderGameOverButtonText(float centerX, float centerY) {
+        if (gameOverButtons == null || gameOverButtons.size() < 2) return;
+        
+        // Play Again button text
+        Button playAgainButton = gameOverButtons.get(0);
+        float playAgainCenterX = playAgainButton.getX() + playAgainButton.getWidth() / 2;
+        float playAgainCenterY = playAgainButton.getY() + playAgainButton.getHeight() / 2;
+        float playAgainTextHeight = GameApp.getTextHeight("gameOverButtonFont", "PLAY AGAIN");
+        float playAgainAdjustedY = playAgainCenterY + playAgainTextHeight * 0.15f;
+        GameApp.drawTextCentered("gameOverButtonFont", "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "gameover_play_again_color");
+        
+        // Back to Menu button text
+        Button backToMenuButton = gameOverButtons.get(1);
+        float backToMenuCenterX = backToMenuButton.getX() + backToMenuButton.getWidth() / 2;
+        float backToMenuCenterY = backToMenuButton.getY() + backToMenuButton.getHeight() / 2;
+        float backToMenuTextHeight = GameApp.getTextHeight("gameOverButtonFont", "BACK TO MENU");
+        float backToMenuAdjustedY = backToMenuCenterY + backToMenuTextHeight * 0.15f;
+        GameApp.drawTextCentered("gameOverButtonFont", "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "gameover_back_menu_color");
+    }
+    
+    // Toggle fullscreen and update config
+    private void toggleFullscreen() {
+        nl.saxion.game.config.GameConfig config = nl.saxion.game.config.ConfigManager.loadConfig();
+        config.fullscreen = !config.fullscreen;
+        nl.saxion.game.config.ConfigManager.saveConfig(config);
+        
+        if (config.fullscreen) {
+            com.badlogic.gdx.Gdx.graphics.setFullscreenMode(com.badlogic.gdx.Gdx.graphics.getDisplayMode());
+        } else {
+            com.badlogic.gdx.Gdx.graphics.setWindowedMode(1280, 720);
+        }
     }
 }

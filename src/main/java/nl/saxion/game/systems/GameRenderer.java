@@ -33,6 +33,16 @@ public class GameRenderer {
         // Get current animation from player state
         String animKey = (player != null) ? player.getCurrentAnimation() : "player_idle";
 
+        // Check if animation exists before rendering (prevent crash if animation not loaded)
+        if (!GameApp.hasAnimation(animKey)) {
+            // Fallback to idle if animation not available
+            animKey = "player_idle";
+            if (!GameApp.hasAnimation(animKey)) {
+                // If even idle doesn't exist, skip rendering
+                return;
+            }
+        }
+
         // Flip animations based on facing direction
         // player_idle, player_hit, and player_death default face right, so flip when facing left
         // player_run_left and player_run_right already have direction, don't flip
@@ -62,6 +72,11 @@ public class GameRenderer {
     }
 
     private void renderEnemy(Enemy enemy) {
+        // Only render if visible (soft despawn check)
+        if (!enemy.isVisible()) {
+            return;
+        }
+        
         float worldW = GameApp.getWorldWidth();
         float worldH = GameApp.getWorldHeight();
 

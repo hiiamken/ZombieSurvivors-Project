@@ -49,8 +49,8 @@ public class CollisionHandler {
             }
 
             for (Enemy e : enemies) {
-                // Skip enemies that are dead or already dying
-                if (e.isDead() || e.isDying()) {
+                // Skip enemies that are dead, dying, or not active (soft despawn)
+                if (e.isDead() || e.isDying() || !e.isActive()) {
                     continue;
                 }
 
@@ -98,8 +98,8 @@ public class CollisionHandler {
         float pH = playerDamageHitbox.height;
 
         for (Enemy e : enemies) {
-            // Skip enemies that are dying
-            if (e.isDying()) {
+            // Skip enemies that are dying or not active (soft despawn)
+            if (e.isDying() || !e.isActive()) {
                 continue;
             }
 
@@ -111,16 +111,18 @@ public class CollisionHandler {
             float eH = enemyDamageHitbox.height;
 
             boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, eX, eY, eW, eH);
-            if (overlap) {
-                if (playerDamageCooldown <= 0f) {
-                    player.takeDamage(ENEMY_TOUCH_DAMAGE);
-                    playerDamageCooldown = DAMAGE_COOLDOWN_DURATION;
-                    
-                    // Play damage sound (only if player is not dying)
-                    if (soundManager != null && !player.isDying()) {
-                        soundManager.playSound("damaged", 0.9f);
-                    }
+            if (overlap && playerDamageCooldown <= 0f) {
+                // Player takes damage (1 tick = 1 damage instance, like Vampire Survivors)
+                player.takeDamage(ENEMY_TOUCH_DAMAGE);
+                playerDamageCooldown = DAMAGE_COOLDOWN_DURATION;
+                
+                // Play damage sound (only if player is not dying)
+                if (soundManager != null && !player.isDying()) {
+                    soundManager.playSound("damaged", 0.9f);
                 }
+                
+                // Break after damage to avoid multiple damage instances in same frame
+                break;
             }
         }
     }
@@ -139,8 +141,27 @@ public class CollisionHandler {
         Iterator<Enemy> it = enemies.iterator();
         while (it.hasNext()) {
             Enemy e = it.next();
-            // Remove enemy
+            // Remove enemy after death animation finishes
             if (e.isDead() && e.isDeathAnimationFinished()) {
+                it.remove();
+            }
+        }
+    }
+    
+    // Remove dead enemies and enemies too far from player (soft despawn cleanup)
+    public void removeDeadOrFarEnemies(List<Enemy> enemies, float playerX, float playerY) {
+        Iterator<Enemy> it = enemies.iterator();
+        while (it.hasNext()) {
+            Enemy e = it.next();
+            
+            // Remove dead enemy after death animation
+            if (e.isDead() && e.isDeathAnimationFinished()) {
+                it.remove();
+                continue;
+            }
+            
+            // Remove enemy too far away (beyond KILL_RADIUS)
+            if (e.shouldBeDeleted(playerX, playerY)) {
                 it.remove();
             }
         }

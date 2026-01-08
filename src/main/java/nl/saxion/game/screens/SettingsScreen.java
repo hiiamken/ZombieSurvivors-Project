@@ -1,18 +1,14 @@
 package nl.saxion.game.screens;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.Pixmap;
 import nl.saxion.game.config.ConfigManager;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.systems.SoundManager;
-import nl.saxion.game.ui.Button;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
 
-import java.util.ArrayList;
-import java.util.List;
 
 // Settings screen with volume controls
 public class SettingsScreen extends ScalableGameScreen {
@@ -22,12 +18,8 @@ public class SettingsScreen extends ScalableGameScreen {
     private int sfxVolume = 100;
     private int musicVolume = 70;
 
-    // Setting items
-    private List<SettingItem> settingItems;
-    private int selectedItemIndex = 0;
-
-    // Back button
-    private Button backButton;
+    // Fullscreen setting
+    private boolean isFullscreen = true;
     
     // Sound manager for background music
     private SoundManager soundManager;
@@ -35,15 +27,65 @@ public class SettingsScreen extends ScalableGameScreen {
     // Cursor management
     private Cursor cursorPointer; // Left side (pointer/default)
     private Cursor cursorHover;   // Right side (hover)
-    private boolean isHoveringButton = false;
 
 
     // Colors - using custom registered colors
     private static final String BG_COLOR = "black";
-    private static final String TEXT_COLOR = "white";
-    private static final String HIGHLIGHT_COLOR = "settings_yellow";
-    private static final String BAR_BG_COLOR = "darkgray";
-    private static final String BAR_FILL_COLOR = "settings_green";
+    
+    // Coordinate grid system for easier positioning
+    // Panel occupies 75% width, 85% height, centered
+    // Use percentage values (0.0 to 1.0) relative to panel dimensions
+    private static final float PANEL_WIDTH_RATIO = 0.75f;  // 75% of screen width
+    private static final float PANEL_HEIGHT_RATIO = 0.85f; // 85% of screen height
+    
+    // Tab configuration
+    // Tabs are horizontal, 5 cells wide (columns 2-6), 1 cell tall
+    // Each tab starts at column 2 (10% from left)
+    private static final float TAB_X_OFFSET_RATIO = 0.10f;  // 10% from left (column 2)
+    private static final int NUM_TABS = 4;
+    
+    // Cell positions for each tab (starting cell number)
+    // Tab 1: cell 32 (row 4, col 2) - FULL SCREEN
+    // Tab 2: cell 42 (row 5, col 2) - MASTER VOLUME
+    // Tab 3: cell 52 (row 6, col 2) - MUSIC
+    // Tab 4: cell 62 (row 7, col 2) - SOUND EFFECT
+    private static final int[] TAB_START_CELLS = {32, 42, 52, 62};
+    private static final String[] TAB_LABELS = {"FULL SCREEN", "MASTER VOLUME", "MUSIC", "SOUND EFFECT"};
+    
+    // Font name for settings screen
+    private static final String SETTINGS_FONT = "settings_font";
+    private static final String SETTINGS_FONT_SMALL = "settings_font_small";
+    
+    // Toggle button position (between cells 37 and 38)
+    // Row 4 (same as FULL SCREEN tab), columns 7-8
+    private static final float TOGGLE_X_RATIO = 0.65f; // 65% from left (center of columns 7 and 8)
+    
+    // Cached panel dimensions for click handling
+    private float cachedPanelX, cachedPanelY, cachedPanelWidth, cachedPanelHeight;
+    
+    // Volume slider configuration
+    private static final int VOLUME_LEVELS = 9; // 9 segments
+    private static final float SLIDER_X_RATIO = 0.60f; // Start of slider (60% from left)
+    
+    // Button press animation - Master Volume
+    private boolean masterMinusPressed = false;
+    private boolean masterPlusPressed = false;
+    private float masterMinusPressTimer = 0f;
+    private float masterPlusPressTimer = 0f;
+    
+    // Button press animation - Music
+    private boolean musicMinusPressed = false;
+    private boolean musicPlusPressed = false;
+    private float musicMinusPressTimer = 0f;
+    private float musicPlusPressTimer = 0f;
+    
+    // Button press animation - Sound Effect
+    private boolean sfxMinusPressed = false;
+    private boolean sfxPlusPressed = false;
+    private float sfxMinusPressTimer = 0f;
+    private float sfxPlusPressTimer = 0f;
+    
+    private static final float BUTTON_PRESS_DURATION = 0.1f; // 100ms animation
 
     public SettingsScreen() {
         super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect
@@ -65,8 +107,6 @@ public class SettingsScreen extends ScalableGameScreen {
 
         loadResources();
         loadSettingsFromConfig();
-        createSettingItems();
-        createBackButton();
     }
 
     // Load cursor images (pointer.png and cursor.png)
@@ -121,6 +161,17 @@ public class SettingsScreen extends ScalableGameScreen {
         masterVolume = (int) (config.masterVolume * 100);
         sfxVolume = (int) (config.sfxVolume * 100);
         musicVolume = (int) (config.musicVolume * 100);
+        isFullscreen = config.fullscreen;
+        
+        // Apply fullscreen setting immediately when loading
+        applyFullscreenSetting();
+        
+        // Apply volume to sound manager
+        if (soundManager != null) {
+            soundManager.setMasterVolume(masterVolume / 100f);
+            soundManager.setMusicVolume(musicVolume / 100f);
+            soundManager.setSFXVolume(sfxVolume / 100f);
+        }
     }
 
     // Save settings to config file
@@ -129,54 +180,88 @@ public class SettingsScreen extends ScalableGameScreen {
         config.masterVolume = masterVolume / 100f;
         config.sfxVolume = sfxVolume / 100f;
         config.musicVolume = musicVolume / 100f;
+        config.fullscreen = isFullscreen;
         ConfigManager.saveConfig(config);
     }
 
     private void loadResources() {
-        // Register custom colors for settings screen
-        if (!GameApp.hasColor("settings_yellow")) {
-            GameApp.addColor("settings_yellow", 255, 255, 0);
+        // Load popup panel texture
+        if (!GameApp.hasTexture("popup_panel")) {
+            GameApp.addTexture("popup_panel", "assets/ui/Popup_Panel.png");
         }
-        if (!GameApp.hasColor("settings_green")) {
-            GameApp.addColor("settings_green", 50, 205, 50);
+        
+        // Load tab texture
+        if (!GameApp.hasTexture("tab_1")) {
+            GameApp.addTexture("tab_1", "assets/ui/Tab_1.png");
+        }
+        
+        // Load custom font for settings screen
+        if (!GameApp.hasFont(SETTINGS_FONT)) {
+            GameApp.addFont(SETTINGS_FONT, "fonts/PixelOperatorMono-Bold.ttf", 12);
+        }
+        
+        // Load smaller font for tab labels
+        if (!GameApp.hasFont(SETTINGS_FONT_SMALL)) {
+            GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 8);
+        }
+        
+        // Load toggle button textures
+        if (!GameApp.hasTexture("green_toggle")) {
+            GameApp.addTexture("green_toggle", "assets/ui/green_toggle.png");
+        }
+        if (!GameApp.hasTexture("red_toggle")) {
+            GameApp.addTexture("red_toggle", "assets/ui/red_toggle.png");
+        }
+        
+        // Load volume slider textures
+        if (!GameApp.hasTexture("blue_segment")) {
+            GameApp.addTexture("blue_segment", "assets/ui/blue_segment_slider.png");
+        }
+        if (!GameApp.hasTexture("black_segment")) {
+            GameApp.addTexture("black_segment", "assets/ui/black_segment_slider.png");
+        }
+        if (!GameApp.hasTexture("black_left_slider")) {
+            GameApp.addTexture("black_left_slider", "assets/ui/black_left_slider.png");
+        }
+        if (!GameApp.hasTexture("black_mid_slider")) {
+            GameApp.addTexture("black_mid_slider", "assets/ui/black_mid_slider.png");
+        }
+        if (!GameApp.hasTexture("black_right_slider")) {
+            GameApp.addTexture("black_right_slider", "assets/ui/black_right_slider.png");
+        }
+        
+        // Load +/- button textures
+        if (!GameApp.hasTexture("tiny_black_minus")) {
+            GameApp.addTexture("tiny_black_minus", "assets/ui/tiny_black_minus.png");
+        }
+        if (!GameApp.hasTexture("tiny_black_plus")) {
+            GameApp.addTexture("tiny_black_plus", "assets/ui/tiny_black_plus.png");
+        }
+        if (!GameApp.hasTexture("tiny_blue_minus")) {
+            GameApp.addTexture("tiny_blue_minus", "assets/ui/tiny_blue_minus.png");
+        }
+        if (!GameApp.hasTexture("tiny_blue_plus")) {
+            GameApp.addTexture("tiny_blue_plus", "assets/ui/tiny_blue_plus.png");
+        }
+        
+        // Load individual icon textures
+        if (!GameApp.hasTexture("icon_fullscreen")) {
+            GameApp.addTexture("icon_fullscreen", "assets/ui/fullscreen.png");
+        }
+        if (!GameApp.hasTexture("icon_master_volume")) {
+            GameApp.addTexture("icon_master_volume", "assets/ui/mastervolumne.png");
+        }
+        if (!GameApp.hasTexture("icon_music")) {
+            GameApp.addTexture("icon_music", "assets/ui/music.png");
+        }
+        if (!GameApp.hasTexture("icon_sfx")) {
+            GameApp.addTexture("icon_sfx", "assets/ui/soundeffect.png");
+        }
+        if (!GameApp.hasTexture("close_button")) {
+            GameApp.addTexture("close_button", "assets/ui/close.png");
         }
     }
 
-    private void createSettingItems() {
-        settingItems = new ArrayList<>();
-
-        float screenWidth = GameApp.getWorldWidth();
-        float centerX = screenWidth / 2;
-        float startY = 150;
-        float spacing = 80;
-
-        // Master Volume
-        settingItems.add(new SettingItem("Master Volume", centerX, startY, () -> masterVolume, v -> masterVolume = v));
-
-        // SFX Volume
-        settingItems.add(new SettingItem("SFX Volume", centerX, startY + spacing, () -> sfxVolume, v -> sfxVolume = v));
-
-        // Music Volume
-        settingItems.add(new SettingItem("Music Volume", centerX, startY + spacing * 2, () -> musicVolume, v -> musicVolume = v));
-    }
-
-    private void createBackButton() {
-        float screenWidth = GameApp.getWorldWidth();
-        float screenHeight = GameApp.getWorldHeight();
-
-        float btnWidth = 150;
-        float btnHeight = 40;
-        float btnX = (screenWidth - btnWidth) / 2;
-        float btnY = screenHeight - 100;
-
-        backButton = new Button(btnX, btnY, btnWidth, btnHeight, "< BACK");
-        backButton.setOnClick(() -> {
-            saveSettingsToConfig();
-            GameApp.log("Settings saved. Returning to main menu...");
-            GameApp.switchScreen("menu");
-        });
-        backButton.setColors("darkgray", "gray", "white", "white");
-    }
 
     @Override
     public void hide() {
@@ -204,269 +289,748 @@ public class SettingsScreen extends ScalableGameScreen {
         // Clear screen with dark background
         GameApp.clearScreen(BG_COLOR);
 
-        // Get mouse position
-        float mouseX = GameApp.getMousePositionInWindowX();
-        float mouseY = GameApp.getMousePositionInWindowY();
-
-        // Handle input
-        handleInput(mouseX, mouseY);
-
-        // Update back button
-        backButton.update(mouseX, mouseY);
-
-        // Draw title
-        drawTitle();
-
-        // Draw settings
-        drawSettings();
-
-        // Draw back button
-        backButton.render();
-
-        // Draw instructions
-        drawInstructions();
-    }
-
-    private void handleInput(float mouseX, float mouseY) {
-        // Check if hovering over back button or setting items for cursor switching
-        boolean hoveringAnyButton = false;
-        if (backButton.containsPoint(mouseX, mouseY)) {
-            hoveringAnyButton = true;
-        }
-        for (SettingItem item : settingItems) {
-            if (item.containsPoint(mouseX, mouseY)) {
-                hoveringAnyButton = true;
-                break;
-            }
-        }
-
-        // Switch cursor based on hover state and click state
-        if (cursorPointer != null && cursorHover != null) {
-            boolean isMouseDown = GameApp.isButtonPressed(0);
-            boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
-            if (isMouseDown || isMouseJustPressed) {
-                // When clicking, use pointer cursor and reset hover state
-                Gdx.graphics.setCursor(cursorPointer);
-                isHoveringButton = false; // Reset to allow hover cursor after release
-            } else if (hoveringAnyButton) {
-                // Hovering over button - use hover cursor
-                if (!isHoveringButton) {
-                    // Just started hovering
-                    Gdx.graphics.setCursor(cursorHover);
-                    isHoveringButton = true;
-                }
-            } else {
-                // Not hovering - use pointer cursor
-                if (isHoveringButton) {
-                    // Just stopped hovering
-                    Gdx.graphics.setCursor(cursorPointer);
-                    isHoveringButton = false;
-                }
-            }
-        }
-
-        // Navigate between settings with up/down
-        if (GameApp.isKeyJustPressed(Input.Keys.UP) || GameApp.isKeyJustPressed(Input.Keys.W)) {
-            selectedItemIndex--;
-            if (selectedItemIndex < 0) {
-                selectedItemIndex = settingItems.size(); // Include back button
-            }
-        }
-
-        if (GameApp.isKeyJustPressed(Input.Keys.DOWN) || GameApp.isKeyJustPressed(Input.Keys.S)) {
-            selectedItemIndex++;
-            if (selectedItemIndex > settingItems.size()) {
-                selectedItemIndex = 0;
-            }
-        }
-
-        // Adjust volume with left/right
-        if (selectedItemIndex < settingItems.size()) {
-            SettingItem item = settingItems.get(selectedItemIndex);
-
-            if (GameApp.isKeyJustPressed(Input.Keys.LEFT) || GameApp.isKeyJustPressed(Input.Keys.A)) {
-                item.decrease();
-            }
-
-            if (GameApp.isKeyJustPressed(Input.Keys.RIGHT) || GameApp.isKeyJustPressed(Input.Keys.D)) {
-                item.increase();
-            }
-        }
-
-        // Enter to go back if back button is selected
-        if (GameApp.isKeyJustPressed(Input.Keys.ENTER) || GameApp.isKeyJustPressed(Input.Keys.SPACE)) {
-            if (selectedItemIndex == settingItems.size()) {
-                // Play button click sound at 2.5f volume
-                if (soundManager != null) {
-                    soundManager.playSound("clickbutton", 2.5f);
-                }
-                backButton.click();
-            }
-        }
-
-        // Escape to go back (saves settings)
-        if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            saveSettingsToConfig();
-            // Play button click sound at 2.5f volume
-            if (soundManager != null) {
-                soundManager.playSound("clickbutton", 2.5f);
-            }
-            backButton.click();
-        }
-
-        // Mouse click on back button
-        if (GameApp.isButtonJustPressed(0)) {
-            if (backButton.containsPoint(mouseX, mouseY)) {
-                // Play button click sound at 2.5f volume
-                if (soundManager != null) {
-                    soundManager.playSound("clickbutton", 2.5f);
-                }
-                backButton.click();
-            }
-
-            // Click on volume bars to adjust
-            for (int i = 0; i < settingItems.size(); i++) {
-                SettingItem item = settingItems.get(i);
-                if (item.containsPoint(mouseX, mouseY)) {
-                    selectedItemIndex = i;
-                    // Calculate volume from click position
-                    float barX = item.getBarX();
-                    float barWidth = item.getBarWidth();
-                    float clickRatio = (mouseX - barX) / barWidth;
-                    int newVolume = (int) (clickRatio * 100);
-                    newVolume = Math.max(0, Math.min(100, newVolume));
-                    item.setValue(newVolume);
-                }
-            }
-        }
-    }
-
-    private void drawTitle() {
-        float screenWidth = GameApp.getWorldWidth();
-
-        GameApp.startSpriteRendering();
-        GameApp.drawTextCentered("default", "SETTINGS", screenWidth / 2, 80, TEXT_COLOR);
-        GameApp.endSpriteRendering();
-    }
-
-    private void drawSettings() {
-        for (int i = 0; i < settingItems.size(); i++) {
-            boolean isSelected = (i == selectedItemIndex);
-            settingItems.get(i).render(isSelected);
-        }
-
-        // Highlight back button if selected
-        backButton.setSelected(selectedItemIndex == settingItems.size());
-    }
-
-    private void drawInstructions() {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
 
+        // Calculate panel dimensions using grid system
+        float panelWidth = screenWidth * PANEL_WIDTH_RATIO;
+        float panelHeight = screenHeight * PANEL_HEIGHT_RATIO;
+        float panelX = (screenWidth - panelWidth) / 2f;
+        float panelY = (screenHeight - panelHeight) / 2f;
+        
+        // Draw popup panel first
         GameApp.startSpriteRendering();
-        GameApp.drawTextCentered("default", "Use UP/DOWN to navigate, LEFT/RIGHT to adjust",
-                screenWidth / 2, screenHeight - 40, "gray");
+        
+        if (GameApp.hasTexture("popup_panel")) {
+            // Draw popup panel background
+            GameApp.drawTexture("popup_panel", panelX, panelY, panelWidth, panelHeight);
+        } else {
+            // Fallback: draw a dark rectangle if texture is missing
         GameApp.endSpriteRendering();
+            GameApp.startShapeRenderingFilled();
+            GameApp.setColor(30, 30, 60, 255); // Dark blue-gray
+            GameApp.drawRect(panelX, panelY, panelWidth, panelHeight);
+            GameApp.endShapeRendering();
+            GameApp.startSpriteRendering();
+        }
+        
+        // Draw tabs using grid coordinates
+        drawTabs(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw fullscreen toggle button
+        drawFullscreenToggle(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw Master Volume slider
+        drawMasterVolumeSlider(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw Music slider
+        drawMusicSlider(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw Sound Effect slider
+        drawSfxSlider(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw OPTIONS title at cells 15-16 (row 2, columns 5-6)
+        drawTitle(panelX, panelY, panelWidth, panelHeight);
+        
+        GameApp.endSpriteRendering();
+        
+        // Cache panel dimensions for click handling
+        cachedPanelX = panelX;
+        cachedPanelY = panelY;
+        cachedPanelWidth = panelWidth;
+        cachedPanelHeight = panelHeight;
+        
+        // Update button press animation timers
+        updateButtonAnimations(delta);
+        
+        // Handle F11 key to toggle fullscreen (works from any screen)
+        if (GameApp.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F11)) {
+            isFullscreen = !isFullscreen;
+            applyFullscreenSetting();
+            saveSettingsToConfig();
+        }
+        
+        // Handle input (click on toggle and volume buttons)
+        handleInput();
+        
+        // Grid disabled - uncomment to debug positioning
+        // drawCoordinateGrid(panelX, panelY, panelWidth, panelHeight);
+    }
+    
+    // Handle mouse input for toggle button and volume controls
+    private void handleInput() {
+        if (GameApp.isButtonJustPressed(0)) { // Left mouse button
+            // Get mouse position in world coordinates
+            float mouseX = GameApp.getMousePositionInWindowX();
+            float mouseY = GameApp.getMousePositionInWindowY();
+        float windowWidth = GameApp.getWindowWidth();
+        float windowHeight = GameApp.getWindowHeight();
+            float screenWidth = GameApp.getWorldWidth();
+            float screenHeight = GameApp.getWorldHeight();
+        
+        // Scale mouse coordinates from window to world
+        float scaleX = screenWidth / windowWidth;
+        float scaleY = screenHeight / windowHeight;
+        float worldMouseX = mouseX * scaleX;
+            float worldMouseY = (windowHeight - mouseY) * scaleY; // Flip Y
+            
+            // Check if click is on fullscreen toggle
+            float cellWidth = cachedPanelWidth / 10f;
+            float cellHeight = cachedPanelHeight / 10f;
+            float tabHeight = cellHeight * 0.8f;
+            
+            // Toggle position: center of columns 7-8, row 4
+            float toggleWidth = cellWidth;
+            float toggleHeight = tabHeight;
+            float toggleX = cachedPanelX + (cachedPanelWidth * TOGGLE_X_RATIO) - (toggleWidth / 2f) + 5f;
+            float toggleY = cachedPanelY + (6 * cellHeight); // Row 4
+            
+            if (worldMouseX >= toggleX && worldMouseX <= toggleX + toggleWidth &&
+                worldMouseY >= toggleY && worldMouseY <= toggleY + toggleHeight) {
+                // Toggle fullscreen
+                isFullscreen = !isFullscreen;
+                applyFullscreenSetting();
+                saveSettingsToConfig();
+            }
+            
+            // Check if click is on Master Volume +/- buttons in cell 49
+            float sliderHeight = tabHeight;
+            float masterVolumeY = cachedPanelY + (5 * cellHeight); // Row 5
+            
+            // Buttons in cell 49 (column 9, row 5)
+            float cell49X = cachedPanelX + (cellWidth * 8); // Column 9 starts at index 8
+            float buttonSize = tabHeight * 0.5f; // Smaller buttons
+            float buttonSpacing = 2f;
+            
+            // Calculate button positions (same as in draw)
+            float totalButtonWidth = (buttonSize * 2) + buttonSpacing;
+            float buttonsStartX = cell49X + (cellWidth - totalButtonWidth) / 2f;
+            float buttonY = masterVolumeY + (sliderHeight - buttonSize) / 2f;
+            
+            // Minus button position
+            float minusX = buttonsStartX;
+            
+            // Plus button position
+            float plusX = minusX + buttonSize + buttonSpacing;
+            
+            // Check minus button click
+            if (worldMouseX >= minusX && worldMouseX <= minusX + buttonSize &&
+                worldMouseY >= buttonY && worldMouseY <= buttonY + buttonSize) {
+                if (masterVolume > 0) {
+                    // Decrease by 11 (100/9 ≈ 11, gives 10 levels: 0,11,22,...,99,100)
+                    masterVolume = Math.max(0, masterVolume - 11);
+                    masterMinusPressed = true;
+                    masterMinusPressTimer = BUTTON_PRESS_DURATION;
+                    applyMasterVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check plus button click
+            if (worldMouseX >= plusX && worldMouseX <= plusX + buttonSize &&
+                worldMouseY >= buttonY && worldMouseY <= buttonY + buttonSize) {
+                if (masterVolume < 100) {
+                    // Increase by 11
+                    masterVolume = Math.min(100, masterVolume + 11);
+                    masterPlusPressed = true;
+                    masterPlusPressTimer = BUTTON_PRESS_DURATION;
+                    applyMasterVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check if click is on Music +/- buttons (row 6, cell 59)
+            float musicY = cachedPanelY + (4 * cellHeight); // Row 6
+            float cell59X = cachedPanelX + (cellWidth * 8);
+            float musicButtonsStartX = cell59X + (cellWidth - totalButtonWidth) / 2f;
+            float musicButtonY = musicY + (sliderHeight - buttonSize) / 2f;
+            
+            float musicMinusX = musicButtonsStartX;
+            float musicPlusX = musicMinusX + buttonSize + buttonSpacing;
+            
+            // Check music minus button
+            if (worldMouseX >= musicMinusX && worldMouseX <= musicMinusX + buttonSize &&
+                worldMouseY >= musicButtonY && worldMouseY <= musicButtonY + buttonSize) {
+                if (musicVolume > 0) {
+                    musicVolume = Math.max(0, musicVolume - 11);
+                    musicMinusPressed = true;
+                    musicMinusPressTimer = BUTTON_PRESS_DURATION;
+                    applyMusicVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check music plus button
+            if (worldMouseX >= musicPlusX && worldMouseX <= musicPlusX + buttonSize &&
+                worldMouseY >= musicButtonY && worldMouseY <= musicButtonY + buttonSize) {
+                if (musicVolume < 100) {
+                    musicVolume = Math.min(100, musicVolume + 11);
+                    musicPlusPressed = true;
+                    musicPlusPressTimer = BUTTON_PRESS_DURATION;
+                    applyMusicVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check if click is on Sound Effect +/- buttons (row 7, cell 69)
+            float sfxY = cachedPanelY + (3 * cellHeight); // Row 7
+            float cell69X = cachedPanelX + (cellWidth * 8);
+            float sfxButtonsStartX = cell69X + (cellWidth - totalButtonWidth) / 2f;
+            float sfxButtonY = sfxY + (sliderHeight - buttonSize) / 2f;
+            
+            float sfxMinusX = sfxButtonsStartX;
+            float sfxPlusX = sfxMinusX + buttonSize + buttonSpacing;
+            
+            // Check sfx minus button
+            if (worldMouseX >= sfxMinusX && worldMouseX <= sfxMinusX + buttonSize &&
+                worldMouseY >= sfxButtonY && worldMouseY <= sfxButtonY + buttonSize) {
+                if (sfxVolume > 0) {
+                    sfxVolume = Math.max(0, sfxVolume - 11);
+                    sfxMinusPressed = true;
+                    sfxMinusPressTimer = BUTTON_PRESS_DURATION;
+                    applySfxVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check sfx plus button
+            if (worldMouseX >= sfxPlusX && worldMouseX <= sfxPlusX + buttonSize &&
+                worldMouseY >= sfxButtonY && worldMouseY <= sfxButtonY + buttonSize) {
+                if (sfxVolume < 100) {
+                    sfxVolume = Math.min(100, sfxVolume + 11);
+                    sfxPlusPressed = true;
+                    sfxPlusPressTimer = BUTTON_PRESS_DURATION;
+                    applySfxVolume();
+                    saveSettingsToConfig();
+                }
+            }
+            
+            // Check if click is on close button (row 2, column 9, shifted left)
+            float closeButtonSize = cellHeight * 0.8f;
+            float closeButtonX = cachedPanelX + (9 * cellWidth) + (cellWidth - closeButtonSize) / 2f - 40f;
+            float closeButtonY = cachedPanelY + (8.3f * cellHeight) + (cellHeight - closeButtonSize) / 2f;
+            
+            if (worldMouseX >= closeButtonX && worldMouseX <= closeButtonX + closeButtonSize &&
+                worldMouseY >= closeButtonY && worldMouseY <= closeButtonY + closeButtonSize) {
+                // Switch back to main menu
+                GameApp.switchScreen("menu");
+            }
+        }
+    }
+    
+    // Update button press animations
+    private void updateButtonAnimations(float delta) {
+        // Master volume buttons
+        if (masterMinusPressed) {
+            masterMinusPressTimer -= delta;
+            if (masterMinusPressTimer <= 0) {
+                masterMinusPressed = false;
+            }
+        }
+        if (masterPlusPressed) {
+            masterPlusPressTimer -= delta;
+            if (masterPlusPressTimer <= 0) {
+                masterPlusPressed = false;
+            }
+        }
+        
+        // Music buttons
+        if (musicMinusPressed) {
+            musicMinusPressTimer -= delta;
+            if (musicMinusPressTimer <= 0) {
+                musicMinusPressed = false;
+            }
+        }
+        if (musicPlusPressed) {
+            musicPlusPressTimer -= delta;
+            if (musicPlusPressTimer <= 0) {
+                musicPlusPressed = false;
+            }
+        }
+        
+        // Sound effect buttons
+        if (sfxMinusPressed) {
+            sfxMinusPressTimer -= delta;
+            if (sfxMinusPressTimer <= 0) {
+                sfxMinusPressed = false;
+            }
+        }
+        if (sfxPlusPressed) {
+            sfxPlusPressTimer -= delta;
+            if (sfxPlusPressTimer <= 0) {
+                sfxPlusPressed = false;
+            }
+        }
+    }
+    
+    // Draw fullscreen toggle button at cells 37-38
+    private void drawFullscreenToggle(float panelX, float panelY, float panelWidth, float panelHeight) {
+        float cellWidth = panelWidth / 10f;
+        float cellHeight = panelHeight / 10f;
+        float tabHeight = cellHeight * 0.8f;
+        
+        // Toggle position: center of columns 7-8, row 4
+        // Column 7 starts at 60%, column 8 at 70%, center = 65%
+        float toggleWidth = cellWidth;
+        float toggleHeight = tabHeight;
+        float toggleX = panelX + (panelWidth * TOGGLE_X_RATIO) - (toggleWidth / 2f) + 5f; // Move right by 15px
+        float toggleY = panelY + (6 * cellHeight); // Row 4 (same as FULL SCREEN tab)
+        
+        // Draw appropriate toggle texture
+        String textureName = isFullscreen ? "green_toggle" : "red_toggle";
+        if (GameApp.hasTexture(textureName)) {
+            GameApp.drawTexture(textureName, toggleX, toggleY, toggleWidth, toggleHeight);
+        }
+    }
+    
+    // Apply fullscreen setting to the game window
+    private void applyFullscreenSetting() {
+        if (isFullscreen) {
+            // Set to fullscreen
+            Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
+        } else {
+            // Set to windowed mode (1280x720)
+            Gdx.graphics.setWindowedMode(1280, 720);
+        }
+    }
+    
+    // Apply master volume to sound manager immediately
+    private void applyMasterVolume() {
+            if (soundManager != null) {
+            soundManager.setMasterVolume(masterVolume / 100f);
+        }
+    }
+    
+    // Apply music volume to sound manager immediately
+    private void applyMusicVolume() {
+                if (soundManager != null) {
+            soundManager.setMusicVolume(musicVolume / 100f);
+        }
+    }
+    
+    // Apply sfx volume to sound manager immediately
+    private void applySfxVolume() {
+                if (soundManager != null) {
+            soundManager.setSFXVolume(sfxVolume / 100f);
+        }
+    }
+    
+    // Draw Master Volume slider (row 5, same as MASTER VOLUME tab)
+    private void drawMasterVolumeSlider(float panelX, float panelY, float panelWidth, float panelHeight) {
+        float cellWidth = panelWidth / 10f;
+        float cellHeight = panelHeight / 10f;
+        float tabHeight = cellHeight * 0.8f;
+        
+        // Slider position: row 5 (same as MASTER VOLUME tab), start at column 7 + 5px offset
+        float sliderStartX = panelX + (panelWidth * SLIDER_X_RATIO) + 5f;
+        float sliderY = panelY + (5 * cellHeight); // Row 5
+        
+        // Slider is 2 cells wide
+        float sliderWidth = cellWidth * 2f;
+        float sliderHeight = tabHeight;
+        
+        // Each segment width (9 segments in slider)
+        float segmentWidth = sliderWidth / VOLUME_LEVELS;
+        
+        // Calculate filled segments from masterVolume (0-100)
+        // Volume levels: 100, 89, 78, 67, 56, 45, 34, 23, 12, 1, 0
+        // Segments:      9,   8,  7,  6,  5,  4,  3,  2,  1,  1, 0
+        int filledSegments;
+        if (masterVolume <= 0) {
+            filledSegments = 0;
+        } else if (masterVolume >= 100) {
+            filledSegments = VOLUME_LEVELS; // 9 segments at 100%
+        } else {
+            // Simple division: 89/11=8, 78/11=7, ..., 12/11=1
+            filledSegments = masterVolume / 11;
+            // Ensure at least 1 segment when volume > 0
+            filledSegments = Math.max(1, filledSegments);
+        }
+        
+        // Draw slider based on fill level
+        if (filledSegments == 0) {
+            // All empty - draw full black_segment slider (shift +1 pixel right to align)
+            if (GameApp.hasTexture("black_segment")) {
+                GameApp.drawTexture("black_segment", sliderStartX, sliderY, sliderWidth, sliderHeight);
+            }
+        } else {
+            // Draw full blue slider as background
+            if (GameApp.hasTexture("blue_segment")) {
+                GameApp.drawTexture("blue_segment", sliderStartX, sliderY, sliderWidth, sliderHeight);
+            }
+            
+            // Draw black segments over unfilled parts
+            for (int i = filledSegments; i < VOLUME_LEVELS; i++) {
+                // Calculate segment position, shift left 1px and add width to fill gaps
+                float segmentX = sliderStartX + (i * segmentWidth) - 1f;
+                float renderWidth = segmentWidth + 1f; // Add 1 pixel to width to fill gaps
+                
+                // Choose correct black texture based on position
+                String blackTexture;
+                if (i == VOLUME_LEVELS - 1) {
+                    blackTexture = "black_right_slider";
+                } else {
+                    blackTexture = "black_mid_slider";
+                }
+                
+                if (GameApp.hasTexture(blackTexture)) {
+                    GameApp.drawTexture(blackTexture, segmentX, sliderY, renderWidth, sliderHeight);
+                }
+            }
+        }
+        
+        // Draw +/- buttons in cell 49 (column 9, row 5)
+        float cell49X = panelX + (cellWidth * 8);
+        float buttonSize = tabHeight * 0.5f;
+        float buttonSpacing = 2f;
+        
+        // Center both buttons in cell 49
+        float totalButtonWidth = (buttonSize * 2) + buttonSpacing;
+        float buttonsStartX = cell49X + (cellWidth - totalButtonWidth) / 2f;
+        float buttonY = sliderY + (sliderHeight - buttonSize) / 2f;
+        
+        // Minus button
+        float minusX = buttonsStartX;
+        String minusTexture = masterMinusPressed ? "tiny_blue_minus" : "tiny_black_minus";
+        if (GameApp.hasTexture(minusTexture)) {
+            GameApp.drawTexture(minusTexture, minusX, buttonY, buttonSize, buttonSize);
+        }
+        
+        // Plus button
+        float plusX = minusX + buttonSize + buttonSpacing;
+        String plusTexture = masterPlusPressed ? "tiny_blue_plus" : "tiny_black_plus";
+        if (GameApp.hasTexture(plusTexture)) {
+            GameApp.drawTexture(plusTexture, plusX, buttonY, buttonSize, buttonSize);
+        }
+    }
+    
+    // Draw Music slider (row 6, same as MUSIC tab)
+    private void drawMusicSlider(float panelX, float panelY, float panelWidth, float panelHeight) {
+        float cellWidth = panelWidth / 10f;
+        float cellHeight = panelHeight / 10f;
+        float tabHeight = cellHeight * 0.8f;
+        
+        // Slider position: row 6 (same as MUSIC tab)
+        float sliderStartX = panelX + (panelWidth * SLIDER_X_RATIO) + 5f;
+        float sliderY = panelY + (4 * cellHeight); // Row 6
+        
+        float sliderWidth = cellWidth * 2f;
+        float sliderHeight = tabHeight;
+        float segmentWidth = sliderWidth / VOLUME_LEVELS;
+        
+        // Calculate filled segments from musicVolume (0-100)
+        int filledSegments;
+        if (musicVolume <= 0) {
+            filledSegments = 0;
+        } else if (musicVolume >= 100) {
+            filledSegments = VOLUME_LEVELS;
+        } else {
+            filledSegments = musicVolume / 11;
+            filledSegments = Math.max(1, filledSegments);
+        }
+        
+        // Draw slider
+        if (filledSegments == 0) {
+            if (GameApp.hasTexture("black_segment")) {
+                GameApp.drawTexture("black_segment", sliderStartX + 1f, sliderY, sliderWidth, sliderHeight);
+            }
+        } else {
+            if (GameApp.hasTexture("blue_segment")) {
+                GameApp.drawTexture("blue_segment", sliderStartX, sliderY, sliderWidth, sliderHeight);
+            }
+            
+            for (int i = filledSegments; i < VOLUME_LEVELS; i++) {
+                float segmentX = sliderStartX + (i * segmentWidth) - 1f;
+                float renderWidth = segmentWidth + 1f;
+                
+                String blackTexture;
+                if (i == VOLUME_LEVELS - 1) {
+                    blackTexture = "black_right_slider";
+                } else {
+                    blackTexture = "black_mid_slider";
+                }
+                
+                if (GameApp.hasTexture(blackTexture)) {
+                    GameApp.drawTexture(blackTexture, segmentX, sliderY, renderWidth, sliderHeight);
+                }
+            }
+        }
+        
+        // Draw +/- buttons
+        float cell59X = panelX + (cellWidth * 8);
+        float buttonSize = tabHeight * 0.5f;
+        float buttonSpacing = 2f;
+        float totalButtonWidth = (buttonSize * 2) + buttonSpacing;
+        float buttonsStartX = cell59X + (cellWidth - totalButtonWidth) / 2f;
+        float buttonY = sliderY + (sliderHeight - buttonSize) / 2f;
+        
+        float minusX = buttonsStartX;
+        String minusTexture = musicMinusPressed ? "tiny_blue_minus" : "tiny_black_minus";
+        if (GameApp.hasTexture(minusTexture)) {
+            GameApp.drawTexture(minusTexture, minusX, buttonY, buttonSize, buttonSize);
+        }
+        
+        float plusX = minusX + buttonSize + buttonSpacing;
+        String plusTexture = musicPlusPressed ? "tiny_blue_plus" : "tiny_black_plus";
+        if (GameApp.hasTexture(plusTexture)) {
+            GameApp.drawTexture(plusTexture, plusX, buttonY, buttonSize, buttonSize);
+        }
+    }
+    
+    // Draw Sound Effect slider (row 7, same as SOUND EFFECT tab)
+    private void drawSfxSlider(float panelX, float panelY, float panelWidth, float panelHeight) {
+        float cellWidth = panelWidth / 10f;
+        float cellHeight = panelHeight / 10f;
+        float tabHeight = cellHeight * 0.8f;
+        
+        // Slider position: row 7 (same as SOUND EFFECT tab)
+        float sliderStartX = panelX + (panelWidth * SLIDER_X_RATIO) + 5f;
+        float sliderY = panelY + (3 * cellHeight); // Row 7
+        
+        float sliderWidth = cellWidth * 2f;
+        float sliderHeight = tabHeight;
+        float segmentWidth = sliderWidth / VOLUME_LEVELS;
+        
+        // Calculate filled segments from sfxVolume (0-100)
+        int filledSegments;
+        if (sfxVolume <= 0) {
+            filledSegments = 0;
+        } else if (sfxVolume >= 100) {
+            filledSegments = VOLUME_LEVELS;
+        } else {
+            filledSegments = sfxVolume / 11;
+            filledSegments = Math.max(1, filledSegments);
+        }
+        
+        // Draw slider
+        if (filledSegments == 0) {
+            if (GameApp.hasTexture("black_segment")) {
+                GameApp.drawTexture("black_segment", sliderStartX + 1f, sliderY, sliderWidth, sliderHeight);
+            }
+        } else {
+            if (GameApp.hasTexture("blue_segment")) {
+                GameApp.drawTexture("blue_segment", sliderStartX, sliderY, sliderWidth, sliderHeight);
+            }
+            
+            for (int i = filledSegments; i < VOLUME_LEVELS; i++) {
+                float segmentX = sliderStartX + (i * segmentWidth) - 1f;
+                float renderWidth = segmentWidth + 1f;
+                
+                String blackTexture;
+                if (i == VOLUME_LEVELS - 1) {
+                    blackTexture = "black_right_slider";
+                } else {
+                    blackTexture = "black_mid_slider";
+                }
+                
+                if (GameApp.hasTexture(blackTexture)) {
+                    GameApp.drawTexture(blackTexture, segmentX, sliderY, renderWidth, sliderHeight);
+                }
+            }
+        }
+        
+        // Draw +/- buttons
+        float cell69X = panelX + (cellWidth * 8);
+        float buttonSize = tabHeight * 0.5f;
+        float buttonSpacing = 2f;
+        float totalButtonWidth = (buttonSize * 2) + buttonSpacing;
+        float buttonsStartX = cell69X + (cellWidth - totalButtonWidth) / 2f;
+        float buttonY = sliderY + (sliderHeight - buttonSize) / 2f;
+        
+        float minusX = buttonsStartX;
+        String minusTexture = sfxMinusPressed ? "tiny_blue_minus" : "tiny_black_minus";
+        if (GameApp.hasTexture(minusTexture)) {
+            GameApp.drawTexture(minusTexture, minusX, buttonY, buttonSize, buttonSize);
+        }
+        
+        float plusX = minusX + buttonSize + buttonSpacing;
+        String plusTexture = sfxPlusPressed ? "tiny_blue_plus" : "tiny_black_plus";
+        if (GameApp.hasTexture(plusTexture)) {
+            GameApp.drawTexture(plusTexture, plusX, buttonY, buttonSize, buttonSize);
+        }
     }
 
-    // Inner class for setting items
-    private class SettingItem {
-        private String label;
-        private float x, y;
-        private float barWidth = 200;
-        private float barHeight = 20;
-        private ValueGetter getter;
-        private ValueSetter setter;
-
-        interface ValueGetter {
-            int get();
+    // Draw tabs using grid coordinate system
+    // GRID COORDINATE REFERENCE (10x10 grid, cells numbered 1-100):
+    // Row 1 (TOP):    cells 1-10    -> Y = panelY + 9*cellHeight (top of panel)
+    // Row 2:          cells 11-20   -> Y = panelY + 8*cellHeight
+    // Row 3:          cells 21-30   -> Y = panelY + 7*cellHeight
+    // Row 4:          cells 31-40   -> Y = panelY + 6*cellHeight (Tab 1: 32-36)
+    // Row 5:          cells 41-50   -> Y = panelY + 5*cellHeight (Tab 2: 42-46)
+    // Row 6:          cells 51-60   -> Y = panelY + 4*cellHeight (Tab 3: 52-56)
+    // Row 7:          cells 61-70   -> Y = panelY + 3*cellHeight (Tab 4: 62-66)
+    // Row 8:          cells 71-80   -> Y = panelY + 2*cellHeight (Tab 5: 72-76)
+    // Row 9:          cells 81-90   -> Y = panelY + 1*cellHeight (Tab 6: 82-86)
+    // Row 10 (BOTTOM): cells 91-100 -> Y = panelY + 0*cellHeight (bottom of panel)
+    private void drawTabs(float panelX, float panelY, float panelWidth, float panelHeight) {
+        if (!GameApp.hasTexture("tab_1")) {
+            return;
         }
-
-        interface ValueSetter {
-            void set(int value);
-        }
-
-        public SettingItem(String label, float x, float y, ValueGetter getter, ValueSetter setter) {
-            this.label = label;
-            this.x = x;
-            this.y = y;
-            this.getter = getter;
-            this.setter = setter;
-        }
-
-        public void render(boolean isSelected) {
-            String textColor = isSelected ? HIGHLIGHT_COLOR : TEXT_COLOR;
-            int value = getter.get();
-
-            // Draw label
-            GameApp.startSpriteRendering();
-            GameApp.drawTextCentered("default", label + ": " + value + "%", x, y, textColor);
-            GameApp.endSpriteRendering();
-
-            // Draw volume bar background
-            float barX = x - barWidth / 2;
-            float barY = y + 25;
-
-            GameApp.startShapeRenderingFilled();
-            GameApp.drawRect(barX, barY, barWidth, barHeight, BAR_BG_COLOR);
-
-            // Draw filled portion
-            float fillWidth = (value / 100f) * barWidth;
-            if (fillWidth > 0) {
-                GameApp.drawRect(barX, barY, fillWidth, barHeight, BAR_FILL_COLOR);
+        
+        // Calculate grid cell dimensions
+        float cellWidth = panelWidth / 10f;  // 1 cell width
+        float cellHeight = panelHeight / 10f; // 1 cell height
+        
+        // Tab dimensions: horizontal, 5 cells wide, slightly less than 1 cell tall (for spacing)
+        float tabWidth = cellWidth * 5f;  // 5 cells wide
+        float tabHeight = cellHeight * 0.8f; // 80% of cell height to create gap between tabs
+        
+        // Calculate X position (all tabs start at column 2 = 10% from left)
+        float tabX = panelX + (panelWidth * TAB_X_OFFSET_RATIO);
+        
+        // Draw all tabs with labels
+        for (int i = 0; i < NUM_TABS; i++) {
+            int startCell = TAB_START_CELLS[i];
+            
+            // Calculate row from cell number (1-indexed)
+            // Cell 32 -> row 4, Cell 42 -> row 5, etc.
+            int row = ((startCell - 1) / 10) + 1;
+            
+            // Calculate Y position from row
+            // LibGDX: Y=0 at bottom, Y increases upward
+            // Row 4 (cells 31-40) -> Y = panelY + (10 - 4) * cellHeight = panelY + 6 * cellHeight
+            float tabY = panelY + ((10 - row) * cellHeight);
+            
+            // Draw tab texture
+            GameApp.drawTexture("tab_1", tabX, tabY, tabWidth, tabHeight);
+            
+            // Draw tab label with black outline (left-aligned, smaller font)
+            String label = TAB_LABELS[i];
+            float textX = tabX + 45f; // Left margin
+            // Adjust Y to center text vertically (drawText uses baseline, so offset down by ~3px)
+            float textY = tabY + (tabHeight / 2f) - 8f;
+            
+            // Draw icons for each tab
+            float iconSize = tabHeight * 0.8f;
+            // Fullscreen icon needs different X offset
+            float iconX = (i == 0) ? textX - 27f : textX - 30f;
+            float iconY = tabY + (tabHeight - iconSize) / 2f; // Center icon vertically
+            
+            String iconTexture = null;
+            if (i == 0) {
+                iconTexture = "icon_fullscreen";
+            } else if (i == 1) {
+                iconTexture = "icon_master_volume";
+            } else if (i == 2) {
+                iconTexture = "icon_music";
+            } else if (i == 3) {
+                iconTexture = "icon_sfx";
             }
-            GameApp.endShapeRendering();
-
-            // Draw border
-            GameApp.startShapeRenderingOutlined();
-            GameApp.setLineWidth(2f);
-            GameApp.drawRect(barX, barY, barWidth, barHeight, isSelected ? HIGHLIGHT_COLOR : TEXT_COLOR);
-            GameApp.endShapeRendering();
-
-            // Draw +/- indicators
-            if (isSelected) {
-                GameApp.startSpriteRendering();
-                GameApp.drawTextCentered("default", "<", barX - 15, barY + barHeight / 2, HIGHLIGHT_COLOR);
-                GameApp.drawTextCentered("default", ">", barX + barWidth + 15, barY + barHeight / 2, HIGHLIGHT_COLOR);
-                GameApp.endSpriteRendering();
+            
+            if (iconTexture != null && GameApp.hasTexture(iconTexture)) {
+                GameApp.drawTexture(iconTexture, iconX, iconY, iconSize, iconSize);
+            }
+            
+            drawTextWithOutlineLeft(label, textX, textY);
+        }
+    }
+    
+    // Draw OPTIONS title at cells 15-16 (row 2, columns 5-6)
+    private void drawTitle(float panelX, float panelY, float panelWidth, float panelHeight) {
+        float cellWidth = panelWidth / 10f;
+        float cellHeight = panelHeight / 10f;
+        
+        // Cells 15-16 are in row 2, columns 5-6
+        // Row 2: Y = panelY + 8 * cellHeight
+        // Columns 5-6: X = panelX + 4.5 * cellWidth (center between columns 5 and 6)
+        // Move up a bit: add 0.3 * cellHeight
+        float titleX = panelX + (4.5f * cellWidth) + (cellWidth / 2f);
+        float titleY = panelY + (8.3f * cellHeight) + (cellHeight / 2f);
+        
+        drawTextWithOutline("OPTIONS", titleX, titleY);
+        
+        // Draw close button on the same row, right side (column 9, shifted left)
+        float closeButtonSize = cellHeight * 0.8f;
+        float closeButtonX = panelX + (9 * cellWidth) + (cellWidth - closeButtonSize) / 2f - 40f;
+        float closeButtonY = panelY + (8.3f * cellHeight) + (cellHeight - closeButtonSize) / 2f;
+        
+        if (GameApp.hasTexture("close_button")) {
+            GameApp.drawTexture("close_button", closeButtonX, closeButtonY, closeButtonSize, closeButtonSize);
+        }
+    }
+    
+    // Draw text with black outline (white text, black border) - centered
+    private void drawTextWithOutline(String text, float x, float y) {
+        // Draw black outline (8 directions)
+        float offset = 1f;
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y - offset, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y + offset, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y - offset, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y - offset, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y + offset, "black");
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y + offset, "black");
+        
+        // Draw white text on top
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y, "white");
+    }
+    
+    // Draw text with black outline (white text, black border) - left-aligned, smaller font
+    private void drawTextWithOutlineLeft(String text, float x, float y) {
+        // Draw black outline (8 directions)
+        float offset = 1f;
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x - offset, y, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x + offset, y, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x, y - offset, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x, y + offset, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x - offset, y - offset, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x + offset, y - offset, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x - offset, y + offset, "black");
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x + offset, y + offset, "black");
+        
+        // Draw white text on top
+        GameApp.drawText(SETTINGS_FONT_SMALL, text, x, y, "white");
+    }
+    
+    // Draw coordinate grid for debugging (optional - can be enabled/disabled)
+    private void drawCoordinateGrid(float panelX, float panelY, float panelWidth, float panelHeight) {
+        // Draw all grid lines using shape rendering (thicker lines for visibility)
+        GameApp.startShapeRenderingFilled();
+        
+        int numCols = 10; // Number of columns
+        int numRows = 10; // Number of rows
+        
+        // Draw horizontal grid lines (every 10% of panel height) - 50% opacity
+        for (int i = 0; i <= numRows; i++) {
+            float y = panelY + (panelHeight * (i / (float)numRows));
+            GameApp.setColor(255, 0, 0, 100); // Red, 50% opacity
+            GameApp.drawRect(panelX, y - 1, panelWidth, 2);
+        }
+        
+        // Draw vertical grid lines (every 10% of panel width) - 50% opacity
+        for (int i = 0; i <= numCols; i++) {
+            float x = panelX + (panelWidth * (i / (float)numCols));
+            GameApp.setColor(0, 255, 0, 100); // Green, 50% opacity
+            GameApp.drawRect(x - 1, panelY, 2, panelHeight);
+        }
+        
+        GameApp.endShapeRendering();
+        
+        // Draw cell numbers (1, 2, 3...) in each grid cell
+        GameApp.startSpriteRendering();
+        GameApp.setColor(255, 255, 255, 255);
+        
+        float cellWidth = panelWidth / numCols;
+        float cellHeight = panelHeight / numRows;
+        int cellNumber = 1; // Start numbering from 1
+        
+        // Number cells from top-left to bottom-right (row by row)
+        for (int row = 0; row < numRows; row++) {
+            for (int col = 0; col < numCols; col++) {
+                // Calculate center of each cell
+                float cellX = panelX + (col * cellWidth) + (cellWidth / 2f);
+                float cellY = panelY + ((numRows - row - 1) * cellHeight) + (cellHeight / 2f);
+                
+                // Draw cell number centered in the cell
+                String label = String.valueOf(cellNumber);
+                GameApp.drawTextCentered("default", label, cellX, cellY, "white");
+                
+                cellNumber++;
             }
         }
-
-        public void increase() {
-            int value = getter.get();
-            value = Math.min(100, value + 5);
-            setter.set(value);
-            // Auto-save when volume changes
-            saveSettingsToConfig();
-        }
-
-        public void decrease() {
-            int value = getter.get();
-            value = Math.max(0, value - 5);
-            setter.set(value);
-            // Auto-save when volume changes
-            saveSettingsToConfig();
-        }
-
-        public void setValue(int value) {
-            setter.set(value);
-            // Auto-save when volume changes
-            saveSettingsToConfig();
-        }
-
-        public boolean containsPoint(float px, float py) {
-            float barX = x - barWidth / 2;
-            float barY = y + 25;
-            return px >= barX && px <= barX + barWidth && py >= barY && py <= barY + barHeight;
-        }
-
-        public float getBarX() {
-            return x - barWidth / 2;
-        }
-
-        public float getBarWidth() {
-            return barWidth;
-        }
+        
+        GameApp.endSpriteRendering();
     }
 
     // Getters for volume values (can be used by other systems)
