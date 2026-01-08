@@ -1,10 +1,12 @@
-# Simple game config file
-masterVolume=1.0
-musicVolume=0.8
-sfxVolume=0.8
-keyMoveUp=W
-keyMoveDown=S
-keyMoveLeft=A
-keyMoveRight=D
-keyShoot=SPACE
-debugEnabled=true
+{
+  "masterVolume": 0.0,
+  "musicVolume": 1.0,
+  "sfxVolume": 1.0,
+  "keyMoveUp": 51,
+  "keyMoveDown": 47,
+  "keyMoveLeft": 29,
+  "keyMoveRight": 32,
+  "keyShoot": 62,
+  "debugEnabled": true,
+  "fullscreen": false
+}
