@@ -1,10 +1,9 @@
 package nl.saxion.game.systems;
 
-import nl.saxion.game.entities.Bullet;
-import nl.saxion.game.entities.Enemy;
-import nl.saxion.game.entities.Player;
+import nl.saxion.game.entities.*;
 import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.gameapp.GameApp;
+
 
 import java.awt.*;
 import java.util.Iterator;
@@ -14,6 +13,8 @@ import java.util.List;
 public class CollisionHandler {
     private static final float DAMAGE_COOLDOWN_DURATION = 0.5f;
     private static final int ENEMY_TOUCH_DAMAGE = 1;
+    private static final int BOSS_TOUCH_DAMAGE = 3;
+
 
     private float playerDamageCooldown = 0f;
 
@@ -89,6 +90,74 @@ public class CollisionHandler {
         }
     }
 
+    public void handleBulletBossCollisions(
+            List<Bullet> bullets,
+            List<Boss> bosses,
+            java.util.function.Consumer<Integer> onBossKilled,
+            java.util.function.Consumer<Boss> onBossKilledForOrbs,
+            CollisionChecker wallCollisionChecker
+    ) {
+        if (bosses == null) {
+            return;
+        }
+
+        for (Bullet b : bullets) {
+            if (b.isDestroyed()) {
+                continue;
+            }
+
+            float bX = b.getX();
+            float bY = b.getY();
+            float bW = b.getWidth();
+            float bH = b.getHeight();
+
+            // Wall collision first (bullet can't hit through wall)
+            if (wallCollisionChecker != null && wallCollisionChecker.checkCollision(bX, bY, bW, bH)) {
+                b.destroy();
+                continue;
+            }
+
+            java.util.Iterator<Boss> bossIt = bosses.iterator();
+            while (bossIt.hasNext()) {
+                Boss boss = bossIt.next();
+
+
+                float bx = boss.getX();
+                float by = boss.getY();
+                float bw = Boss.SPRITE_SIZE;
+                float bh = Boss.SPRITE_SIZE;
+
+                if (GameApp.rectOverlap(bX, bY, bW, bH, bx, by, bw, bh)) {
+                    int damage = b.getDamage();
+                    boss.takeDamage(damage);
+                    b.destroy();
+
+                    // Damage text
+                    if (damageTextSystem != null) {
+                        float centerX = bx + bw / 2f;
+                        float centerY = by + bh / 2f;
+                        boolean isCrit = GameApp.random(0f, 1f) < 0.1f || damage > 15;
+                        damageTextSystem.spawnDamageText(centerX, centerY, damage, isCrit);
+                    }
+
+                    // Boss killed
+                    if (!boss.isAlive()) {
+                        if (onBossKilled != null) {
+                            onBossKilled.accept(200);
+                        }
+                        if (onBossKilledForOrbs != null) {
+                            onBossKilledForOrbs.accept(boss);
+                        }
+                    }
+
+
+                    break;
+                }
+            }
+        }
+    }
+
+
     public void handleEnemyPlayerCollisions(Player player, List<Enemy> enemies) {
         // Use damage hitbox instead of wall hitbox for player-enemy interaction
         Rectangle playerDamageHitbox = player.getDamageHitBox();
@@ -126,6 +195,40 @@ public class CollisionHandler {
             }
         }
     }
+    public void handleBossPlayerCollisions(Player player, List<Boss> bosses) {
+        if (bosses == null) {
+            return;
+        }
+
+        Rectangle playerDamageHitbox = player.getDamageHitBox();
+        float pX = playerDamageHitbox.x;
+        float pY = playerDamageHitbox.y;
+        float pW = playerDamageHitbox.width;
+        float pH = playerDamageHitbox.height;
+
+        for (Boss boss : bosses) {
+            if (!boss.isAlive() || boss.isDying()) {
+                continue;
+            }
+
+            float bx = boss.getX();
+            float by = boss.getY();
+            float bw = Boss.SPRITE_SIZE;
+            float bh = Boss.SPRITE_SIZE;
+
+            boolean overlap = GameApp.rectOverlap(pX, pY, pW, pH, bx, by, bw, bh);
+            if (overlap && playerDamageCooldown <= 0f) {
+                player.takeDamage(BOSS_TOUCH_DAMAGE);
+                playerDamageCooldown = DAMAGE_COOLDOWN_DURATION;
+
+                if (soundManager != null && !player.isDying()) {
+                    soundManager.playSound("damaged", 0.9f);
+                }
+                break;
+            }
+        }
+    }
+
 
     public void removeDestroyedBullets(List<Bullet> bullets) {
         Iterator<Bullet> it = bullets.iterator();

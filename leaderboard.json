@@ -1,0 +1,20 @@
+{
+  "entries": [
+    {
+      "username": "PinkNino",
+      "studentClass": "SP",
+      "groupNumber": "72",
+      "score": 1200,
+      "survivalTime": 80.09863,
+      "timestamp": 1767953328912
+    },
+    {
+      "username": "test",
+      "studentClass": "SP",
+      "groupNumber": "72",
+      "score": 340,
+      "survivalTime": 27.427307,
+      "timestamp": 1767958048323
+    }
+  ]
+}

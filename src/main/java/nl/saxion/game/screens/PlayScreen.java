@@ -29,6 +29,8 @@ import nl.saxion.game.utils.DebugLogger;
 import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.gameapp.screens.ScalableGameScreen;
+import nl.saxion.game.entities.Boss;
+
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -50,12 +52,20 @@ public class PlayScreen extends ScalableGameScreen {
     private static Weapon savedWeapon = null;
     private static List<Bullet> savedBullets = null;
     private static List<Enemy> savedEnemies = null;
+    private static List<Boss> savedBosses = null;
     private static List<XPOrb> savedXpOrbs = null;
+
     private static float savedGameTime = 0f;
     private static int savedScore = 0;
     private static float savedPlayerWorldX = 0f;
     private static float savedPlayerWorldY = 0f;
     private static boolean savedIngameMusicStarted = false;
+    private static boolean savedBossSpawned = false;
+
+    // Boss system
+    private List<Boss> bosses;
+    private boolean bossSpawned = false;
+    private static final float BOSS_SPAWN_TIME = 10f;
     
     /**
      * Set flag to indicate returning from settings.
@@ -85,6 +95,9 @@ public class PlayScreen extends ScalableGameScreen {
         savedPlayerWorldX = playerWorldX;
         savedPlayerWorldY = playerWorldY;
         savedIngameMusicStarted = ingameMusicStarted;
+        savedBosses = bosses;
+        savedBossSpawned = bossSpawned;
+
     }
     
     /**
@@ -96,6 +109,8 @@ public class PlayScreen extends ScalableGameScreen {
             weapon = savedWeapon;
             bullets = savedBullets;
             enemies = savedEnemies;
+            bosses = savedBosses;
+            bossSpawned = savedBossSpawned;
             xpOrbs = savedXpOrbs;
             gameTime = savedGameTime;
             score = savedScore;
@@ -116,6 +131,8 @@ public class PlayScreen extends ScalableGameScreen {
         savedBullets = null;
         savedEnemies = null;
         savedXpOrbs = null;
+        savedBosses = null;
+
     }
 
     private InputController input;
@@ -142,7 +159,7 @@ public class PlayScreen extends ScalableGameScreen {
     private SoundManager soundManager;
 
     // Game state
-    private static final float GAME_DURATION = 600f; // 10 minutes countdown
+    private static final float GAME_DURATION = 900f; // 10 minutes countdown
     private float gameTime = GAME_DURATION;
     private int score = 0;
     private float playerWorldX;
@@ -641,6 +658,7 @@ public class PlayScreen extends ScalableGameScreen {
             GameApp.startSpriteRendering();
             gameRenderer.renderPlayer();
             gameRenderer.renderEnemies(enemies);
+            gameRenderer.renderBosses(bosses);
             gameRenderer.renderBullets(bullets);
             GameApp.endSpriteRendering();
             renderPlayerHealthBar();
@@ -675,6 +693,7 @@ public class PlayScreen extends ScalableGameScreen {
             GameApp.startSpriteRendering();
             gameRenderer.renderPlayer();
             gameRenderer.renderEnemies(enemies);
+            gameRenderer.renderBosses(bosses);
             gameRenderer.renderBullets(bullets);
             GameApp.endSpriteRendering();
             renderPlayerHealthBar();
@@ -748,6 +767,10 @@ public class PlayScreen extends ScalableGameScreen {
         for (Enemy e : enemies) {
             e.update(delta, player.getX(), player.getY(), collisionChecker, enemies);
         }
+        for (Boss boss : bosses) {
+            boss.update(delta, player.getX(), player.getY());
+        }
+
 
         // Update player animations
         GameApp.updateAnimation("player_idle");
@@ -774,6 +797,13 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.updateAnimation("zombie4_hit");
         GameApp.updateAnimation("zombie4_death");
 
+        // Update boss animations
+        GameApp.updateAnimation("boss_idle");
+        GameApp.updateAnimation("boss_run");
+        GameApp.updateAnimation("boss_attack");
+        GameApp.updateAnimation("boss_death");
+
+
         // Update XP orb animation
         GameApp.updateAnimation("orb_animation");
 
@@ -782,6 +812,10 @@ public class PlayScreen extends ScalableGameScreen {
         float playerMoveDirY = player.getLastMoveDirectionY();
         // Pass elapsed time (not countdown) for difficulty scaling
         float elapsedTime = GAME_DURATION - gameTime;
+
+        if (!bossSpawned && elapsedTime >= BOSS_SPAWN_TIME) {
+            spawnBossNearPlayer(playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY);
+        }
         enemySpawner.update(delta, elapsedTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
 
         // Collision detection
@@ -793,6 +827,17 @@ public class PlayScreen extends ScalableGameScreen {
                 (enemy) -> spawnXPOrbsAtEnemy(enemy),
                 wallChecker);
         collisionHandler.handleEnemyPlayerCollisions(player, enemies);
+
+        collisionHandler.handleBulletBossCollisions(
+                bullets,
+                bosses,
+                (Integer s) -> addScore(s),
+                (Boss boss) -> spawnXPOrbsAtBoss(boss),
+                wallChecker
+        );
+
+        collisionHandler.handleBossPlayerCollisions(player, bosses);
+
 
         // Update damage texts
         damageTextSystem.update(delta);
@@ -808,6 +853,8 @@ public class PlayScreen extends ScalableGameScreen {
         // Cleanup: remove dead enemies and enemies too far (soft despawn cleanup)
         collisionHandler.removeDeadOrFarEnemies(enemies, playerWorldX, playerWorldY);
         collisionHandler.removeDestroyedBullets(bullets);
+        bosses.removeIf(boss -> !boss.isAlive());
+
 
         // Player death check - wait for death animation to finish
         // Guard: only trigger game over once (avoid multiple triggers)
@@ -867,6 +914,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Render entities
         gameRenderer.renderPlayer();
         gameRenderer.renderEnemies(enemies);
+        gameRenderer.renderBosses(bosses);
         gameRenderer.renderBullets(bullets);
 
         GameApp.endSpriteRendering();
@@ -973,6 +1021,16 @@ public class PlayScreen extends ScalableGameScreen {
             xpOrbs.add(orb);
         }
     }
+    private void spawnXPOrbsAtBoss(Boss boss) {
+        int orbCount = GameApp.randomInt(12, 21); // много, потому что босс
+        for (int i = 0; i < orbCount; i++) {
+            float offsetX = GameApp.random(-30f, 30f);
+            float offsetY = GameApp.random(-30f, 30f);
+            XPOrb orb = new XPOrb(boss.getX() + offsetX, boss.getY() + offsetY, 10);
+            xpOrbs.add(orb);
+        }
+    }
+
 
     // Update XP orbs (magnet, collection, expiration)
     private void updateXPOrbs(float delta) {
@@ -1232,8 +1290,11 @@ public class PlayScreen extends ScalableGameScreen {
         weapon = new Weapon(Weapon.WeaponType.PISTOL, 3.5f, 6, 12, 450f, 14f, 14f);
 
         enemies = new ArrayList<>();
+        bosses = new ArrayList<>();
         xpOrbs = new ArrayList<>();
+
         isLevelUpActive = false;
+        bossSpawned = false;
         levelUpOptions.clear();
 
         // Reset game state
@@ -1999,4 +2060,37 @@ public class PlayScreen extends ScalableGameScreen {
     public boolean isPaused() {
         return isPaused;
     }
+
+    private void spawnBossNearPlayer(float playerX, float playerY, float moveDirX, float moveDirY) {
+        float distance = 400f + (float) (Math.random() * 100f);
+
+        float bx;
+        float by;
+
+        float length = (float) Math.sqrt(moveDirX * moveDirX + moveDirY * moveDirY);
+        if (length > 0.001f) {
+            float nx = moveDirX / length;
+            float ny = moveDirY / length;
+
+            // behind player
+            bx = playerX - nx * distance;
+            by = playerY - ny * distance;
+        } else {
+            double angle = Math.random() * Math.PI * 2.0;
+            bx = playerX + (float) Math.cos(angle) * distance;
+            by = playerY + (float) Math.sin(angle) * distance;
+        }
+
+        int hp = 200 + (int) (Math.random() * 101); // 200-300
+        Boss boss = new Boss(bx, by, hp);
+
+        if (bosses != null) {
+            bosses.add(boss);
+        }
+
+        bossSpawned = true;
+
+        GameApp.log("Boss spawned at (" + bx + ", " + by + ") with HP " + hp);
+    }
+
 }

@@ -61,6 +61,19 @@ public class ResourceLoader {
         GameApp.addSpriteSheet("zombie4_hit_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
         GameApp.addSpriteSheet("zombie4_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
 
+        // Load boss sprite sheets (TEMP: reuse Zombie4 assets)
+        GameApp.addSpriteSheet("boss_idle_sheet", "assets/enemy/Zombie 4_idle.png", 32, 32);
+        GameApp.addSpriteSheet("boss_run_sheet", "assets/enemy/Zombie 4_run.png", 32, 32);
+        GameApp.addSpriteSheet("boss_attack_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
+        GameApp.addSpriteSheet("boss_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
+
+        // Create boss animations
+        GameApp.addAnimationFromSpritesheet("boss_idle", "boss_idle_sheet", 0.2f, true);
+        GameApp.addAnimationFromSpritesheet("boss_run", "boss_run_sheet", 0.1f, true);
+        GameApp.addAnimationFromSpritesheet("boss_attack", "boss_attack_sheet", 0.12f, true);
+        GameApp.addAnimationFromSpritesheet("boss_death", "boss_death_sheet", 0.2f, false);
+
+
         // Create zombie animations - Type 1 (original)
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
@@ -190,6 +203,18 @@ public class ResourceLoader {
         GameApp.disposeSpritesheet("zombie4_run_sheet");
         GameApp.disposeSpritesheet("zombie4_hit_sheet");
         GameApp.disposeSpritesheet("zombie4_death_sheet");
+
+        // Dispose boss animations and sprite sheets
+        GameApp.disposeAnimation("boss_idle");
+        GameApp.disposeAnimation("boss_run");
+        GameApp.disposeAnimation("boss_attack");
+        GameApp.disposeAnimation("boss_death");
+
+        GameApp.disposeSpritesheet("boss_idle_sheet");
+        GameApp.disposeSpritesheet("boss_run_sheet");
+        GameApp.disposeSpritesheet("boss_attack_sheet");
+        GameApp.disposeSpritesheet("boss_death_sheet");
+
 
         // Dispose XP orb animation and sprite sheet
         GameApp.disposeAnimation("orb_animation");
