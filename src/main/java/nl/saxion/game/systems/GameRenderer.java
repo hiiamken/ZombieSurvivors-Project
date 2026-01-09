@@ -1,9 +1,12 @@
 package nl.saxion.game.systems;
 
+
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.Player;
 import nl.saxion.gameapp.GameApp;
+import nl.saxion.game.entities.Boss;
+
 
 import java.util.List;
 
@@ -70,6 +73,41 @@ public class GameRenderer {
             renderEnemy(e);
         }
     }
+    public void renderBosses(List<Boss> bosses) {
+        if (bosses == null) {
+            return;
+        }
+
+        for (Boss boss : bosses) {
+            renderBoss(boss);
+        }
+    }
+
+    private void renderBoss(Boss boss) {
+
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+
+        float offsetX = boss.getX() - playerWorldX;
+        float offsetY = boss.getY() - playerWorldY;
+        float screenX = worldW / 2f + offsetX;
+        float screenY = worldH / 2f + offsetY;
+
+        float size = Boss.SPRITE_SIZE;
+
+        if (screenX + size > 0 && screenX < worldW && screenY + size > 0 && screenY < worldH) {
+            String animationKey = boss.getCurrentAnimation();
+            boolean flipX = !boss.isFacingRight();
+
+            if (GameApp.hasAnimation(animationKey)) {
+                GameApp.drawAnimation(animationKey, screenX, screenY, size, size, 0, flipX, false);
+            } else {
+                GameApp.drawTexture("enemy", screenX, screenY, size, size);
+            }
+        }
+
+    }
+
 
     private void renderEnemy(Enemy enemy) {
         // Only render if visible (soft despawn check)
