@@ -1,12 +1,28 @@
 {
   "entries": [
     {
+      "username": "arnold",
+      "studentClass": "SO",
+      "groupNumber": "54",
+      "score": 13820,
+      "survivalTime": 900.0,
+      "timestamp": 1768150070604
+    },
+    {
       "username": "PinkNino",
       "studentClass": "SP",
       "groupNumber": "72",
       "score": 1200,
       "survivalTime": 80.09863,
       "timestamp": 1767953328912
+    },
+    {
+      "username": "arnold",
+      "studentClass": "SP",
+      "groupNumber": "72",
+      "score": 570,
+      "survivalTime": 74.338745,
+      "timestamp": 1768152338506
     },
     {
       "username": "test",

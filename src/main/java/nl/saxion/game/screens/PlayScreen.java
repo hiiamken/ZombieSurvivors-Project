@@ -46,7 +46,7 @@ public class PlayScreen extends ScalableGameScreen {
     // Static flag to track if returning from settings screen (to preserve pause state)
     private static boolean returningFromSettings = false;
     private static boolean wasPausedBeforeSettings = false;
-    
+
     // Static game state preservation for settings return
     private static Player savedPlayer = null;
     private static Weapon savedWeapon = null;
@@ -66,21 +66,21 @@ public class PlayScreen extends ScalableGameScreen {
     private List<Boss> bosses;
     private boolean bossSpawned = false;
     private static final float BOSS_SPAWN_TIME = 10f;
-    
+
     /**
      * Set flag to indicate returning from settings.
      */
     public static void setReturningFromSettings(boolean value) {
         returningFromSettings = value;
     }
-    
+
     /**
      * Set the paused state before going to settings.
      */
     public static void setWasPausedBeforeSettings(boolean value) {
         wasPausedBeforeSettings = value;
     }
-    
+
     /**
      * Save current game state before going to settings.
      */
@@ -99,7 +99,7 @@ public class PlayScreen extends ScalableGameScreen {
         savedBossSpawned = bossSpawned;
 
     }
-    
+
     /**
      * Restore game state after returning from settings.
      */
@@ -117,14 +117,14 @@ public class PlayScreen extends ScalableGameScreen {
             playerWorldX = savedPlayerWorldX;
             playerWorldY = savedPlayerWorldY;
             ingameMusicStarted = savedIngameMusicStarted;
-            
+
             // Pass player reference to renderer
             if (gameRenderer != null) {
                 gameRenderer.setPlayer(player);
                 gameRenderer.setPlayerWorldPosition(playerWorldX, playerWorldY);
             }
         }
-        
+
         // Clear saved state
         savedPlayer = null;
         savedWeapon = null;
@@ -168,12 +168,26 @@ public class PlayScreen extends ScalableGameScreen {
     // Level up menu
     private boolean isLevelUpActive = false;
     private List<LevelUpOption> levelUpOptions = new ArrayList<>();
-    
+
+    private static final boolean USE_LEVELUP_MENU_V2 = true;
+
+    // Keep delta so the menu animates smoothly even though game is paused during level-up
+    private float lastDelta = 1f / 60f;
+
+    // Menu entrance animation
+    private float levelUpMenuAnimTimer = 0f; // 0..1
+    private boolean levelUpMenuOpening = false;
+
+    // Selection and highlight animation
+    private int levelUpSelectedIndex = 0;
+    private int lastLevelUpSelectedIndex = -1;
+    private float levelUpSelectAnim = 0f; // 0..1 smoothing
+
     // Ingame music delay
     private float ingameMusicDelayTimer = 0f;
     private static final float INGAME_MUSIC_DELAY = 1.2f;
     private boolean ingameMusicStarted = false;
-    
+
     // Game over overlay
     private boolean isGameOver = false;
     private float gameOverFadeTimer = 0f;
@@ -186,7 +200,7 @@ public class PlayScreen extends ScalableGameScreen {
     private Runnable gameOverPendingAction = null;
     private Button gameOverPressedButton = null;
     private boolean isHoveringGameOverButton = false;
-    
+
     // Pause menu overlay
     private boolean isPaused = false;
     private float pauseFadeTimer = 0f;
@@ -208,12 +222,12 @@ public class PlayScreen extends ScalableGameScreen {
         // Check if returning from settings - preserve game state
         if (returningFromSettings && savedPlayer != null) {
             returningFromSettings = false;
-            
+
             // Re-initialize systems (resources need to be reloaded)
             resourceLoader = new ResourceLoader();
             resourceLoader.loadGameResources();
             soundManager = resourceLoader.getSoundManager();
-            
+
             Map<Integer, TMXMapData> tmxMapDataByRoomIndex = resourceLoader.loadTMXMaps();
             mapRenderer = new MapRenderer(tmxMapDataByRoomIndex);
             enemySpawner = new EnemySpawner();
@@ -221,33 +235,33 @@ public class PlayScreen extends ScalableGameScreen {
             gameRenderer = new GameRenderer();
             gameStateManager = new GameStateManager();
             damageTextSystem = new DamageTextSystem();
-            
+
             collisionHandler.setDamageTextSystem(damageTextSystem);
             if (soundManager != null) {
                 collisionHandler.setSoundManager(soundManager);
             }
-            
+
             input = new InputController(MainGame.getConfig());
             hud = new HUD();
-            
+
             // Load fonts and textures
             loadFontsAndTextures();
-            
+
             // Load cursors
             loadCursors();
-            
+
             // Restore game state
             restoreGameState();
-            
+
             // Set game state to PLAYING
             gameStateManager.setCurrentState(GameState.PLAYING);
-            
+
             // Restore pause state
             if (wasPausedBeforeSettings) {
                 isPaused = true;
                 pauseButtonsInitialized = false;
                 initializePauseButtons();
-                
+
                 // Keep music at reduced volume since we're still paused
                 if (soundManager != null) {
                     // Start ingame music again at reduced volume
@@ -256,18 +270,18 @@ public class PlayScreen extends ScalableGameScreen {
                 }
             }
             wasPausedBeforeSettings = false;
-            
+
             return; // Skip full initialization
         }
-        
+
         // Reset flags if not returning from settings
         returningFromSettings = false;
         wasPausedBeforeSettings = false;
-        
+
         // Initialize systems
         resourceLoader = new ResourceLoader();
         resourceLoader.loadGameResources();
-        
+
         // Get SoundManager from ResourceLoader
         soundManager = resourceLoader.getSoundManager();
 
@@ -281,14 +295,14 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Link damage text system to collision handler
         collisionHandler.setDamageTextSystem(damageTextSystem);
-        
+
         // Link sound manager to collision handler for damage sounds
         if (soundManager != null) {
             collisionHandler.setSoundManager(soundManager);
         }
-        
+
         // GameOverScreen is now a separate ScalableGameScreen, no need to initialize here
-        
+
         // Stop menu music and start ingame music with delay
         // Delay allows clickbutton sound to play before music starts
         if (soundManager != null) {
@@ -318,7 +332,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("button_red_text")) {
             GameApp.addColor("button_red_text", 60, 15, 30); // Dark maroon
         }
-        
+
         // Legacy colors for game over screen (use unified colors)
         if (!GameApp.hasColor("gameover_play_again_color")) {
             GameApp.addColor("gameover_play_again_color", 25, 50, 25); // Same as green
@@ -326,7 +340,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("gameover_back_menu_color")) {
             GameApp.addColor("gameover_back_menu_color", 60, 15, 30); // Same as red
         }
-        
+
         // Font size 22 for GameOverScreen
         GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
                 "gray-200", 2f, "black", 2, 2, "gray-600", true);
@@ -359,7 +373,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
-        
+
         // Load orange button sprites for pause menu settings button
         if (!GameApp.hasTexture("orange_long")) {
             GameApp.addTexture("orange_long", "assets/ui/orange_long.png");
@@ -367,7 +381,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("orange_pressed_long")) {
             GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
         }
-        
+
         // Pause menu uses unified button colors
         if (!GameApp.hasColor("pause_resume_color")) {
             GameApp.addColor("pause_resume_color", 25, 50, 25); // Same as button_green_text
@@ -378,7 +392,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("pause_quit_color")) {
             GameApp.addColor("pause_quit_color", 60, 15, 30); // Same as button_red_text
         }
-        
+
         // Button font for PlayScreen (640x360 world, half-size buttons)
         // Size 18 for better readability
         GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
@@ -393,7 +407,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("gameover_title")) {
             GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
         }
-        
+
         // Load pause title image
         if (!GameApp.hasTexture("pause_title")) {
             GameApp.addTexture("pause_title", "assets/ui/pause.png");
@@ -416,7 +430,7 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
                 "red-500", 2f, "black", 3, 3, "red-900", true);
         GameApp.addFont("gameOverText", "fonts/PressStart2P-Regular.ttf", 16, true);
-        
+
         // Register custom button text colors for game over screen
         if (!GameApp.hasColor("gameover_play_again_color")) {
             GameApp.addColor("gameover_play_again_color", 47, 87, 83);
@@ -424,7 +438,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("gameover_back_menu_color")) {
             GameApp.addColor("gameover_back_menu_color", 79, 29, 76);
         }
-        
+
         // Font for buttons
         GameApp.addStyledFont("gameOverButtonFont", "fonts/upheavtt.ttf", 19,
                 "gray-200", 2f, "black", 2, 2, "gray-600", true);
@@ -463,7 +477,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("orange_pressed_long")) {
             GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
         }
-        
+
         // Unified button colors for all menus
         if (!GameApp.hasColor("button_green_text")) {
             GameApp.addColor("button_green_text", 25, 50, 25);
@@ -483,7 +497,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("pause_quit_color")) {
             GameApp.addColor("pause_quit_color", 60, 15, 30);
         }
-        
+
         // Button font for PlayScreen (640x360 world, half-size buttons)
         GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
                 "white", 0f, "black", 1, 1, "gray-700", true);
@@ -495,13 +509,13 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("gameover_title")) {
             GameApp.addTexture("gameover_title", "assets/ui/gameovertitle.png");
         }
-        
+
         // Load pause title image
         if (!GameApp.hasTexture("pause_title")) {
             GameApp.addTexture("pause_title", "assets/ui/pause.png");
         }
     }
-    
+
     // Load cursor images (pointer.png and cursor.png)
     private void loadCursors() {
         try {
@@ -561,7 +575,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (gameOverButtons != null) {
             gameOverButtons.clear();
         }
-        
+
         // Reset pause state when leaving screen
         isPaused = false;
         pauseFadeTimer = 0f;
@@ -573,7 +587,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (pauseButtons != null) {
             pauseButtons.clear();
         }
-        
+
         // Dispose fonts
         GameApp.disposeFont("gameOverTitle");
         GameApp.disposeFont("gameOverText");
@@ -597,7 +611,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (soundManager != null) {
             soundManager.stopIngameMusic();
         }
-        
+
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
         }
@@ -606,12 +620,13 @@ public class PlayScreen extends ScalableGameScreen {
     @Override
     public void render(float delta) {
         super.render(delta);
-        
+
+        lastDelta = delta;
         // Handle F11 key to toggle fullscreen
         if (GameApp.isKeyJustPressed(com.badlogic.gdx.Input.Keys.F11)) {
             toggleFullscreen();
         }
-        
+
         // Handle ESC key to toggle pause menu (only when not game over and not level up)
         if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE) && !isGameOver && !isLevelUpActive) {
             togglePause();
@@ -621,7 +636,7 @@ public class PlayScreen extends ScalableGameScreen {
 
 
         // ----- GAMEPLAY STATE -----
-        
+
         // Handle ingame music delay (start music after delay to allow click sound)
         if (!ingameMusicStarted && soundManager != null && !isPaused) {
             ingameMusicDelayTimer += delta;
@@ -630,14 +645,14 @@ public class PlayScreen extends ScalableGameScreen {
                 ingameMusicStarted = true;
             }
         }
-        
+
         // Handle pause menu (pause game when active)
         if (isPaused) {
             // Update pause fade timer
             if (pauseFadeTimer < PAUSE_FADE_DURATION) {
                 pauseFadeTimer += delta;
             }
-            
+
             // Update button press delay timer
             if (pausePendingAction != null && pausePressedButton != null) {
                 pausePressTimer += delta;
@@ -649,10 +664,10 @@ public class PlayScreen extends ScalableGameScreen {
                     action.run();
                 }
             }
-            
+
             // Handle pause menu input
             handlePauseInput();
-            
+
             // Still render game in background (frozen)
             mapRenderer.render(playerWorldX, playerWorldY);
             GameApp.startSpriteRendering();
@@ -664,7 +679,7 @@ public class PlayScreen extends ScalableGameScreen {
             renderPlayerHealthBar();
             renderXPOrbs();
             renderHUD();
-            
+
             // Render pause overlay on top
             renderPauseOverlay();
             return; // Skip game updates
@@ -706,7 +721,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Update countdown timer (only if not game over)
         if (!isGameOver && gameTime > 0) {
             gameTime -= delta;
-            
+
             // Check if time ran out
             if (gameTime <= 0) {
                 gameTime = 0;
@@ -720,7 +735,7 @@ public class PlayScreen extends ScalableGameScreen {
                     isGameOver = true;
                     gameOverFadeTimer = 0f;
                     initializeGameOverButtons();
-                    
+
                     // Save score to leaderboard
                     saveScoreToLeaderboard();
                 }
@@ -862,7 +877,7 @@ public class PlayScreen extends ScalableGameScreen {
             // Only transition to game over after death animation completes
             if (player.isDeathAnimationFinished()) {
                 GameApp.log("Death animation finished - showing game over overlay");
-                
+
                 // Stop ingame music smoothly and play game over sound
                 if (soundManager != null) {
                     // Fade out ingame music smoothly before stopping
@@ -871,24 +886,24 @@ public class PlayScreen extends ScalableGameScreen {
                     soundManager.stopIngameMusic();
                     soundManager.playSound("gameover", 0.3f); // Volume at 0.3f (30%)
                 }
-                
+
                 // Initialize game over overlay
                 isGameOver = true;
                 gameOverFadeTimer = 0f;
                 initializeGameOverButtons();
-                
+
                 // Save score to leaderboard
                 saveScoreToLeaderboard();
             }
         }
-        
+
         // Pause game updates when game over (but still render)
         if (isGameOver) {
             // Update fade timer
             if (gameOverFadeTimer < GAME_OVER_FADE_DURATION) {
                 gameOverFadeTimer += delta;
             }
-            
+
             // Update button press delay timer
             if (gameOverPendingAction != null && gameOverPressedButton != null) {
                 gameOverPressTimer += delta;
@@ -900,7 +915,7 @@ public class PlayScreen extends ScalableGameScreen {
                     action.run();
                 }
             }
-            
+
             // Handle game over input
             handleGameOverInput();
         }
@@ -930,7 +945,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Render HUD after sprite rendering (HUD uses shapes and text)
         renderHUD();
-        
+
         // Render game over overlay if game over
         if (isGameOver) {
             renderGameOverOverlay();
@@ -1087,11 +1102,17 @@ public class PlayScreen extends ScalableGameScreen {
         isLevelUpActive = true;
         levelUpOptions.clear();
 
+        levelUpMenuOpening = true;
+        levelUpMenuAnimTimer = 0f;
+        levelUpSelectedIndex = 0;
+        lastLevelUpSelectedIndex = -1;
+        levelUpSelectAnim = 0f;
+
         // Play level up sound
         if (soundManager != null) {
             soundManager.playSound("levelup", 1.0f);
         }
-        
+
         // Reduce ingame music volume to 30% when level up menu is open
         if (soundManager != null) {
             soundManager.setIngameMusicVolumeTemporary(0.3f);
@@ -1131,6 +1152,12 @@ public class PlayScreen extends ScalableGameScreen {
 
     // Render level up menu
     private void renderLevelUpMenu() {
+
+        if (USE_LEVELUP_MENU_V2) {
+            renderLevelUpMenuV2();
+            return;
+        }
+
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
         float centerX = screenWidth / 2f;
@@ -1165,6 +1192,21 @@ public class PlayScreen extends ScalableGameScreen {
 
     // Handle level up menu input
     private void handleLevelUpInput() {
+
+        if (USE_LEVELUP_MENU_V2 && levelUpOptions != null && !levelUpOptions.isEmpty()) {
+            if (GameApp.isKeyJustPressed(Input.Keys.UP)) {
+                levelUpSelectedIndex--;
+                if (levelUpSelectedIndex < 0) levelUpSelectedIndex = levelUpOptions.size() - 1;
+            } else if (GameApp.isKeyJustPressed(Input.Keys.DOWN)) {
+                levelUpSelectedIndex++;
+                if (levelUpSelectedIndex >= levelUpOptions.size()) levelUpSelectedIndex = 0;
+            } else if (GameApp.isKeyJustPressed(Input.Keys.ENTER)) {
+                applyLevelUpOption(levelUpSelectedIndex);
+                return;
+            }
+        }
+
+
         // Check for number key presses (1, 2, 3)
         if (GameApp.isKeyJustPressed(Input.Keys.NUM_1) && levelUpOptions.size() > 0) {
             applyLevelUpOption(0);
@@ -1185,7 +1227,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         isLevelUpActive = false;
         levelUpOptions.clear();
-        
+
         // Restore ingame music volume to normal after closing level up menu
         if (soundManager != null) {
             soundManager.restoreIngameMusicVolume();
@@ -1202,9 +1244,237 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     // =========================
+// ADD-ONLY (LevelUp Menu V2)
+// =========================
+
+    private void renderLevelUpMenuV2() {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+
+        float dt = (lastDelta > 0f ? lastDelta : 1f / 60f);
+
+        // Entrance animation (fade + slide)
+        if (levelUpMenuOpening) {
+            levelUpMenuAnimTimer += dt * 6.0f;
+            if (levelUpMenuAnimTimer >= 1f) {
+                levelUpMenuAnimTimer = 1f;
+                levelUpMenuOpening = false;
+            }
+        } else {
+            levelUpMenuAnimTimer = 1f;
+        }
+
+        // Smooth selection highlight animation
+        if (levelUpSelectedIndex != lastLevelUpSelectedIndex) {
+            lastLevelUpSelectedIndex = levelUpSelectedIndex;
+            levelUpSelectAnim = 0f;
+        }
+        levelUpSelectAnim = Math.min(1f, levelUpSelectAnim + dt * 10f);
+
+        float t = easeOutCubic(levelUpMenuAnimTimer);
+
+        // Overlay fade
+        GameApp.startShapeRenderingFilled();
+        int overlayAlpha = (int)(200 * t);
+        GameApp.setColor(0, 0, 0, overlayAlpha);
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+
+        if (levelUpOptions == null || levelUpOptions.isEmpty()) return;
+
+        int count = levelUpOptions.size();
+
+        float menuW = screenWidth * 0.76f;
+        float cardH = 100f;
+        float gap = 16f;
+
+        float headerH = 110f;
+        float footerH = 58f;
+
+        float cardsH = (count * cardH) + ((count - 1) * gap);
+        float totalH = headerH + cardsH + footerH;
+
+        float menuX = centerX - menuW / 2f;
+
+        float targetTopY = centerY + totalH / 2f;
+        float startTopY = targetTopY + 60f;
+        float topY = lerp(startTopY, targetTopY, t);
+
+        // Header text
+        GameApp.startSpriteRendering();
+        GameApp.drawTextCentered("default", "LEVEL UP!", centerX, topY - 34f, "yellow-500");
+        GameApp.drawTextCentered("default", "Choose one upgrade", centerX, topY - 60f, "white");
+        GameApp.endSpriteRendering();
+
+        float cardsTopY = topY - headerH;
+
+        for (int i = 0; i < count; i++) {
+            LevelUpOption option = levelUpOptions.get(i);
+            boolean selected = (i == levelUpSelectedIndex);
+
+            float cardTop = cardsTopY - i * (cardH + gap);
+            float cardY = cardTop - cardH;
+
+            StatUpgradeType type = option.stat;
+
+            int[] rgb = themeRGB(type);
+            String themeText = themeTextColor(type);
+            String icon = iconFor(type);
+
+            // Card background + accents
+            GameApp.startShapeRenderingFilled();
+
+            // base card
+            GameApp.setColor(18, 18, 24, (int)(235 * t));
+            GameApp.drawRect(menuX, cardY, menuW, cardH);
+
+            // subtle inner panel
+            GameApp.setColor(28, 28, 36, (int)(220 * t));
+            GameApp.drawRect(menuX + 10f, cardY + 10f, menuW - 20f, cardH - 20f);
+
+            // theme strip
+            GameApp.setColor(rgb[0], rgb[1], rgb[2], (int)(230 * t));
+            GameApp.drawRect(menuX, cardY, 10f, cardH);
+
+            // selection glow
+            if (selected) {
+                float p = 0.35f + 0.65f * levelUpSelectAnim;
+                GameApp.setColor(rgb[0], rgb[1], rgb[2], (int)(110 * p * t));
+                GameApp.drawRect(menuX - 6f, cardY - 6f, menuW + 12f, cardH + 12f);
+            }
+
+            GameApp.endShapeRendering();
+
+            // Text + icon
+            GameApp.startSpriteRendering();
+
+            // icon
+            GameApp.drawTextCentered("default", icon, menuX + 34f, cardY + cardH / 2f + 10f, themeText);
+
+            float textX = menuX + 74f;
+
+            float titleY = cardY + cardH - 28f;
+            float previewY = cardY + cardH - 54f;
+            float descY = cardY + 18f;
+
+            // title
+            GameApp.drawText("default", option.title, textX, titleY, "white");
+
+            // level display "Level 2/5"
+            int currentLevel = player.getUpgradeLevel(option.stat);
+            int maxLevel = 5;
+            int nextLevel = Math.min(currentLevel + 1, maxLevel);
+            String levelText = "Level " + nextLevel + "/" + maxLevel;
+            GameApp.drawText("default", levelText, menuX + menuW - 140f, titleY, "white");
+
+            // stat preview "Current: X → New: Y"
+            String preview = buildPreviewText(option.stat, currentLevel);
+            GameApp.drawText("default", preview, textX, previewY, "white");
+
+            // description
+            GameApp.drawText("default", option.description, textX, descY, "white");
+
+            // selected hint
+            if (selected) {
+                GameApp.drawText("default", "ENTER to confirm", menuX + menuW - 200f, cardY + 10f, themeText);
+            }
+
+            // shortcut label
+            GameApp.drawText("default", "[" + (i + 1) + "]", menuX + menuW - 40f, cardY + 10f, "white");
+
+            GameApp.endSpriteRendering();
+        }
+
+        // Footer instructions
+        GameApp.startSpriteRendering();
+        float footerY = (topY - totalH) + 24f;
+        GameApp.drawTextCentered("default", "↑ ↓ select   ENTER confirm   (or press 1/2/3)", centerX, footerY, "white");
+        GameApp.endSpriteRendering();
+    }
+
+    private String buildPreviewText(StatUpgradeType type, int currentLevel) {
+        int maxLevel = 5;
+        int nextLevel = Math.min(currentLevel + 1, maxLevel);
+
+        String n = (type == null ? "" : type.name().toUpperCase());
+
+        // Generic fallback preview (works even if enum names vary)
+        if (n.contains("HEALTH") || n.contains("HP")) {
+            int cur = 10 + currentLevel * 2;
+            int nw = 10 + nextLevel * 2;
+            return "Current: " + cur + " \u2192 New: " + nw;
+        }
+        if (n.contains("SPEED") || n.contains("MOVE")) {
+            int cur = 100 + currentLevel * 6;
+            int nw = 100 + nextLevel * 6;
+            return "Current: +" + cur + "% \u2192 New: +" + nw + "%";
+        }
+        if (n.contains("FIRE") || n.contains("RATE") || n.contains("ATTACK")) {
+            int cur = 100 + currentLevel * 8;
+            int nw = 100 + nextLevel * 8;
+            return "Current: +" + cur + "% \u2192 New: +" + nw + "%";
+        }
+        if (n.contains("DAMAGE") || n.contains("DMG")) {
+            int cur = 100 + currentLevel * 10;
+            int nw = 100 + nextLevel * 10;
+            return "Current: +" + cur + "% \u2192 New: +" + nw + "%";
+        }
+        if (n.contains("XP") || n.contains("EXP")) {
+            int cur = 100 + currentLevel * 10;
+            int nw = 100 + nextLevel * 10;
+            return "Current: +" + cur + "% \u2192 New: +" + nw + "%";
+        }
+
+        return "Current: Level " + currentLevel + " \u2192 New: Level " + nextLevel;
+    }
+
+    private float lerp(float a, float b, float t) {
+        return a + (b - a) * t;
+    }
+
+    private float easeOutCubic(float x) {
+        float a = 1f - x;
+        return 1f - (a * a * a);
+    }
+
+    private String iconFor(StatUpgradeType type) {
+        String n = (type == null ? "" : type.name().toUpperCase());
+        if (n.contains("DAMAGE") || n.contains("DMG")) return "⚔";
+        if (n.contains("FIRE") || n.contains("RATE") || n.contains("ATTACK")) return "⚡";
+        if (n.contains("HEALTH") || n.contains("HP")) return "❤";
+        if (n.contains("SPEED") || n.contains("MOVE")) return "➤";
+        if (n.contains("XP") || n.contains("EXP")) return "✦";
+        return "★";
+    }
+
+    private String themeTextColor(StatUpgradeType type) {
+        String n = (type == null ? "" : type.name().toUpperCase());
+        if (n.contains("DAMAGE") || n.contains("DMG")) return "red-500";
+        if (n.contains("FIRE") || n.contains("RATE") || n.contains("ATTACK")) return "yellow-500";
+        if (n.contains("HEALTH") || n.contains("HP")) return "green-500";
+        if (n.contains("SPEED") || n.contains("MOVE")) return "blue-500";
+        if (n.contains("XP") || n.contains("EXP")) return "purple-500";
+        return "white";
+    }
+
+    private int[] themeRGB(StatUpgradeType type) {
+        String n = (type == null ? "" : type.name().toUpperCase());
+        if (n.contains("DAMAGE") || n.contains("DMG")) return new int[]{231, 76, 60};
+        if (n.contains("FIRE") || n.contains("RATE") || n.contains("ATTACK")) return new int[]{241, 196, 15};
+        if (n.contains("HEALTH") || n.contains("HP")) return new int[]{46, 204, 113};
+        if (n.contains("SPEED") || n.contains("MOVE")) return new int[]{52, 152, 219};
+        if (n.contains("XP") || n.contains("EXP")) return new int[]{155, 89, 182};
+        return new int[]{255, 255, 255};
+    }
+
+
+
+    // =========================
     // SCORE SAVING
     // =========================
-    
+
     /**
      * Save the current score to the leaderboard.
      * Called when the game ends (player dies or time runs out).
@@ -1215,22 +1485,22 @@ public class PlayScreen extends ScalableGameScreen {
             GameApp.log("Score already saved for this game session");
             return;
         }
-        
+
         // Check if we have player data
         PlayerData currentPlayer = PlayerData.getCurrentPlayer();
         if (currentPlayer == null) {
             GameApp.log("No player data found - score not saved to leaderboard");
             return;
         }
-        
+
         // Calculate survival time (how long they survived)
         float survivalTime = GAME_DURATION - gameTime; // Time played before dying/timeout
-        
+
         // Save to leaderboard
         LeaderboardManager.addEntry(currentPlayer, score, survivalTime);
         scoreSaved = true;
-        
-        GameApp.log(String.format("Score saved: %s - %d points, survived %.1f seconds", 
+
+        GameApp.log(String.format("Score saved: %s - %d points, survived %.1f seconds",
             currentPlayer.getUsername(), score, survivalTime));
     }
 
@@ -1241,10 +1511,10 @@ public class PlayScreen extends ScalableGameScreen {
     private void resetGame() {
         // Reset game state to PLAYING (important for Play Again button)
         gameStateManager.setCurrentState(GameState.PLAYING);
-        
+
         // Reset score saved flag for new game
         scoreSaved = false;
-        
+
         // Reset game over overlay state
         isGameOver = false;
         gameOverFadeTimer = 0f;
@@ -1256,7 +1526,7 @@ public class PlayScreen extends ScalableGameScreen {
         if (gameOverButtons != null) {
             gameOverButtons.clear();
         }
-        
+
         // Reset pause overlay state
         isPaused = false;
         pauseFadeTimer = 0f;
@@ -1268,14 +1538,14 @@ public class PlayScreen extends ScalableGameScreen {
         if (pauseButtons != null) {
             pauseButtons.clear();
         }
-        
+
         float startX = 300;
         float startY = 250;
         float speed = 80f;
         int maxHealth = 10; // Increased base health
 
         player = new Player(startX, startY, speed, maxHealth, null);
-        
+
         // Set health text callback for regen display
         player.setHealthTextCallback((amount, x, y) -> {
             damageTextSystem.spawnHealthText(x, y, amount);
@@ -1303,7 +1573,7 @@ public class PlayScreen extends ScalableGameScreen {
         enemySpawner.reset();
         collisionHandler.reset();
         damageTextSystem.reset();
-        
+
         // Reset ingame music delay timer
         ingameMusicDelayTimer = 0f;
         ingameMusicStarted = false;
@@ -1313,11 +1583,11 @@ public class PlayScreen extends ScalableGameScreen {
         int randomRoomIndex = GameApp.randomInt(0, 16); // 0 to 15
         int roomRow = randomRoomIndex / 4; // 0-3
         int roomCol = randomRoomIndex % 4; // 0-3
-        
+
         // Calculate world position at center of the random room
         playerWorldX = roomCol * MapRenderer.getMapTileWidth() + MapRenderer.getMapTileWidth() / 2f;
         playerWorldY = roomRow * MapRenderer.getMapTileHeight() + MapRenderer.getMapTileHeight() / 2f;
-        
+
         GameApp.log("Starting in random room " + randomRoomIndex + " (row=" + roomRow + ", col=" + roomCol + ")");
 
         // Check and adjust if spawn position has wall
@@ -1376,27 +1646,27 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
         GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");
     }
-    
+
     // =========================
     // GAME OVER OVERLAY
     // =========================
-    
+
     /**
      * Initialize game over buttons.
      */
     private void initializeGameOverButtons() {
         if (gameOverButtonsInitialized) return;
-        
+
         if (gameOverButtons == null) {
             gameOverButtons = new ArrayList<>();
         }
         gameOverButtons.clear();
-        
+
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
-        
+
         // Load button textures if not loaded
         if (!GameApp.hasTexture("green_long")) {
             GameApp.addTexture("green_long", "assets/ui/green_long.png");
@@ -1410,15 +1680,15 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
-        
+
         // Calculate button size from texture dimensions
         int texW = GameApp.getTextureWidth("green_long");
         int texH = GameApp.getTextureHeight("green_long");
-        
+
         float buttonWidth = texW / 2f;
         float buttonHeight = texH / 2f;
         float buttonSpacing = 20f;
-        
+
         // Play Again button (green)
         float playAgainY = centerY - 80;
         Button playAgainButton = new Button(centerX - buttonWidth / 2, playAgainY, buttonWidth, buttonHeight, "");
@@ -1429,7 +1699,7 @@ public class PlayScreen extends ScalableGameScreen {
             playAgainButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
         }
         gameOverButtons.add(playAgainButton);
-        
+
         // Back to Menu button (red)
         float backToMenuY = playAgainY - buttonHeight - buttonSpacing;
         Button backToMenuButton = new Button(centerX - buttonWidth / 2, backToMenuY, buttonWidth, buttonHeight, "");
@@ -1440,10 +1710,10 @@ public class PlayScreen extends ScalableGameScreen {
             backToMenuButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
         }
         gameOverButtons.add(backToMenuButton);
-        
+
         gameOverButtonsInitialized = true;
     }
-    
+
     /**
      * Handle input for game over overlay.
      */
@@ -1452,9 +1722,9 @@ public class PlayScreen extends ScalableGameScreen {
         com.badlogic.gdx.math.Vector2 mouseWorld = getMouseWorldPosition();
         float worldMouseX = mouseWorld.x;
         float worldMouseY = mouseWorld.y;
-        
+
         if (gameOverButtons == null || gameOverButtons.isEmpty()) return;
-        
+
         // Check if hovering over any button for cursor switching
         boolean hoveringAnyButton = false;
         for (Button button : gameOverButtons) {
@@ -1463,12 +1733,12 @@ public class PlayScreen extends ScalableGameScreen {
                 break;
             }
         }
-        
+
         // Switch cursor based on hover state
         if (cursorPointer != null && cursorHover != null) {
             boolean isMouseDown = GameApp.isButtonPressed(0);
             boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
-            
+
             if (isMouseDown || isMouseJustPressed) {
                 Gdx.graphics.setCursor(cursorPointer);
                 isHoveringGameOverButton = false;
@@ -1484,12 +1754,12 @@ public class PlayScreen extends ScalableGameScreen {
                 }
             }
         }
-        
+
         // Update buttons with world mouse position
         for (Button button : gameOverButtons) {
             button.update(worldMouseX, worldMouseY);
         }
-        
+
         // Handle mouse click
         boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
         if (isMouseJustPressed && gameOverPendingAction == null) {
@@ -1500,11 +1770,11 @@ public class PlayScreen extends ScalableGameScreen {
                     if (soundManager != null) {
                         soundManager.playSound("clickbutton", 2.5f);
                     }
-                    
+
                     // Store button and action for delayed execution
                     gameOverPressedButton = button;
                     button.setPressed(true);
-                    
+
                     // Create delayed action based on button
                     if (i == 0) {
                         // Play Again button
@@ -1517,13 +1787,13 @@ public class PlayScreen extends ScalableGameScreen {
                             GameApp.switchScreen("menu");
                         };
                     }
-                    
+
                     gameOverPressTimer = 0f;
                     break;
                 }
             }
         }
-        
+
         // Update button pressed states
         if (gameOverPendingAction == null) {
             boolean isMouseDown = GameApp.isButtonPressed(0);
@@ -1534,7 +1804,7 @@ public class PlayScreen extends ScalableGameScreen {
             gameOverPressedButton.setPressed(true);
         }
     }
-    
+
     /**
      * Render game over overlay (dark screen + title + buttons).
      */
@@ -1543,10 +1813,10 @@ public class PlayScreen extends ScalableGameScreen {
         float screenHeight = GameApp.getWorldHeight();
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
-        
+
         // Calculate fade alpha (0 to 1)
         float fadeAlpha = Math.min(gameOverFadeTimer / GAME_OVER_FADE_DURATION, 1.0f);
-        
+
         // Draw dark overlay (semi-transparent black to darken the gameplay)
         // Make it very light so gameplay is clearly visible behind (subtle darkening effect)
         GameApp.enableTransparency(); // Enable transparency for semi-transparent overlay
@@ -1554,20 +1824,20 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.setColor(0, 0, 0, (int)(fadeAlpha * 90)); // ~12% opacity - gameplay should be very clearly visible
         GameApp.drawRect(0, 0, screenWidth, screenHeight);
         GameApp.endShapeRendering();
-        
+
         // Render buttons first (they manage their own sprite batch)
         if (gameOverButtons != null) {
             for (Button button : gameOverButtons) {
                 button.render();
             }
         }
-        
+
         // Render title and text in sprite batch
         GameApp.startSpriteRendering();
-        
+
         // Draw "GAME OVER" title image
         renderGameOverTitle(centerX, centerY);
-        
+
         // Draw score and stats text
         float titleY = centerY + 90;
         float titleHeight = 200f;
@@ -1578,24 +1848,24 @@ public class PlayScreen extends ScalableGameScreen {
         } catch (Exception e) {
             // Use default
         }
-        
+
         // Calculate survival time
         float survivalTime = GAME_DURATION - gameTime;
         int survivalMinutes = (int) survivalTime / 60;
         int survivalSeconds = (int) survivalTime % 60;
         String survivalTimeStr = String.format("%02d:%02d", survivalMinutes, survivalSeconds);
-        
+
         // Get player name for display
         String playerName = "PLAYER";
         PlayerData currentPlayer = PlayerData.getCurrentPlayer();
         if (currentPlayer != null) {
             playerName = currentPlayer.getUsername().toUpperCase();
         }
-        
+
         // Get rank
         int rank = LeaderboardManager.getRank(score, survivalTime);
         String rankText = "#" + rank;
-        
+
         // Load font and color if not loaded
         if (!GameApp.hasColor("gameover_play_again_color")) {
             GameApp.addColor("gameover_play_again_color", 34, 139, 34);
@@ -1603,22 +1873,22 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("gameover_back_menu_color")) {
             GameApp.addColor("gameover_back_menu_color", 79, 29, 76);
         }
-        
+
         // Display stats below title
         float statsStartY = titleY - titleHeight / 2 - 20f;
         float statsSpacing = 25f;
-        
+
         // Player name
         GameApp.drawTextCentered("gameOverText", playerName, centerX, statsStartY, "yellow-400");
-        
+
         // Score
         String scoreText = String.format("SCORE: %,d", score);
         GameApp.drawTextCentered("gameOverText", scoreText, centerX, statsStartY - statsSpacing, "white");
-        
+
         // Survival time
         String timeText = "TIME: " + survivalTimeStr;
         GameApp.drawTextCentered("gameOverText", timeText, centerX, statsStartY - statsSpacing * 2, "green-400");
-        
+
         // Rank
         String rankDisplayText = "RANK: " + rankText;
         String rankColor = "white";
@@ -1626,13 +1896,13 @@ public class PlayScreen extends ScalableGameScreen {
         else if (rank == 2) rankColor = "gray-300";
         else if (rank == 3) rankColor = "orange-400";
         GameApp.drawTextCentered("gameOverText", rankDisplayText, centerX, statsStartY - statsSpacing * 3, rankColor);
-        
+
         // Draw button text labels
         renderGameOverButtonText(centerX, centerY);
-        
+
         GameApp.endSpriteRendering();
     }
-    
+
     /**
      * Draw game over title image.
      */
@@ -1643,11 +1913,11 @@ public class PlayScreen extends ScalableGameScreen {
                 return;
             }
         }
-        
+
         float screenWidth = GameApp.getWorldWidth();
         float titleWidth = 600f;
         float titleHeight = 200f;
-        
+
         try {
             int texWidth = GameApp.getTextureWidth("gameover_title");
             int texHeight = GameApp.getTextureHeight("gameover_title");
@@ -1660,22 +1930,22 @@ public class PlayScreen extends ScalableGameScreen {
         } catch (Exception e) {
             // Use default
         }
-        
+
         float titleX = (screenWidth - titleWidth) / 2f;
         float titleY = centerY - 60f;
-        
+
         GameApp.drawTexture("gameover_title", titleX, titleY, titleWidth, titleHeight);
     }
-    
+
     /**
      * Draw button text labels.
      * Using unified colors for all buttons.
      */
     private void renderGameOverButtonText(float centerX, float centerY) {
         if (gameOverButtons == null || gameOverButtons.size() < 2) return;
-        
+
         String fontName = "buttonFontSmall"; // Small font for 640x360 world
-        
+
         // Play Again button text (green button)
         Button playAgainButton = gameOverButtons.get(0);
         float playAgainCenterX = playAgainButton.getX() + playAgainButton.getWidth() / 2;
@@ -1683,7 +1953,7 @@ public class PlayScreen extends ScalableGameScreen {
         float playAgainTextHeight = GameApp.getTextHeight(fontName, "PLAY AGAIN");
         float playAgainAdjustedY = playAgainCenterY + playAgainTextHeight * 0.15f;
         GameApp.drawTextCentered(fontName, "PLAY AGAIN", playAgainCenterX, playAgainAdjustedY, "button_green_text");
-        
+
         // Back to Menu button text (red button)
         Button backToMenuButton = gameOverButtons.get(1);
         float backToMenuCenterX = backToMenuButton.getX() + backToMenuButton.getWidth() / 2;
@@ -1692,24 +1962,24 @@ public class PlayScreen extends ScalableGameScreen {
         float backToMenuAdjustedY = backToMenuCenterY + backToMenuTextHeight * 0.15f;
         GameApp.drawTextCentered(fontName, "BACK TO MENU", backToMenuCenterX, backToMenuAdjustedY, "button_red_text");
     }
-    
+
     // Toggle fullscreen and update config
     private void toggleFullscreen() {
         nl.saxion.game.config.GameConfig config = nl.saxion.game.config.ConfigManager.loadConfig();
         config.fullscreen = !config.fullscreen;
         nl.saxion.game.config.ConfigManager.saveConfig(config);
-        
+
         if (config.fullscreen) {
             com.badlogic.gdx.Gdx.graphics.setFullscreenMode(com.badlogic.gdx.Gdx.graphics.getDisplayMode());
         } else {
             com.badlogic.gdx.Gdx.graphics.setWindowedMode(1280, 720);
         }
     }
-    
+
     // =========================
     // PAUSE MENU
     // =========================
-    
+
     /**
      * Toggle pause state.
      */
@@ -1719,7 +1989,7 @@ public class PlayScreen extends ScalableGameScreen {
             // Entering pause
             pauseFadeTimer = 0f;
             initializePauseButtons();
-            
+
             // Reduce ingame music volume when paused
             if (soundManager != null) {
                 soundManager.setIngameMusicVolumeTemporary(0.3f);
@@ -1730,30 +2000,30 @@ public class PlayScreen extends ScalableGameScreen {
             pausePendingAction = null;
             pausePressedButton = null;
             pausePressTimer = 0f;
-            
+
             // Restore ingame music volume
             if (soundManager != null) {
                 soundManager.restoreIngameMusicVolume();
             }
         }
     }
-    
+
     /**
      * Initialize pause menu buttons.
      */
     private void initializePauseButtons() {
         if (pauseButtonsInitialized) return;
-        
+
         if (pauseButtons == null) {
             pauseButtons = new ArrayList<>();
         }
         pauseButtons.clear();
-        
+
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
-        
+
         // Load button textures if not loaded
         if (!GameApp.hasTexture("green_long")) {
             GameApp.addTexture("green_long", "assets/ui/green_long.png");
@@ -1773,24 +2043,24 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
-        
+
         // Load pause title texture if not loaded
         if (!GameApp.hasTexture("pause_title")) {
             GameApp.addTexture("pause_title", "assets/ui/pause.png");
         }
-        
+
         // Calculate button size from texture dimensions
         int texW = GameApp.getTextureWidth("green_long");
         int texH = GameApp.getTextureHeight("green_long");
-        
+
         float buttonWidth = texW / 2f;
         float buttonHeight = texH / 2f;
         float buttonSpacing = 8f; // Reduced spacing for closer buttons
-        
+
         // Position buttons below center to leave room for title above
         // Resume button starts at centerY - 30, then Settings and Quit below it
         float startY = centerY - 30f;
-        
+
         // Resume button (green) - top
         float resumeY = startY;
         Button resumeButton = new Button(centerX - buttonWidth / 2, resumeY, buttonWidth, buttonHeight, "");
@@ -1801,7 +2071,7 @@ public class PlayScreen extends ScalableGameScreen {
             resumeButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
         }
         pauseButtons.add(resumeButton);
-        
+
         // Settings button (orange) - middle
         float settingsY = resumeY - buttonHeight - buttonSpacing;
         Button settingsButton = new Button(centerX - buttonWidth / 2, settingsY, buttonWidth, buttonHeight, "");
@@ -1812,7 +2082,7 @@ public class PlayScreen extends ScalableGameScreen {
             settingsButton.setSprites("orange_long", "orange_long", "orange_long", "orange_pressed_long");
         }
         pauseButtons.add(settingsButton);
-        
+
         // Quit button (red) - bottom
         float quitY = settingsY - buttonHeight - buttonSpacing;
         Button quitButton = new Button(centerX - buttonWidth / 2, quitY, buttonWidth, buttonHeight, "");
@@ -1823,10 +2093,10 @@ public class PlayScreen extends ScalableGameScreen {
             quitButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
         }
         pauseButtons.add(quitButton);
-        
+
         pauseButtonsInitialized = true;
     }
-    
+
     /**
      * Handle input for pause menu.
      */
@@ -1835,9 +2105,9 @@ public class PlayScreen extends ScalableGameScreen {
         com.badlogic.gdx.math.Vector2 mouseWorld = getMouseWorldPosition();
         float worldMouseX = mouseWorld.x;
         float worldMouseY = mouseWorld.y;
-        
+
         if (pauseButtons == null || pauseButtons.isEmpty()) return;
-        
+
         // Check if hovering over any button for cursor switching
         boolean hoveringAnyButton = false;
         for (Button button : pauseButtons) {
@@ -1846,12 +2116,12 @@ public class PlayScreen extends ScalableGameScreen {
                 break;
             }
         }
-        
+
         // Switch cursor based on hover state
         if (cursorPointer != null && cursorHover != null) {
             boolean isMouseDown = GameApp.isButtonPressed(0);
             boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
-            
+
             if (isMouseDown || isMouseJustPressed) {
                 Gdx.graphics.setCursor(cursorPointer);
                 isHoveringPauseButton = false;
@@ -1867,12 +2137,12 @@ public class PlayScreen extends ScalableGameScreen {
                 }
             }
         }
-        
+
         // Update buttons with world mouse position
         for (Button button : pauseButtons) {
             button.update(worldMouseX, worldMouseY);
         }
-        
+
         // Handle mouse click
         boolean isMouseJustPressed = GameApp.isButtonJustPressed(0);
         if (isMouseJustPressed && pausePendingAction == null) {
@@ -1883,11 +2153,11 @@ public class PlayScreen extends ScalableGameScreen {
                     if (soundManager != null) {
                         soundManager.playSound("clickbutton", 2.5f);
                     }
-                    
+
                     // Store button and action for delayed execution
                     pausePressedButton = button;
                     button.setPressed(true);
-                    
+
                     // Create delayed action based on button
                     if (i == 0) {
                         // Resume button
@@ -1915,13 +2185,13 @@ public class PlayScreen extends ScalableGameScreen {
                             GameApp.switchScreen("menu");
                         };
                     }
-                    
+
                     pausePressTimer = 0f;
                     break;
                 }
             }
         }
-        
+
         // Update button pressed states
         if (pausePendingAction == null) {
             boolean isMouseDown = GameApp.isButtonPressed(0);
@@ -1932,7 +2202,7 @@ public class PlayScreen extends ScalableGameScreen {
             pausePressedButton.setPressed(true);
         }
     }
-    
+
     /**
      * Render pause menu overlay (dark screen + title + buttons).
      */
@@ -1941,36 +2211,36 @@ public class PlayScreen extends ScalableGameScreen {
         float screenHeight = GameApp.getWorldHeight();
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
-        
+
         // Calculate fade alpha (0 to 1)
         float fadeAlpha = Math.min(pauseFadeTimer / PAUSE_FADE_DURATION, 1.0f);
-        
+
         // Draw dark overlay (semi-transparent black to darken the gameplay)
         GameApp.enableTransparency();
         GameApp.startShapeRenderingFilled();
         GameApp.setColor(0, 0, 0, (int)(fadeAlpha * 150)); // ~60% opacity for darker effect
         GameApp.drawRect(0, 0, screenWidth, screenHeight);
         GameApp.endShapeRendering();
-        
+
         // Render buttons (they manage their own sprite batch)
         if (pauseButtons != null) {
             for (Button button : pauseButtons) {
                 button.render();
             }
         }
-        
+
         // Render title and text in sprite batch
         GameApp.startSpriteRendering();
-        
+
         // Draw pause title image
         renderPauseTitle(centerX, centerY);
-        
+
         // Draw button text labels
         renderPauseButtonText(centerX, centerY);
-        
+
         GameApp.endSpriteRendering();
     }
-    
+
     /**
      * Draw pause title image.
      * Same approach as renderGameOverTitle() - scale to 60% screen width, position at centerY - 60
@@ -1982,11 +2252,11 @@ public class PlayScreen extends ScalableGameScreen {
                 return;
             }
         }
-        
+
         float screenWidth = GameApp.getWorldWidth();
         float titleWidth = 600f;
         float titleHeight = 200f;
-        
+
         try {
             int texWidth = GameApp.getTextureWidth("pause_title");
             int texHeight = GameApp.getTextureHeight("pause_title");
@@ -1999,22 +2269,22 @@ public class PlayScreen extends ScalableGameScreen {
         } catch (Exception e) {
             // Use default
         }
-        
+
         float titleX = (screenWidth - titleWidth) / 2f;
         float titleY = centerY - 105f; // Lowered by 20f
-        
+
         GameApp.drawTexture("pause_title", titleX, titleY, titleWidth, titleHeight);
     }
-    
+
     /**
      * Draw pause menu button text labels.
      * Using unified colors for better contrast on colored buttons.
      */
     private void renderPauseButtonText(float centerX, float centerY) {
         if (pauseButtons == null || pauseButtons.size() < 3) return;
-        
+
         String fontName = "buttonFontSmall"; // Small font for 640x360 world
-        
+
         // Resume button text (green button)
         Button resumeButton = pauseButtons.get(0);
         float resumeCenterX = resumeButton.getX() + resumeButton.getWidth() / 2;
@@ -2022,7 +2292,7 @@ public class PlayScreen extends ScalableGameScreen {
         float resumeTextHeight = GameApp.getTextHeight(fontName, "RESUME");
         float resumeAdjustedY = resumeCenterY + resumeTextHeight * 0.15f;
         GameApp.drawTextCentered(fontName, "RESUME", resumeCenterX, resumeAdjustedY, "button_green_text");
-        
+
         // Settings button text (orange button)
         Button settingsButton = pauseButtons.get(1);
         float settingsCenterX = settingsButton.getX() + settingsButton.getWidth() / 2;
@@ -2030,7 +2300,7 @@ public class PlayScreen extends ScalableGameScreen {
         float settingsTextHeight = GameApp.getTextHeight(fontName, "SETTINGS");
         float settingsAdjustedY = settingsCenterY + settingsTextHeight * 0.15f;
         GameApp.drawTextCentered(fontName, "SETTINGS", settingsCenterX, settingsAdjustedY, "button_orange_text");
-        
+
         // Quit button text (red button)
         Button quitButton = pauseButtons.get(2);
         float quitCenterX = quitButton.getX() + quitButton.getWidth() / 2;
@@ -2039,7 +2309,7 @@ public class PlayScreen extends ScalableGameScreen {
         float quitAdjustedY = quitCenterY + quitTextHeight * 0.15f;
         GameApp.drawTextCentered(fontName, "QUIT GAME", quitCenterX, quitAdjustedY, "button_red_text");
     }
-    
+
     /**
      * Resume game from pause (called by SettingsScreen when returning).
      */
@@ -2048,12 +2318,12 @@ public class PlayScreen extends ScalableGameScreen {
         pausePendingAction = null;
         pausePressedButton = null;
         pausePressTimer = 0f;
-        
+
         // Re-initialize buttons in case they were disposed
         pauseButtonsInitialized = false;
         initializePauseButtons();
     }
-    
+
     /**
      * Check if game is currently paused.
      */
