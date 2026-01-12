@@ -5,6 +5,7 @@ import nl.saxion.game.MainGame;
 import nl.saxion.game.core.GameState;
 import nl.saxion.game.core.PlayerData;
 import nl.saxion.game.core.PlayerStatus;
+import nl.saxion.game.entities.BreakableObject;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.LevelUpOption;
@@ -54,6 +55,7 @@ public class PlayScreen extends ScalableGameScreen {
     private static List<Enemy> savedEnemies = null;
     private static List<Boss> savedBosses = null;
     private static List<XPOrb> savedXpOrbs = null;
+    private static List<BreakableObject> savedBreakableObjects = null;
 
     private static float savedGameTime = 0f;
     private static int savedScore = 0;
@@ -90,6 +92,7 @@ public class PlayScreen extends ScalableGameScreen {
         savedBullets = bullets;
         savedEnemies = enemies;
         savedXpOrbs = xpOrbs;
+        savedBreakableObjects = breakableObjects;
         savedGameTime = gameTime;
         savedScore = score;
         savedPlayerWorldX = playerWorldX;
@@ -112,6 +115,7 @@ public class PlayScreen extends ScalableGameScreen {
             bosses = savedBosses;
             bossSpawned = savedBossSpawned;
             xpOrbs = savedXpOrbs;
+            breakableObjects = savedBreakableObjects;
             gameTime = savedGameTime;
             score = savedScore;
             playerWorldX = savedPlayerWorldX;
@@ -132,6 +136,7 @@ public class PlayScreen extends ScalableGameScreen {
         savedEnemies = null;
         savedXpOrbs = null;
         savedBosses = null;
+        savedBreakableObjects = null;
 
     }
 
@@ -147,6 +152,7 @@ public class PlayScreen extends ScalableGameScreen {
     private List<Bullet> bullets;
     private List<Enemy> enemies;
     private List<XPOrb> xpOrbs;
+    private List<BreakableObject> breakableObjects;
 
     // Systems
     private ResourceLoader resourceLoader;
@@ -807,6 +813,15 @@ public class PlayScreen extends ScalableGameScreen {
         // Update XP orb animation
         GameApp.updateAnimation("orb_animation");
 
+        // Update breakable object animations
+        GameApp.updateAnimation("barrel_idle");
+        GameApp.updateAnimation("barrel_break");
+        
+        // Update breakable objects
+        for (BreakableObject obj : breakableObjects) {
+            obj.update(delta);
+        }
+
         // Enemy spawning (spawn behind player like Vampire Survivors)
         float playerMoveDirX = player.getLastMoveDirectionX();
         float playerMoveDirY = player.getLastMoveDirectionY();
@@ -838,6 +853,13 @@ public class PlayScreen extends ScalableGameScreen {
 
         collisionHandler.handleBossPlayerCollisions(player, bosses);
 
+        // Handle bullet vs breakable object collisions
+        collisionHandler.handleBulletBreakableObjectCollisions(
+                bullets,
+                breakableObjects,
+                (obj) -> spawnItemAtBreakableObject(obj),
+                wallChecker
+        );
 
         // Update damage texts
         damageTextSystem.update(delta);
@@ -854,6 +876,9 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler.removeDeadOrFarEnemies(enemies, playerWorldX, playerWorldY);
         collisionHandler.removeDestroyedBullets(bullets);
         bosses.removeIf(boss -> !boss.isAlive());
+        
+        // Cleanup: remove broken breakable objects
+        collisionHandler.removeBrokenObjects(breakableObjects);
 
 
         // Player death check - wait for death animation to finish
@@ -910,6 +935,9 @@ public class PlayScreen extends ScalableGameScreen {
         mapRenderer.render(playerWorldX, playerWorldY);
 
         GameApp.startSpriteRendering();
+
+        // Render breakable objects (render before enemies so they appear behind)
+        renderBreakableObjects();
 
         // Render entities
         gameRenderer.renderPlayer();
@@ -1057,6 +1085,38 @@ public class PlayScreen extends ScalableGameScreen {
                 it.remove();
             }
         }
+    }
+
+    // =========================
+    // BREAKABLE OBJECTS SYSTEM
+    // =========================
+
+    /**
+     * Renders all breakable objects in the world.
+     */
+    private void renderBreakableObjects() {
+        for (BreakableObject obj : breakableObjects) {
+            obj.render(playerWorldX, playerWorldY);
+        }
+    }
+
+    /**
+     * Spawns items at the breakable object position when it's destroyed.
+     * Currently spawns XP orbs, can be extended to spawn other items later.
+     * @param obj The breakable object that was destroyed
+     */
+    private void spawnItemAtBreakableObject(BreakableObject obj) {
+        // Spawn 2-5 XP orbs at the object's position
+        int orbCount = GameApp.randomInt(2, 6);
+        for (int i = 0; i < orbCount; i++) {
+            float offsetX = GameApp.random(-15f, 15f);
+            float offsetY = GameApp.random(-15f, 15f);
+            XPOrb orb = new XPOrb(obj.getCenterX() + offsetX, obj.getCenterY() + offsetY, 15);
+            xpOrbs.add(orb);
+        }
+        
+        GameApp.log("Breakable object destroyed! Spawned " + orbCount + " XP orbs at (" 
+                + obj.getCenterX() + ", " + obj.getCenterY() + ")");
     }
 
     // Render XP orbs
@@ -1292,6 +1352,7 @@ public class PlayScreen extends ScalableGameScreen {
         enemies = new ArrayList<>();
         bosses = new ArrayList<>();
         xpOrbs = new ArrayList<>();
+        breakableObjects = new ArrayList<>();
 
         isLevelUpActive = false;
         bossSpawned = false;
@@ -1372,6 +1433,12 @@ public class PlayScreen extends ScalableGameScreen {
         enemies.add(new Enemy(playerWorldX + 550, playerWorldY + 100, enemyBaseSpeed, enemyBaseHealth));
         enemies.add(new Enemy(playerWorldX - 520, playerWorldY - 80, enemyBaseSpeed, enemyBaseHealth));
         enemies.add(new Enemy(playerWorldX + 100, playerWorldY + 530, enemyBaseSpeed, enemyBaseHealth));
+
+        // Spawn test breakable object (barrel) near player
+        // Spawn 100 pixels to the right of player for easy testing
+        breakableObjects.clear();
+        breakableObjects.add(new BreakableObject(playerWorldX + 100, playerWorldY));
+        GameApp.log("Spawned test breakable object (barrel) at (" + (playerWorldX + 100) + ", " + playerWorldY + ")");
 
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
         GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");

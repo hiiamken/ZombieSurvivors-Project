@@ -4,10 +4,10 @@ import nl.saxion.game.entities.*;
 import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.gameapp.GameApp;
 
-
 import java.awt.*;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 // Handles all collision detection and cleanup
 public class CollisionHandler {
@@ -275,6 +275,78 @@ public class CollisionHandler {
     
     public void setSoundManager(SoundManager soundManager) {
         this.soundManager = soundManager;
+    }
+
+    /**
+     * Handles collision between bullets and breakable objects.
+     * When bullet hits an object, the object starts break animation and spawns items.
+     * 
+     * @param bullets List of active bullets
+     * @param breakableObjects List of breakable objects in the world
+     * @param onObjectBroken Callback triggered when object is broken (for item spawning)
+     * @param wallCollisionChecker Wall collision checker to prevent hits through walls
+     */
+    public void handleBulletBreakableObjectCollisions(
+            List<Bullet> bullets,
+            List<BreakableObject> breakableObjects,
+            Consumer<BreakableObject> onObjectBroken,
+            CollisionChecker wallCollisionChecker
+    ) {
+        if (breakableObjects == null || breakableObjects.isEmpty()) {
+            return;
+        }
+
+        for (Bullet b : bullets) {
+            if (b.isDestroyed()) {
+                continue;
+            }
+
+            float bX = b.getX();
+            float bY = b.getY();
+            float bW = b.getWidth();
+            float bH = b.getHeight();
+
+            // Check wall collision first
+            if (wallCollisionChecker != null && wallCollisionChecker.checkCollision(bX, bY, bW, bH)) {
+                b.destroy();
+                continue;
+            }
+
+            for (BreakableObject obj : breakableObjects) {
+                // Only check objects that can be shot (not broken and not breaking)
+                if (!obj.canBeShot()) {
+                    continue;
+                }
+
+                Rectangle objHitbox = obj.getHitbox();
+                float oX = objHitbox.x;
+                float oY = objHitbox.y;
+                float oW = objHitbox.width;
+                float oH = objHitbox.height;
+
+                if (GameApp.rectOverlap(bX, bY, bW, bH, oX, oY, oW, oH)) {
+                    // Bullet hit object -> deal damage and check if destroyed
+                    boolean wasDestroyed = obj.takeDamage();
+                    b.destroy();
+
+                    // Only trigger callback when object is fully destroyed (health reached 0)
+                    if (wasDestroyed && onObjectBroken != null) {
+                        onObjectBroken.accept(obj);
+                    }
+
+                    break; // Each bullet can only hit one object
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes completely broken objects from the list.
+     * @param breakableObjects List to clean up
+     */
+    public void removeBrokenObjects(List<BreakableObject> breakableObjects) {
+        if (breakableObjects == null) return;
+        breakableObjects.removeIf(BreakableObject::isBroken);
     }
 
     public void reset() {
