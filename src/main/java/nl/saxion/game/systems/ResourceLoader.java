@@ -104,6 +104,23 @@ public class ResourceLoader {
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 21);
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 22);
 
+        // Load breakable object sprite sheet (64x64 frames)
+        // Row 0: barrel - cols 0-2 idle, cols 3-6 break animation
+        GameApp.addSpriteSheet("object_sheet", "assets/tiles/object.png", 64, 64);
+
+        // Create barrel idle animation (row 0, cols 0-2, looping)
+        GameApp.addEmptyAnimation("barrel_idle", 0.2f, true);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 2);
+
+        // Create barrel break animation (row 0, cols 3-6, NOT looping)
+        GameApp.addEmptyAnimation("barrel_break", 0.15f, false);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 3);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 4);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 5);
+        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 6);
+
         // Load 16 individual map textures
         // Note: Game uses room_00.png to room_15.png, NOT map1.png
         // If you change map images, update room_XX.png files, not map1.png
@@ -219,6 +236,11 @@ public class ResourceLoader {
         // Dispose XP orb animation and sprite sheet
         GameApp.disposeAnimation("orb_animation");
         GameApp.disposeSpritesheet("orb_sheet");
+
+        // Dispose breakable object animations and sprite sheet
+        GameApp.disposeAnimation("barrel_idle");
+        GameApp.disposeAnimation("barrel_break");
+        GameApp.disposeSpritesheet("object_sheet");
 
         // Dispose all map textures
         for (int i = 0; i < 16; i++) {
