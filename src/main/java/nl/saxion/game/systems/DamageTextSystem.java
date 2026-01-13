@@ -6,6 +6,8 @@ import nl.saxion.gameapp.GameApp;
 
 import java.util.List;
 
+import com.badlogic.gdx.graphics.Color;
+
 // Manages damage text and health text spawning and rendering
 public class DamageTextSystem {
     private DamageTextPool damagePool;
@@ -110,22 +112,19 @@ public class DamageTextSystem {
                 continue;
             }
 
-            // Format health value (no + prefix)
+            // Format health value (no prefix, just the number)
             String healthStr = String.valueOf(text.value);
 
             // Use damage font
             String fontName = GameApp.hasFont("damageFont") ? "damageFont" : "default";
-
-            // Color: light green for healing (brighter and lighter)
-            String color = "green-300";
 
             // Calculate text width for centering (account for scale)
             float baseTextWidth = GameApp.getTextWidth(fontName, healthStr);
             float scaledTextWidth = baseTextWidth * text.scale;
             float centerX = screenX - scaledTextWidth / 2f;
 
-            // Draw outline (black, 0.5px offset)
-            float outlineOffset = 0.5f;
+            // Draw outline (black, 1px offset for better visibility)
+            float outlineOffset = 1f;
             GameApp.drawText(fontName, healthStr, centerX - outlineOffset, screenY - outlineOffset, "black");
             GameApp.drawText(fontName, healthStr, centerX + outlineOffset, screenY - outlineOffset, "black");
             GameApp.drawText(fontName, healthStr, centerX - outlineOffset, screenY + outlineOffset, "black");
@@ -135,8 +134,8 @@ public class DamageTextSystem {
             GameApp.drawText(fontName, healthStr, centerX, screenY - outlineOffset, "black");
             GameApp.drawText(fontName, healthStr, centerX, screenY + outlineOffset, "black");
 
-            // Draw main text (centered, green)
-            GameApp.drawText(fontName, healthStr, centerX, screenY, color);
+            // Draw main text (centered, lime green for healing - visible and bright)
+            GameApp.drawText(fontName, healthStr, centerX, screenY, Color.LIME);
         }
 
         GameApp.endSpriteRendering();

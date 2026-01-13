@@ -43,6 +43,7 @@ public class SoundManager {
         loadSound("levelup", "audio/levelup.mp3");
         loadSound("damaged", "audio/damaged.mp3");
         loadSound("gameover", "audio/gameover.mp3");
+        loadSound("jackpot", "audio/jackpot.mp3"); // Gacha jackpot sound
         
         // Load background music for menus (if available)
         try {

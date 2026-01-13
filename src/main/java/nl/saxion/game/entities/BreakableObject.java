@@ -4,24 +4,75 @@ import nl.saxion.gameapp.GameApp;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Breakable object that can be destroyed when shot by bullets.
  * Uses spritesheet object.png with 64x64 frame size.
- * Row 0: 3 idle frames (col 0-2), 4 break frames (col 3-6)
+ * Supports multiple object types: Barrel, Box, Rock, Sign, Mushroom, Chest.
+ * Each type uses different rows in the spritesheet.
  * Requires 2-10 hits (random) to break completely.
  */
 public class BreakableObject {
+
+    /**
+     * Enum defining all object types available in the sprite sheet.
+     * Each type uses ONE row with: cols 0-2 for idle, cols 3-6 for break animation.
+     */
+    public enum ObjectType {
+        BARREL(1, "barrel"),      // Row 1: cols 0-2 idle, cols 3-6 break
+        BOX(3, "box"),            // Row 3: cols 0-2 idle, cols 3-6 break  
+        ROCK(5, "rock"),          // Row 5: cols 0-2 idle, cols 3-6 break
+        SIGN(7, "sign"),          // Row 7: cols 0-2 idle, cols 3-6 break
+        MUSHROOM(9, "mushroom"),  // Row 9: cols 0-2 idle, cols 3-6 break
+        CHEST(11, "chest");       // Row 11: cols 0-2 idle, cols 3-6 break
+
+        public final int row;           // Row for both idle and break animation
+        public final String name;       // Animation name prefix
+
+        ObjectType(int row, String name) {
+            this.row = row;
+            this.name = name;
+        }
+
+        /**
+         * Get idle animation name for this object type.
+         */
+        public String getIdleAnimationName() {
+            return name + "_idle";
+        }
+
+        /**
+         * Get break animation name for this object type.
+         */
+        public String getBreakAnimationName() {
+            return name + "_break";
+        }
+
+        /**
+         * Get a random object type.
+         */
+        public static ObjectType getRandomType() {
+            ObjectType[] types = values();
+            return types[GameApp.randomInt(0, types.length)];
+        }
+    }
 
     // World position
     private float x;
     private float y;
 
+    // Object type determines which sprite to use
+    private ObjectType objectType;
+
     // Sprite and hitbox dimensions
     public static final int SPRITE_SIZE = 64;  // Frame size in spritesheet
     public static final int RENDER_SIZE = 80;  // Render size (slightly larger for better visibility)
-    public static final int HITBOX_SIZE = 70;  // Hitbox slightly smaller than render size
-
+    
+    // IMPORTANT: Hitbox much smaller than render - bullet must hit center!
+    public static final int HITBOX_SIZE = 32;  // Small hitbox so bullet must hit center
+    
     // Offset to center hitbox within rendered sprite
     private static final float HITBOX_OFFSET = (RENDER_SIZE - HITBOX_SIZE) / 2f;
 
@@ -43,18 +94,79 @@ public class BreakableObject {
     private float flashTimer = 0f;
     private static final float FLASH_DURATION = 0.15f; // Flash white for 0.15 seconds (visible)
 
-    // Current animation name
-    private String currentAnimation = "barrel_idle";
+    // Hit effect particles
+    private List<HitParticle> hitParticles = new ArrayList<>();
+
+    // Current animation name (depends on object type)
+    private String currentAnimation;
 
     /**
-     * Creates a breakable object at the specified world position.
+     * Inner class for hit effect particles.
+     * Creates small particles that fly out when object is hit.
+     */
+    private static class HitParticle {
+        float x, y;
+        float vx, vy;
+        float lifetime;
+        float size;
+        Color color;
+
+        HitParticle(float x, float y) {
+            this.x = x;
+            this.y = y;
+            // Random velocity direction
+            float angle = GameApp.random(0f, 360f) * (float) Math.PI / 180f;
+            float speed = GameApp.random(50f, 150f);
+            this.vx = (float) Math.cos(angle) * speed;
+            this.vy = (float) Math.sin(angle) * speed;
+            this.lifetime = GameApp.random(0.2f, 0.4f);
+            this.size = GameApp.random(3f, 6f);
+            // Brown/tan color for wood particles
+            float r = GameApp.random(0.6f, 0.9f);
+            float g = GameApp.random(0.4f, 0.6f);
+            float b = GameApp.random(0.2f, 0.4f);
+            this.color = new Color(r, g, b, 1f);
+        }
+
+        void update(float delta) {
+            x += vx * delta;
+            y += vy * delta;
+            vy -= 200f * delta; // Gravity
+            lifetime -= delta;
+            // Fade out
+            if (lifetime < 0.1f) {
+                color.a = lifetime / 0.1f;
+            }
+        }
+
+        boolean isAlive() {
+            return lifetime > 0;
+        }
+    }
+
+    /**
+     * Creates a breakable object at the specified world position with random type.
      * Health is randomized between 2-10 hits required to break.
      * @param x World X position
      * @param y World Y position
      */
     public BreakableObject(float x, float y) {
+        this(x, y, ObjectType.getRandomType());
+    }
+
+    /**
+     * Creates a breakable object at the specified world position with specific type.
+     * Health is randomized between 2-10 hits required to break.
+     * @param x World X position
+     * @param y World Y position
+     * @param type The type of object to create
+     */
+    public BreakableObject(float x, float y, ObjectType type) {
         this.x = x;
         this.y = y;
+        this.objectType = type;
+        this.currentAnimation = type.getIdleAnimationName();
+        
         this.hitbox = new Rectangle(
             (int)(x + HITBOX_OFFSET), 
             (int)(y + HITBOX_OFFSET), 
@@ -68,7 +180,7 @@ public class BreakableObject {
     }
 
     /**
-     * Updates the object state (animation timer, breaking state, flash effect).
+     * Updates the object state (animation timer, breaking state, flash effect, particles).
      * @param delta Time since last frame in seconds
      */
     public void update(float delta) {
@@ -81,10 +193,16 @@ public class BreakableObject {
             }
         }
 
+        // Update hit particles
+        hitParticles.removeIf(p -> {
+            p.update(delta);
+            return !p.isAlive();
+        });
+
         // Update break animation
         if (isBreaking) {
             breakAnimationTimer += delta;
-            currentAnimation = "barrel_break";
+            currentAnimation = objectType.getBreakAnimationName();
 
             // Finish break animation
             if (breakAnimationTimer >= BREAK_ANIMATION_DURATION) {
@@ -123,8 +241,32 @@ public class BreakableObject {
                 batch.setColor(oldColor); // Restore original color
             }
         } else {
-            // Fallback: log warning if animation not loaded
-            GameApp.log("Warning: Animation '" + currentAnimation + "' not found for BreakableObject");
+            // Fallback: use barrel animation if specific type not loaded
+            String fallbackAnim = isBreaking ? "barrel_break" : "barrel_idle";
+            if (GameApp.hasAnimation(fallbackAnim)) {
+                GameApp.drawAnimation(fallbackAnim, screenX, screenY, RENDER_SIZE, RENDER_SIZE);
+            } else {
+                // Last resort: draw colored rectangle
+                GameApp.log("Warning: Animation '" + currentAnimation + "' not found for BreakableObject");
+            }
+        }
+    }
+
+    /**
+     * Renders hit particles for this object.
+     * Should be called during shape rendering phase.
+     * @param playerWorldX Player's X position in world coordinates
+     * @param playerWorldY Player's Y position in world coordinates
+     */
+    public void renderParticles(float playerWorldX, float playerWorldY) {
+        for (HitParticle p : hitParticles) {
+            float screenX = GameApp.getWorldWidth() / 2f + (p.x - playerWorldX);
+            float screenY = GameApp.getWorldHeight() / 2f + (p.y - playerWorldY);
+            
+            // Draw particle as small square
+            GameApp.setColor((int)(p.color.r * 255), (int)(p.color.g * 255), 
+                           (int)(p.color.b * 255), (int)(p.color.a * 255));
+            GameApp.drawRect(screenX - p.size/2, screenY - p.size/2, p.size, p.size);
         }
     }
 
@@ -145,6 +287,14 @@ public class BreakableObject {
         isFlashing = true;
         flashTimer = FLASH_DURATION;
 
+        // Spawn hit particles (3-6 particles per hit)
+        int particleCount = GameApp.randomInt(3, 7);
+        float centerX = getCenterX();
+        float centerY = getCenterY();
+        for (int i = 0; i < particleCount; i++) {
+            hitParticles.add(new HitParticle(centerX, centerY));
+        }
+
         // Check if destroyed
         if (health <= 0) {
             startBreaking();
@@ -160,11 +310,11 @@ public class BreakableObject {
     private void startBreaking() {
         isBreaking = true;
         breakAnimationTimer = 0f;
-        currentAnimation = "barrel_break";
+        currentAnimation = objectType.getBreakAnimationName();
 
         // Reset animation to play from start
-        if (GameApp.hasAnimation("barrel_break")) {
-            GameApp.resetAnimation("barrel_break");
+        if (GameApp.hasAnimation(currentAnimation)) {
+            GameApp.resetAnimation(currentAnimation);
         }
     }
 
@@ -208,6 +358,22 @@ public class BreakableObject {
      */
     public Rectangle getHitbox() {
         return hitbox;
+    }
+
+    /**
+     * Gets the object type.
+     * @return ObjectType enum value
+     */
+    public ObjectType getObjectType() {
+        return objectType;
+    }
+
+    /**
+     * Checks if this object has active hit particles to render.
+     * @return true if there are particles to render
+     */
+    public boolean hasParticles() {
+        return !hitParticles.isEmpty();
     }
 
     // Position getters

@@ -2,16 +2,22 @@ package nl.saxion.game.screens;
 
 
 import nl.saxion.game.MainGame;
+import nl.saxion.game.config.ConfigManager;
+import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.core.GameState;
 import nl.saxion.game.core.PlayerData;
 import nl.saxion.game.core.PlayerStatus;
 import nl.saxion.game.entities.BreakableObject;
 import nl.saxion.game.entities.Bullet;
 import nl.saxion.game.entities.Enemy;
+import nl.saxion.game.entities.HealingItem;
 import nl.saxion.game.entities.LevelUpOption;
+import nl.saxion.game.entities.PassiveItem;
+import nl.saxion.game.entities.PassiveItemType;
 import nl.saxion.game.entities.Player;
 import nl.saxion.game.entities.StatUpgradeType;
 import nl.saxion.game.entities.Weapon;
+import nl.saxion.game.entities.WeaponUpgrade;
 import nl.saxion.game.entities.XPOrb;
 import nl.saxion.game.systems.CollisionHandler;
 import nl.saxion.game.systems.DamageTextSystem;
@@ -23,8 +29,11 @@ import nl.saxion.game.systems.LeaderboardManager;
 import nl.saxion.game.systems.MapRenderer;
 import nl.saxion.game.systems.ResourceLoader;
 import nl.saxion.game.systems.SoundManager;
+import nl.saxion.game.systems.GachaSystem;
 import nl.saxion.game.ui.Button;
 import nl.saxion.game.ui.HUD;
+import nl.saxion.game.ui.LevelUpMenuRenderer;
+import nl.saxion.game.entities.TreasureChest;
 import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.game.utils.DebugLogger;
 import nl.saxion.game.utils.TMXMapData;
@@ -56,18 +65,30 @@ public class PlayScreen extends ScalableGameScreen {
     private static List<Boss> savedBosses = null;
     private static List<XPOrb> savedXpOrbs = null;
     private static List<BreakableObject> savedBreakableObjects = null;
+    private static List<HealingItem> savedHealingItems = null;
 
     private static float savedGameTime = 0f;
     private static int savedScore = 0;
     private static float savedPlayerWorldX = 0f;
     private static float savedPlayerWorldY = 0f;
     private static boolean savedIngameMusicStarted = false;
-    private static boolean savedBossSpawned = false;
+    private static int savedCurrentRound = 0;
 
-    // Boss system
+    // MiniBoss system - spawns at end of each round (every 60 seconds)
     private List<Boss> bosses;
-    private boolean bossSpawned = false;
-    private static final float BOSS_SPAWN_TIME = 10f;
+    private int currentRound = 0;
+    private static final float ROUND_DURATION = 60f; // 1 round = 60 seconds
+    private static final int TOTAL_ROUNDS = 10; // 10 rounds in 10 minutes
+    
+    // Treasure Chest system - spawns when MiniBoss is killed
+    private List<TreasureChest> treasureChests;
+    private static List<TreasureChest> savedTreasureChests = null;
+    // Track bosses that already spawned chests to prevent duplicates
+    private java.util.Set<Boss> bossesThatSpawnedChest = new java.util.HashSet<>();
+    
+    // Gacha system - triggers when chest is opened
+    private GachaSystem gachaSystem;
+    private boolean isGachaActive = false;
 
     /**
      * Set flag to indicate returning from settings.
@@ -93,14 +114,15 @@ public class PlayScreen extends ScalableGameScreen {
         savedEnemies = enemies;
         savedXpOrbs = xpOrbs;
         savedBreakableObjects = breakableObjects;
+        savedHealingItems = healingItems;
         savedGameTime = gameTime;
         savedScore = score;
         savedPlayerWorldX = playerWorldX;
         savedPlayerWorldY = playerWorldY;
         savedIngameMusicStarted = ingameMusicStarted;
         savedBosses = bosses;
-        savedBossSpawned = bossSpawned;
-
+        savedTreasureChests = treasureChests;
+        savedCurrentRound = currentRound;
     }
 
     /**
@@ -113,9 +135,11 @@ public class PlayScreen extends ScalableGameScreen {
             bullets = savedBullets;
             enemies = savedEnemies;
             bosses = savedBosses;
-            bossSpawned = savedBossSpawned;
+            treasureChests = savedTreasureChests;
+            currentRound = savedCurrentRound;
             xpOrbs = savedXpOrbs;
             breakableObjects = savedBreakableObjects;
+            healingItems = savedHealingItems;
             gameTime = savedGameTime;
             score = savedScore;
             playerWorldX = savedPlayerWorldX;
@@ -127,6 +151,13 @@ public class PlayScreen extends ScalableGameScreen {
                 gameRenderer.setPlayer(player);
                 gameRenderer.setPlayerWorldPosition(playerWorldX, playerWorldY);
             }
+            
+            // Re-setup gacha system references
+            if (gachaSystem != null) {
+                gachaSystem.setPlayer(player);
+                gachaSystem.setWeapon(weapon);
+                gachaSystem.setSoundManager(soundManager);
+            }
         }
 
         // Clear saved state
@@ -136,12 +167,14 @@ public class PlayScreen extends ScalableGameScreen {
         savedEnemies = null;
         savedXpOrbs = null;
         savedBosses = null;
+        savedTreasureChests = null;
         savedBreakableObjects = null;
-
+        savedHealingItems = null;
     }
 
     private InputController input;
     private HUD hud;
+    private LevelUpMenuRenderer levelUpMenuRenderer;
 
     // Cursor management
     private Cursor cursorPointer; // For click/default state
@@ -153,6 +186,7 @@ public class PlayScreen extends ScalableGameScreen {
     private List<Enemy> enemies;
     private List<XPOrb> xpOrbs;
     private List<BreakableObject> breakableObjects;
+    private List<HealingItem> healingItems;
 
     // Systems
     private ResourceLoader resourceLoader;
@@ -165,7 +199,7 @@ public class PlayScreen extends ScalableGameScreen {
     private SoundManager soundManager;
 
     // Game state
-    private static final float GAME_DURATION = 900f; // 10 minutes countdown
+    private static final float GAME_DURATION = 600f; // 10 minutes countdown (600 seconds)
     private float gameTime = GAME_DURATION;
     private int score = 0;
     private float playerWorldX;
@@ -188,6 +222,22 @@ public class PlayScreen extends ScalableGameScreen {
     private int levelUpSelectedIndex = 0;
     private int lastLevelUpSelectedIndex = -1;
     private float levelUpSelectAnim = 0f; // 0..1 smoothing
+    
+    // Rainbow XP bar animation timer
+    private float levelUpRainbowTimer = 0f;
+    
+    // Level up menu arrow animation
+    private float levelUpArrowAnimTimer = 0f;
+    
+    // Falling orbs effect for level up menu
+    private static class FallingOrb {
+        float x, y, speed, size, alpha;
+        FallingOrb(float x, float y, float speed, float size) {
+            this.x = x; this.y = y; this.speed = speed; this.size = size; this.alpha = 1f;
+        }
+    }
+    private List<FallingOrb> levelUpFallingOrbs = new ArrayList<>();
+    private boolean levelUpOrbsInitialized = false;
 
     // Ingame music delay
     private float ingameMusicDelayTimer = 0f;
@@ -236,6 +286,7 @@ public class PlayScreen extends ScalableGameScreen {
 
             Map<Integer, TMXMapData> tmxMapDataByRoomIndex = resourceLoader.loadTMXMaps();
             mapRenderer = new MapRenderer(tmxMapDataByRoomIndex);
+            mapRenderer.setResourceLoader(resourceLoader); // Enable sharp rendering
             enemySpawner = new EnemySpawner();
             collisionHandler = new CollisionHandler();
             gameRenderer = new GameRenderer();
@@ -249,6 +300,7 @@ public class PlayScreen extends ScalableGameScreen {
 
             input = new InputController(MainGame.getConfig());
             hud = new HUD();
+            levelUpMenuRenderer = new LevelUpMenuRenderer();
 
             // Load fonts and textures
             loadFontsAndTextures();
@@ -293,6 +345,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         Map<Integer, TMXMapData> tmxMapDataByRoomIndex = resourceLoader.loadTMXMaps();
         mapRenderer = new MapRenderer(tmxMapDataByRoomIndex);
+        mapRenderer.setResourceLoader(resourceLoader); // Enable sharp rendering
         enemySpawner = new EnemySpawner();
         collisionHandler = new CollisionHandler();
         gameRenderer = new GameRenderer();
@@ -320,6 +373,7 @@ public class PlayScreen extends ScalableGameScreen {
 
         input = new InputController(MainGame.getConfig());
         hud = new HUD();
+        levelUpMenuRenderer = new LevelUpMenuRenderer();
 
         // Load game over fonts - adjusted size for smaller world
         GameApp.addStyledFont("gameOverTitle", "fonts/Emulogic-zrEw.ttf", 72,
@@ -404,6 +458,23 @@ public class PlayScreen extends ScalableGameScreen {
         GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
                 "white", 0f, "black", 1, 1, "gray-700", true);
 
+        // Load level up menu fonts using diverse PixelOperator family
+        // Title: Heavy Bold for big impact - BIGGER
+        GameApp.addStyledFont("levelUpTitleFont", "fonts/PixelOperatorHB.ttf", 36,
+            "yellow-500", 1.5f, "black", 2, 2, "orange-900", true);
+        // Item name: Bold for clear readability - BIGGER
+        GameApp.addStyledFont("levelUpItemFont", "fonts/PixelOperator-Bold.ttf", 20,
+            "white", 0f, "black", 1, 1, "gray-700", true);
+        // "New!" label: Heavy Bold 8px for accent - BIGGER
+        GameApp.addStyledFont("levelUpNewFont", "fonts/PixelOperatorHB8.ttf", 18,
+            "orange-400", 0f, "black", 1, 1, "orange-900", true);
+        // Level display: Small Caps Bold for "Lv.1" and "MAX" - BIGGER
+        GameApp.addStyledFont("levelUpLevelFont", "fonts/PixelOperatorSC-Bold.ttf", 18,
+            "white", 0f, "black", 1, 1, "gray-700", true);
+        // Description: Regular for easy reading - slightly bigger
+        GameApp.addStyledFont("levelUpDescFont", "fonts/PixelOperator.ttf", 14,
+            "gray-300", 0f, "black", 0, 0, "gray-700", false);
+
         // Load game over background image
         if (!GameApp.hasTexture("gameover_bg")) {
             GameApp.addTexture("gameover_bg", "assets/ui/gameover.png");
@@ -483,6 +554,42 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("orange_pressed_long")) {
             GameApp.addTexture("orange_pressed_long", "assets/ui/orange_pressed_long.png");
         }
+        
+        // Load arrow texture for level up menu
+        if (!GameApp.hasTexture("arrow")) {
+            GameApp.addTexture("arrow", "assets/ui/arrow.png");
+        }
+        
+        // Load level up menu fonts using diverse PixelOperator family - BIGGER SIZES
+        // Title: Heavy Bold for big impact
+        try {
+            GameApp.addStyledFont("levelUpTitleFont", "fonts/PixelOperatorHB.ttf", 36,
+                "yellow-500", 1.5f, "black", 2, 2, "orange-900", true);
+        } catch (Exception e) { GameApp.log("levelUpTitleFont already loaded or error: " + e.getMessage()); }
+        
+        // Item name: Bold for clear readability
+        try {
+            GameApp.addStyledFont("levelUpItemFont", "fonts/PixelOperator-Bold.ttf", 20,
+                "white", 0f, "black", 1, 1, "gray-700", true);
+        } catch (Exception e) { GameApp.log("levelUpItemFont already loaded or error: " + e.getMessage()); }
+        
+        // "New!" label: Heavy Bold 8px for accent
+        try {
+            GameApp.addStyledFont("levelUpNewFont", "fonts/PixelOperatorHB8.ttf", 18,
+                "orange-400", 0f, "black", 1, 1, "orange-900", true);
+        } catch (Exception e) { GameApp.log("levelUpNewFont already loaded or error: " + e.getMessage()); }
+        
+        // Level display: Small Caps Bold for "Lv.1" and "MAX"
+        try {
+            GameApp.addStyledFont("levelUpLevelFont", "fonts/PixelOperatorSC-Bold.ttf", 18,
+                "white", 0f, "black", 1, 1, "gray-700", true);
+        } catch (Exception e) { GameApp.log("levelUpLevelFont already loaded or error: " + e.getMessage()); }
+        
+        // Description: Regular for easy reading
+        try {
+            GameApp.addStyledFont("levelUpDescFont", "fonts/PixelOperator.ttf", 14,
+                "gray-300", 0f, "black", 0, 0, "gray-700", false);
+        } catch (Exception e) { GameApp.log("levelUpDescFont already loaded or error: " + e.getMessage()); }
 
         // Unified button colors for all menus
         if (!GameApp.hasColor("button_green_text")) {
@@ -617,7 +724,12 @@ public class PlayScreen extends ScalableGameScreen {
         if (soundManager != null) {
             soundManager.stopIngameMusic();
         }
-
+        
+        // Dispose map renderer
+        if (mapRenderer != null) {
+            mapRenderer.dispose();
+        }
+        
         if (resourceLoader != null) {
             resourceLoader.disposeGameResources();
         }
@@ -683,7 +795,9 @@ public class PlayScreen extends ScalableGameScreen {
             gameRenderer.renderBullets(bullets);
             GameApp.endSpriteRendering();
             renderPlayerHealthBar();
+            renderBreakableObjectParticles();
             renderXPOrbs();
+            renderHealingItems();
             renderHUD();
 
             // Render pause overlay on top
@@ -691,6 +805,49 @@ public class PlayScreen extends ScalableGameScreen {
             return; // Skip game updates
         }
 
+        // Handle gacha system (pause game when active)
+        if (isGachaActive && gachaSystem != null) {
+            // Check if gacha system is still active
+            if (!gachaSystem.isActive()) {
+                // Gacha finished unexpectedly, reset flag
+                isGachaActive = false;
+                GameApp.log("Gacha system inactive, resetting isGachaActive flag");
+            } else {
+                // CRITICAL: Cleanup ALL chests when gacha is active (should be none, but safety)
+                // Remove ALL chests (not just opened/ready ones) because gacha is active
+                if (treasureChests != null && treasureChests.size() > 0) {
+                    int beforeCleanup = treasureChests.size();
+                    treasureChests.clear(); // Clear ALL chests when gacha is active
+                    GameApp.log("DEBUG CRITICAL: Cleared " + beforeCleanup + " chests during active gacha (should be 0)");
+                }
+                
+                // IMPORTANT: Update gacha animation FIRST!
+                gachaSystem.update(delta);
+                
+                handleGachaInput();
+                
+                // Still render game in background (frozen)
+                mapRenderer.render(playerWorldX, playerWorldY);
+                GameApp.startSpriteRendering();
+                gameRenderer.renderPlayer();
+                gameRenderer.renderEnemies(enemies);
+                gameRenderer.renderBosses(bosses);
+                gameRenderer.renderBullets(bullets);
+                // DO NOT render chests during gacha - they should be removed already
+                // renderTreasureChests();
+                GameApp.endSpriteRendering();
+                renderPlayerHealthBar();
+                renderBreakableObjectParticles();
+                renderXPOrbs();
+                renderHealingItems();
+                renderHUD();
+                
+                // Render gacha overlay on top
+                gachaSystem.render();
+                return; // Skip game updates
+            }
+        }
+        
         // Handle level up menu (pause game when active)
         if (isLevelUpActive) {
             // Get mouse position for cursor switching
@@ -716,9 +873,15 @@ public class PlayScreen extends ScalableGameScreen {
             gameRenderer.renderEnemies(enemies);
             gameRenderer.renderBosses(bosses);
             gameRenderer.renderBullets(bullets);
+            renderTreasureChests();
             GameApp.endSpriteRendering();
             renderPlayerHealthBar();
+            renderBreakableObjectParticles();
             renderXPOrbs();
+            renderHealingItems();
+            // Update rainbow timer for XP bar
+            levelUpRainbowTimer += delta * 2f;
+            if (levelUpRainbowTimer > 1f) levelUpRainbowTimer -= 1f;
             renderHUD();
             renderLevelUpMenu();
             return; // Skip game updates
@@ -746,6 +909,39 @@ public class PlayScreen extends ScalableGameScreen {
                     saveScoreToLeaderboard();
                 }
             }
+        }
+
+        // ============================================
+        // FREEZE GAME WHEN TIME IS UP (isGameOver)
+        // Skip all game logic updates, only render and handle game over UI
+        // ============================================
+        if (isGameOver) {
+            // Update fade timer
+            if (gameOverFadeTimer < GAME_OVER_FADE_DURATION) {
+                gameOverFadeTimer += delta;
+            }
+
+            // Update button press delay timer
+            if (gameOverPendingAction != null && gameOverPressedButton != null) {
+                gameOverPressTimer += delta;
+                if (gameOverPressTimer >= gameOverPressDelay) {
+                    Runnable action = gameOverPendingAction;
+                    gameOverPendingAction = null;
+                    gameOverPressedButton = null;
+                    gameOverPressTimer = 0f;
+                    action.run();
+                }
+            }
+
+            // Handle game over input
+            handleGameOverInput();
+            
+            // Only update animations (for visual continuity) but skip game logic
+            updateAnimationsOnly();
+            
+            // Skip to render section - don't update any game logic
+            renderGameFrozen();
+            return;
         }
 
         // Update player
@@ -828,9 +1024,12 @@ public class PlayScreen extends ScalableGameScreen {
         // Update XP orb animation
         GameApp.updateAnimation("orb_animation");
 
-        // Update breakable object animations
-        GameApp.updateAnimation("barrel_idle");
-        GameApp.updateAnimation("barrel_break");
+        // Update breakable object animations for ALL object types
+        String[] objectTypes = {"barrel", "box", "rock", "sign", "mushroom", "chest"};
+        for (String type : objectTypes) {
+            GameApp.updateAnimation(type + "_idle");
+            GameApp.updateAnimation(type + "_break");
+        }
         
         // Update breakable objects
         for (BreakableObject obj : breakableObjects) {
@@ -843,9 +1042,15 @@ public class PlayScreen extends ScalableGameScreen {
         // Pass elapsed time (not countdown) for difficulty scaling
         float elapsedTime = GAME_DURATION - gameTime;
 
-        if (!bossSpawned && elapsedTime >= BOSS_SPAWN_TIME) {
-            spawnBossNearPlayer(playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY);
+        // MiniBoss spawn at end of each round (every 60 seconds)
+        int expectedRound = (int)(elapsedTime / ROUND_DURATION);
+        if (expectedRound > currentRound && expectedRound <= TOTAL_ROUNDS) {
+            // New round! Spawn MiniBoss
+            currentRound = expectedRound;
+            spawnMiniBossNearPlayer(playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, currentRound);
+            GameApp.log("Round " + currentRound + " completed! MiniBoss spawned!");
         }
+        
         enemySpawner.update(delta, elapsedTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
 
         // Collision detection
@@ -862,7 +1067,7 @@ public class PlayScreen extends ScalableGameScreen {
                 bullets,
                 bosses,
                 (Integer s) -> addScore(s),
-                (Boss boss) -> spawnXPOrbsAtBoss(boss),
+                (Boss boss) -> spawnTreasureChestAtBoss(boss), // Spawn chest instead of XP orbs
                 wallChecker
         );
 
@@ -881,19 +1086,40 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Update XP orbs
         updateXPOrbs(delta);
+        
+        // Update healing items (chicken)
+        updateHealingItems(delta);
+        
+        // Update treasure chests
+        updateTreasureChests(delta);
+        
+        // Note: Gacha system is updated in the gacha active block above (with return)
+        // No need to update here as it would never reach this point when gacha is active
 
-        // Check for level up
-        if (!isLevelUpActive && player.checkLevelUp()) {
+        // Check for level up (only if gacha not active)
+        if (!isLevelUpActive && !isGachaActive && player.checkLevelUp()) {
             showLevelUpMenu();
         }
 
         // Cleanup: remove dead enemies and enemies too far (soft despawn cleanup)
         collisionHandler.removeDeadOrFarEnemies(enemies, playerWorldX, playerWorldY);
         collisionHandler.removeDestroyedBullets(bullets);
-        bosses.removeIf(boss -> !boss.isAlive());
+        // Cleanup dead bosses and remove them from tracking set
+        bosses.removeIf(boss -> {
+            boolean shouldRemove = !boss.isAlive() && boss.isDeathAnimationFinished();
+            if (shouldRemove) {
+                bossesThatSpawnedChest.remove(boss); // Cleanup tracking
+            }
+            return shouldRemove;
+        });
         
         // Cleanup: remove broken breakable objects
         collisionHandler.removeBrokenObjects(breakableObjects);
+        
+        // Cleanup: remove collected treasure chests
+        if (treasureChests != null) {
+            treasureChests.removeIf(TreasureChest::isCollected);
+        }
 
 
         // Player death check - wait for death animation to finish
@@ -922,29 +1148,6 @@ public class PlayScreen extends ScalableGameScreen {
             }
         }
 
-        // Pause game updates when game over (but still render)
-        if (isGameOver) {
-            // Update fade timer
-            if (gameOverFadeTimer < GAME_OVER_FADE_DURATION) {
-                gameOverFadeTimer += delta;
-            }
-
-            // Update button press delay timer
-            if (gameOverPendingAction != null && gameOverPressedButton != null) {
-                gameOverPressTimer += delta;
-                if (gameOverPressTimer >= gameOverPressDelay) {
-                    Runnable action = gameOverPendingAction;
-                    gameOverPendingAction = null;
-                    gameOverPressedButton = null;
-                    gameOverPressTimer = 0f;
-                    action.run();
-                }
-            }
-
-            // Handle game over input
-            handleGameOverInput();
-        }
-
         // ----- RENDER -----
         // Render map background first (always render, even when game over)
         mapRenderer.render(playerWorldX, playerWorldY);
@@ -959,6 +1162,9 @@ public class PlayScreen extends ScalableGameScreen {
         gameRenderer.renderEnemies(enemies);
         gameRenderer.renderBosses(bosses);
         gameRenderer.renderBullets(bullets);
+        
+        // Render treasure chests
+        renderTreasureChests();
 
         GameApp.endSpriteRendering();
 
@@ -968,8 +1174,14 @@ public class PlayScreen extends ScalableGameScreen {
         // Render health bar below player (uses shape rendering)
         renderPlayerHealthBar();
 
+        // Render breakable object hit particles (shape rendering)
+        renderBreakableObjectParticles();
+
         // Render XP orbs (uses shape rendering)
         renderXPOrbs();
+
+        // Render healing items (chicken) with glow
+        renderHealingItems();
 
         // Render HUD after sprite rendering (HUD uses shapes and text)
         renderHUD();
@@ -998,9 +1210,153 @@ public class PlayScreen extends ScalableGameScreen {
         score = (int) GameApp.clamp(score, 0, Integer.MAX_VALUE);
     }
 
+    /**
+     * Update animations only (for frozen game state visual continuity).
+     * Called when game is over but we still want animations to look alive.
+     */
+    private void updateAnimationsOnly() {
+        // Update player animations
+        GameApp.updateAnimation("player_idle");
+        GameApp.updateAnimation("player_run_left");
+        GameApp.updateAnimation("player_run_right");
+        GameApp.updateAnimation("player_hit");
+        GameApp.updateAnimation("player_death");
+
+        // Update zombie animations
+        GameApp.updateAnimation("zombie_idle");
+        GameApp.updateAnimation("zombie_run");
+        GameApp.updateAnimation("zombie_hit");
+        GameApp.updateAnimation("zombie_death");
+        GameApp.updateAnimation("zombie3_idle");
+        GameApp.updateAnimation("zombie3_run");
+        GameApp.updateAnimation("zombie3_hit");
+        GameApp.updateAnimation("zombie3_death");
+        GameApp.updateAnimation("zombie4_idle");
+        GameApp.updateAnimation("zombie4_run");
+        GameApp.updateAnimation("zombie4_hit");
+        GameApp.updateAnimation("zombie4_death");
+
+        // Update boss animations
+        GameApp.updateAnimation("boss_idle");
+        GameApp.updateAnimation("boss_run");
+        GameApp.updateAnimation("boss_attack");
+        GameApp.updateAnimation("boss_death");
+
+        // Update object animations
+        String[] objectTypes = {"barrel", "box", "rock", "sign", "mushroom", "chest"};
+        for (String type : objectTypes) {
+            GameApp.updateAnimation(type + "_idle");
+            GameApp.updateAnimation(type + "_break");
+        }
+    }
+
+    /**
+     * Render game in frozen state (when game over).
+     * Shows all entities but no gameplay updates.
+     */
+    private void renderGameFrozen() {
+        // Render map background
+        mapRenderer.render(playerWorldX, playerWorldY);
+
+        GameApp.startSpriteRendering();
+
+        // Render all entities (frozen in place)
+        renderBreakableObjects();
+        gameRenderer.renderPlayer();
+        gameRenderer.renderEnemies(enemies);
+        gameRenderer.renderBosses(bosses);
+        gameRenderer.renderBullets(bullets);
+        renderTreasureChests();
+
+        GameApp.endSpriteRendering();
+
+        // Render effects
+        damageTextSystem.render(playerWorldX, playerWorldY);
+        renderPlayerHealthBar();
+        renderBreakableObjectParticles();
+        renderXPOrbs();
+        renderHealingItems();
+
+        // Render HUD (shows 00:00 timer)
+        renderHUD();
+
+        // Render game over overlay
+        renderGameOverOverlay();
+    }
+
     private void renderHUD() {
         PlayerStatus status = getPlayerStatus();
-        hud.render(status, gameTime);
+        
+        // Update HUD with weapon and passive items info
+        hud.setWeapon(weapon);
+        hud.setPassiveItems(player.getOwnedPassiveItems());
+        
+        // Render rainbow XP bar if level up active, otherwise normal HUD
+        if (isLevelUpActive) {
+            // Render rainbow XP bar
+            renderRainbowXPBar(status, levelUpRainbowTimer);
+            
+            // Render item icons first (manages its own rendering state)
+            hud.renderItemIconsOnly();
+            
+            // Render HUD text separately (score, level, timer, etc)
+            GameApp.startSpriteRendering();
+            hud.renderScoreOnly(status);
+            hud.renderXPTextOnly(status);
+            hud.renderSurvivalTimeOnly(gameTime);
+            GameApp.endSpriteRendering();
+        } else {
+            hud.render(status, gameTime);
+        }
+    }
+    
+    /**
+     * Render rainbow XP bar (7 colors cycling) when level up menu is active
+     */
+    private void renderRainbowXPBar(PlayerStatus status, float rainbowTimer) {
+        float percent = status.currentXP / (float) status.xpToNext;
+        percent = GameApp.clamp(percent, 0f, 1f);
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float barHeight = 18f;
+        float barY = screenHeight - barHeight;
+        
+        GameApp.startShapeRenderingFilled();
+        
+        // Background
+        GameApp.setColor(40, 40, 40, 255);
+        GameApp.drawRect(0, barY, screenWidth, barHeight);
+        
+        // Rainbow fill (7 colors cycling)
+        if (percent > 0) {
+            float barWidth = screenWidth * percent;
+            
+            // 7 rainbow colors: red, orange, yellow, green, cyan, blue, purple
+            int[][] rainbowColors = {
+                {255, 0, 0},       // Red
+                {255, 165, 0},     // Orange
+                {255, 255, 0},     // Yellow
+                {0, 255, 0},       // Green
+                {0, 255, 255},     // Cyan
+                {0, 0, 255},       // Blue
+                {148, 0, 211}      // Purple
+            };
+            
+            int colorIndex = (int)(rainbowTimer * 7) % 7;
+            int[] color = rainbowColors[colorIndex];
+            GameApp.setColor(color[0], color[1], color[2], 255);
+            GameApp.drawRect(0, barY, barWidth, barHeight);
+        }
+        
+        GameApp.endShapeRendering();
+        
+        // Border
+        GameApp.startShapeRenderingOutlined();
+        GameApp.setLineWidth(3f);
+        GameApp.setColor(100, 100, 100, 255);
+        GameApp.drawRect(0, barY, screenWidth, barHeight);
+        GameApp.endShapeRendering();
     }
 
     // Render health bar below player (like Vampire Survivors)
@@ -1116,22 +1472,235 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     /**
+     * Renders hit particles for all breakable objects.
+     * Should be called during shape rendering phase.
+     */
+    private void renderBreakableObjectParticles() {
+        GameApp.startShapeRenderingFilled();
+        for (BreakableObject obj : breakableObjects) {
+            if (obj.hasParticles()) {
+                obj.renderParticles(playerWorldX, playerWorldY);
+            }
+        }
+        GameApp.endShapeRendering();
+    }
+
+    /**
+     * Spawns breakable objects randomly in all 16 rooms.
+     * Each room gets 1-5 objects at random positions, with minimum distance between them.
+     * Uses TMX wall collision data to avoid spawning near walls.
+     */
+    private void spawnBreakableObjectsInAllRooms() {
+        int roomWidth = MapRenderer.getMapTileWidth();   // 960
+        int roomHeight = MapRenderer.getMapTileHeight(); // 640
+        
+        // Minimum distance between objects to avoid clustering
+        float minDistanceBetweenObjects = 150f;
+        
+        // Wall padding - how far from walls objects should spawn (increased for better spacing)
+        float wallPadding = 100f;
+        
+        // Spawn objects in all 16 rooms (4x4 grid)
+        for (int roomRow = 0; roomRow < 4; roomRow++) {
+            for (int roomCol = 0; roomCol < 4; roomCol++) {
+                // Calculate room bounds
+                float roomStartX = roomCol * roomWidth;
+                float roomStartY = roomRow * roomHeight;
+                
+                // Track objects spawned in this room for distance checking
+                List<float[]> roomObjects = new ArrayList<>();
+                
+                // Spawn 1-5 objects in this room
+                int objectCount = GameApp.randomInt(1, 6); // 1 to 5 inclusive
+                
+                for (int i = 0; i < objectCount; i++) {
+                    // Try to find a valid spawn position (not in wall, not too close to walls/others)
+                    int attempts = 0;
+                    int maxAttempts = 80; // More attempts for better placement
+                    
+                    while (attempts < maxAttempts) {
+                        // Random position within room (with larger margin from edges)
+                        float margin = 160f; // Larger margin to avoid walls near room edges
+                        float objX = roomStartX + margin + GameApp.random(0f, roomWidth - 2 * margin);
+                        float objY = roomStartY + margin + GameApp.random(0f, roomHeight - 2 * margin);
+                        
+                        // Check if position is valid (not in wall) - check the object itself
+                        boolean validPosition = true;
+                        
+                        if (mapRenderer != null) {
+                            // Check center point of object
+                            float centerX = objX + BreakableObject.RENDER_SIZE / 2;
+                            float centerY = objY + BreakableObject.RENDER_SIZE / 2;
+                            
+                            if (mapRenderer.checkWallCollision(centerX - 16, centerY - 16, 32, 32)) {
+                                validPosition = false;
+                            }
+                            
+                            // Check large area around object for walls (with big padding)
+                            if (validPosition) {
+                                float checkRadius = wallPadding;
+                                
+                                // Check 16 points in a circle around the object center
+                                for (int angle = 0; angle < 360; angle += 22) {
+                                    float rad = (float) Math.toRadians(angle);
+                                    float checkX = centerX + (float) Math.cos(rad) * checkRadius;
+                                    float checkY = centerY + (float) Math.sin(rad) * checkRadius;
+                                    
+                                    if (mapRenderer.checkWallCollision(checkX - 8, checkY - 8, 16, 16)) {
+                                        validPosition = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Check at multiple distances (50, 75, 100 pixels)
+                            if (validPosition) {
+                                float[] checkDistances = {50f, 75f, 100f};
+                                for (float dist : checkDistances) {
+                                    // Check 8 cardinal/diagonal directions at this distance
+                                    float[] dirs = {0, 45, 90, 135, 180, 225, 270, 315};
+                                    for (float dir : dirs) {
+                                        float rad = (float) Math.toRadians(dir);
+                                        float checkX = centerX + (float) Math.cos(rad) * dist;
+                                        float checkY = centerY + (float) Math.sin(rad) * dist;
+                                        
+                                        if (mapRenderer.checkWallCollision(checkX - 4, checkY - 4, 8, 8)) {
+                                            validPosition = false;
+                                            break;
+                                        }
+                                    }
+                                    if (!validPosition) break;
+                                }
+                            }
+                        }
+                        
+                        // Check minimum distance from other objects in this room
+                        if (validPosition) {
+                            for (float[] otherObj : roomObjects) {
+                                float dist = GameApp.distance(objX, objY, otherObj[0], otherObj[1]);
+                                if (dist < minDistanceBetweenObjects) {
+                                    validPosition = false;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (validPosition) {
+                            // Create random object type
+                            BreakableObject obj = new BreakableObject(objX, objY);
+                            breakableObjects.add(obj);
+                            roomObjects.add(new float[]{objX, objY});
+                            break;
+                        }
+                        
+                        attempts++;
+                    }
+                }
+            }
+        }
+        
+        GameApp.log("Spawned " + breakableObjects.size() + " breakable objects across 16 rooms");
+    }
+
+    /**
      * Spawns items at the breakable object position when it's destroyed.
-     * Currently spawns XP orbs, can be extended to spawn other items later.
+     * Has a chance to spawn either XP orbs OR a healing item (chicken).
      * @param obj The breakable object that was destroyed
      */
     private void spawnItemAtBreakableObject(BreakableObject obj) {
-        // Spawn 2-5 XP orbs at the object's position
-        int orbCount = GameApp.randomInt(2, 6);
-        for (int i = 0; i < orbCount; i++) {
-            float offsetX = GameApp.random(-15f, 15f);
-            float offsetY = GameApp.random(-15f, 15f);
-            XPOrb orb = new XPOrb(obj.getCenterX() + offsetX, obj.getCenterY() + offsetY, 15);
-            xpOrbs.add(orb);
+        float centerX = obj.getCenterX();
+        float centerY = obj.getCenterY();
+        
+        // 25% chance to spawn healing item (chicken) instead of orbs
+        boolean spawnHealing = GameApp.random(0f, 100f) < 25f;
+        
+        if (spawnHealing) {
+            // Spawn a healing item (chicken) - heals 20-40 HP
+            int healAmount = GameApp.randomInt(20, 41);
+            HealingItem chicken = new HealingItem(centerX, centerY, healAmount);
+            healingItems.add(chicken);
+            GameApp.log("Breakable object destroyed! Spawned healing chicken (" + healAmount + " HP) at (" 
+                    + centerX + ", " + centerY + ")");
+        } else {
+            // Spawn 2-5 XP orbs at the object's position
+            int orbCount = GameApp.randomInt(2, 6);
+            for (int i = 0; i < orbCount; i++) {
+                float offsetX = GameApp.random(-15f, 15f);
+                float offsetY = GameApp.random(-15f, 15f);
+                XPOrb orb = new XPOrb(centerX + offsetX, centerY + offsetY, 15);
+                xpOrbs.add(orb);
+            }
+            GameApp.log("Breakable object destroyed! Spawned " + orbCount + " XP orbs at (" 
+                    + centerX + ", " + centerY + ")");
+        }
+    }
+
+    // =========================
+    // HEALING ITEMS SYSTEM
+    // =========================
+
+    /**
+     * Updates all healing items (magnet, collection, expiration).
+     * Healing items are attracted to player like XP orbs, affected by ATTRACTORB passive.
+     */
+    private void updateHealingItems(float delta) {
+        if (healingItems == null) return;
+        
+        // Get magnet bonus from ATTRACTORB passive item (same as orbs)
+        float magnetBonus = 0f;
+        if (player != null) {
+            int attractorbLevel = player.getPassiveItemLevel(PassiveItemType.ATTRACTORB);
+            magnetBonus = attractorbLevel * 20f; // +20 range per level
         }
         
-        GameApp.log("Breakable object destroyed! Spawned " + orbCount + " XP orbs at (" 
-                + obj.getCenterX() + ", " + obj.getCenterY() + ")");
+        java.util.Iterator<HealingItem> it = healingItems.iterator();
+        while (it.hasNext()) {
+            HealingItem item = it.next();
+            
+            // Update item position with magnet effect
+            item.update(delta, player.getX(), player.getY(), magnetBonus);
+            
+            // Check if collected - heal player
+            if (item.isCollected()) {
+                int healAmount = item.getHealAmount();
+                player.heal(healAmount);
+                
+                // Play pickup sound
+                if (soundManager != null) {
+                    soundManager.playSound("pickupitem", 0.15f);
+                }
+                
+                GameApp.log("Player collected chicken! Healed " + healAmount + " HP");
+                it.remove();
+                continue;
+            }
+            
+            // Remove expired items
+            if (item.isExpired()) {
+                it.remove();
+            }
+        }
+    }
+
+    /**
+     * Renders all healing items in the world.
+     */
+    private void renderHealingItems() {
+        if (healingItems == null || healingItems.isEmpty()) return;
+        
+        // First render glow effects (shape rendering)
+        GameApp.startShapeRenderingFilled();
+        for (HealingItem item : healingItems) {
+            item.renderGlow(playerWorldX, playerWorldY);
+        }
+        GameApp.endShapeRendering();
+        
+        // Then render chicken sprites
+        GameApp.startSpriteRendering();
+        for (HealingItem item : healingItems) {
+            item.render(playerWorldX, playerWorldY);
+        }
+        GameApp.endSpriteRendering();
     }
 
     // Render XP orbs
@@ -1158,6 +1727,7 @@ public class PlayScreen extends ScalableGameScreen {
     // =========================
 
     // Show level up menu with 3 random options
+    // Now supports: Weapon upgrades, Passive items, Stat upgrades, and Evolution
     private void showLevelUpMenu() {
         isLevelUpActive = true;
         levelUpOptions.clear();
@@ -1178,18 +1748,39 @@ public class PlayScreen extends ScalableGameScreen {
             soundManager.setIngameMusicVolumeTemporary(0.3f);
         }
 
-        // Generate 3 random stat upgrades (exclude maxed upgrades)
-        StatUpgradeType[] allUpgrades = StatUpgradeType.values();
-        List<StatUpgradeType> available = new ArrayList<>();
-        for (StatUpgradeType upgrade : allUpgrades) {
-            // Only add if not maxed
-            if (!player.isUpgradeMaxed(upgrade)) {
-                available.add(upgrade);
-            }
+        // ============================================
+        // CHECK FOR EVOLUTION FIRST
+        // ============================================
+        // If weapon is at max level AND all passive items are maxed, show evolution option
+        if (weapon.canEvolve(player.areAllPassiveItemsMaxed())) {
+            levelUpOptions.add(LevelUpOption.createEvolutionOption());
+            // Evolution is special - only show this option
+            return;
         }
 
+        // ============================================
+        // BUILD POOL OF AVAILABLE UPGRADES
+        // ============================================
+        List<LevelUpOption> availableOptions = new ArrayList<>();
+
+        // 1. Weapon upgrade (if not maxed)
+        if (!weapon.isMaxLevel()) {
+            availableOptions.add(new LevelUpOption(weapon.getLevel()));
+        }
+
+        // 2. Passive items (7 types: Spinach, Armor, Wings, Clover, Attractorb, Pummarola, Hollow Heart)
+        // These are the ONLY upgrades besides weapon - no more stat upgrades!
+        for (PassiveItemType passiveType : PassiveItemType.values()) {
+            int currentLevel = player.getPassiveItemLevel(passiveType);
+            if (currentLevel < passiveType.maxLevel) {
+                availableOptions.add(new LevelUpOption(passiveType, currentLevel));
+            }
+        }
+        
+        // NOTE: StatUpgradeType removed - only 7 passive items + weapon upgrades now
+
         // If no upgrades available (all maxed), skip menu and just level up
-        if (available.isEmpty()) {
+        if (availableOptions.isEmpty()) {
             player.levelUp();
             isLevelUpActive = false;
             // Restore music volume
@@ -1199,65 +1790,65 @@ public class PlayScreen extends ScalableGameScreen {
             return;
         }
 
-        // Pick 3 random upgrades (or as many as available)
-        int optionsToPick = Math.min(3, available.size());
-        for (int i = 0; i < optionsToPick && !available.isEmpty(); i++) {
-            int index = GameApp.randomInt(0, available.size());
-            StatUpgradeType selected = available.get(index);
-            int currentLevel = player.getUpgradeLevel(selected);
-            levelUpOptions.add(new LevelUpOption(selected, currentLevel));
-            available.remove(index);
+        // ============================================
+        // WEIGHTED RANDOM SELECTION
+        // ============================================
+        // Only 2 types now: Weapon upgrades and Passive items
+        // Weapon has slightly higher weight
+        
+        // Pick 3 random options (or as many as available)
+        int optionsToPick = Math.min(3, availableOptions.size());
+        
+        for (int i = 0; i < optionsToPick && !availableOptions.isEmpty(); i++) {
+            // Calculate weights
+            List<Float> weights = new ArrayList<>();
+            float totalWeight = 0f;
+            
+            for (LevelUpOption opt : availableOptions) {
+                float weight = 1.0f;
+                if (opt.isWeaponUpgrade()) {
+                    weight = 1.5f; // Weapon upgrades slightly more common
+                } else if (opt.isPassiveUpgrade()) {
+                    weight = 1.0f; // Passive items normal weight
+                }
+                weights.add(weight);
+                totalWeight += weight;
+            }
+            
+            // Weighted random selection
+            float rand = GameApp.random(0f, totalWeight);
+            float cumulative = 0f;
+            int selectedIndex = 0;
+            
+            for (int j = 0; j < weights.size(); j++) {
+                cumulative += weights.get(j);
+                if (rand <= cumulative) {
+                    selectedIndex = j;
+                    break;
+                }
+            }
+            
+            // Add selected option and remove from pool
+            levelUpOptions.add(availableOptions.get(selectedIndex));
+            availableOptions.remove(selectedIndex);
         }
     }
 
-    // Render level up menu
+    // Render level up menu - always use new professional design
     private void renderLevelUpMenu() {
-
-        if (USE_LEVELUP_MENU_V2) {
-            renderLevelUpMenuV2();
-            return;
-        }
-
-        float screenWidth = GameApp.getWorldWidth();
-        float screenHeight = GameApp.getWorldHeight();
-        float centerX = screenWidth / 2f;
-        float centerY = screenHeight / 2f;
-
-        // Draw semi-transparent background
-        GameApp.startShapeRenderingFilled();
-        GameApp.setColor(0, 0, 0, 200);
-        GameApp.drawRect(0, 0, screenWidth, screenHeight);
-        GameApp.endShapeRendering();
-
-        // Draw menu
-        GameApp.startSpriteRendering();
-
-        // Title
-        float titleY = centerY + 80f;
-        GameApp.drawTextCentered("default", "LEVEL UP!", centerX, titleY, "yellow-500");
-
-        // Options
-        float optionStartY = centerY - 20f;
-        float optionSpacing = 40f;
-
-        for (int i = 0; i < levelUpOptions.size(); i++) {
-            LevelUpOption option = levelUpOptions.get(i);
-            float optionY = optionStartY - (i * optionSpacing);
-            String text = String.format("[%d] %s - %s", i + 1, option.title, option.description);
-            GameApp.drawTextCentered("default", text, centerX, optionY, "white");
-        }
-
-        GameApp.endSpriteRendering();
+        // Use the new professional upgrade menu design
+        renderLevelUpMenuV2();
     }
 
     // Handle level up menu input
     private void handleLevelUpInput() {
 
         if (USE_LEVELUP_MENU_V2 && levelUpOptions != null && !levelUpOptions.isEmpty()) {
-            if (GameApp.isKeyJustPressed(Input.Keys.UP)) {
+            // Support both Arrow keys and W/S for navigation
+            if (GameApp.isKeyJustPressed(Input.Keys.UP) || GameApp.isKeyJustPressed(Input.Keys.W)) {
                 levelUpSelectedIndex--;
                 if (levelUpSelectedIndex < 0) levelUpSelectedIndex = levelUpOptions.size() - 1;
-            } else if (GameApp.isKeyJustPressed(Input.Keys.DOWN)) {
+            } else if (GameApp.isKeyJustPressed(Input.Keys.DOWN) || GameApp.isKeyJustPressed(Input.Keys.S)) {
                 levelUpSelectedIndex++;
                 if (levelUpSelectedIndex >= levelUpOptions.size()) levelUpSelectedIndex = 0;
             } else if (GameApp.isKeyJustPressed(Input.Keys.ENTER)) {
@@ -1265,7 +1856,6 @@ public class PlayScreen extends ScalableGameScreen {
                 return;
             }
         }
-
 
         // Check for number key presses (1, 2, 3)
         if (GameApp.isKeyJustPressed(Input.Keys.NUM_1) && levelUpOptions.size() > 0) {
@@ -1278,11 +1868,45 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     // Apply selected level up option
+    // Now handles: Weapon upgrades, Passive items, Stat upgrades, and Evolution
     private void applyLevelUpOption(int index) {
         if (index < 0 || index >= levelUpOptions.size()) return;
 
         LevelUpOption option = levelUpOptions.get(index);
-        player.applyStatUpgrade(option.stat);
+        
+        // Apply upgrade based on type
+        switch (option.type) {
+            case STAT:
+                // Legacy stat upgrade
+                player.applyStatUpgrade(option.stat);
+                GameApp.log("Applied stat upgrade: " + option.title);
+                break;
+                
+            case WEAPON:
+                // Weapon level up
+                weapon.levelUp();
+                GameApp.log("Weapon upgraded to level " + weapon.getLevel() + "!");
+                break;
+                
+            case PASSIVE:
+                // Add or level up passive item
+                player.addOrLevelUpPassiveItem(option.passiveItem);
+                GameApp.log("Passive item upgraded: " + option.passiveItem.displayName);
+                break;
+                
+            case EVOLUTION:
+                // EVOLVE THE WEAPON!
+                weapon.evolve();
+                GameApp.log("⚡⚡⚡ WEAPON EVOLVED INTO DEATH SPIRAL! ⚡⚡⚡");
+                // Play special sound for evolution
+                if (soundManager != null) {
+                    soundManager.playSound("levelup", 1.0f); // Play twice for dramatic effect
+                    soundManager.playSound("levelup", 0.8f);
+                }
+                break;
+        }
+        
+        // Level up player
         player.levelUp();
 
         isLevelUpActive = false;
@@ -1304,8 +1928,8 @@ public class PlayScreen extends ScalableGameScreen {
     }
 
     // =========================
-// ADD-ONLY (LevelUp Menu V2)
-// =========================
+    // ADD-ONLY (LevelUp Menu V2)
+    // =========================
 
     private void renderLevelUpMenuV2() {
         float screenWidth = GameApp.getWorldWidth();
@@ -1322,8 +1946,16 @@ public class PlayScreen extends ScalableGameScreen {
                 levelUpMenuAnimTimer = 1f;
                 levelUpMenuOpening = false;
             }
+            // Reset falling orbs when menu opens
+            levelUpOrbsInitialized = false;
         } else {
             levelUpMenuAnimTimer = 1f;
+        }
+
+        // Update arrow animation timer
+        levelUpArrowAnimTimer += dt * 4f;
+        if (levelUpArrowAnimTimer > Math.PI * 2) {
+            levelUpArrowAnimTimer -= (float)(Math.PI * 2);
         }
 
         // Smooth selection highlight animation
@@ -1335,40 +1967,75 @@ public class PlayScreen extends ScalableGameScreen {
 
         float t = easeOutCubic(levelUpMenuAnimTimer);
 
-        // Overlay fade
+        // Semi-transparent overlay - gameplay visible behind
+        GameApp.enableTransparency();
         GameApp.startShapeRenderingFilled();
-        int overlayAlpha = (int)(200 * t);
+        int overlayAlpha = (int)(100 * t);
         GameApp.setColor(0, 0, 0, overlayAlpha);
         GameApp.drawRect(0, 0, screenWidth, screenHeight);
         GameApp.endShapeRendering();
+
+        // Initialize and update falling orbs effect
+        initAndUpdateFallingOrbs(screenWidth, screenHeight, dt);
+        
+        // Render falling orbs BEFORE menu (behind)
+        renderFallingOrbs();
 
         if (levelUpOptions == null || levelUpOptions.isEmpty()) return;
 
         int count = levelUpOptions.size();
 
-        float menuW = screenWidth * 0.76f;
-        float cardH = 100f;
-        float gap = 16f;
-
-        float headerH = 110f;
-        float footerH = 58f;
+        // Menu dimensions - narrower width
+        float menuW = screenWidth * 0.58f;
+        float cardH = 70f;
+        float gap = 6f;
+        float headerH = 70f;
+        float footerH = 10f;
+        float borderWidth = 3f;
+        float borderPadding = 8f;
 
         float cardsH = (count * cardH) + ((count - 1) * gap);
-        float totalH = headerH + cardsH + footerH;
+        float totalH = headerH + cardsH + footerH + borderPadding * 2;
 
         float menuX = centerX - menuW / 2f;
-
         float targetTopY = centerY + totalH / 2f;
         float startTopY = targetTopY + 60f;
         float topY = lerp(startTopY, targetTopY, t);
+        float bottomY = topY - totalH;
 
-        // Header text
+        // Draw outer golden border frame
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(218, 165, 32, (int)(255 * t)); // Gold
+        // Outer frame
+        GameApp.drawRect(menuX - borderWidth, bottomY - borderWidth, menuW + borderWidth * 2, totalH + borderWidth * 2);
+        GameApp.endShapeRendering();
+
+        // Dark background inside border
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(35, 35, 45, (int)(245 * t));
+        GameApp.drawRect(menuX, bottomY, menuW, totalH);
+        GameApp.endShapeRendering();
+
+        // Header - LEVEL UP! with PixelOperator font
         GameApp.startSpriteRendering();
-        GameApp.drawTextCentered("default", "LEVEL UP!", centerX, topY - 34f, "yellow-500");
-        GameApp.drawTextCentered("default", "Choose one upgrade", centerX, topY - 60f, "white");
+        boolean hasEvolution = levelUpOptions.stream().anyMatch(LevelUpOption::isEvolution);
+        float headerY = topY - 38f;
+        String headerFont = "levelUpTitleFont"; // PixelOperator font
+        if (hasEvolution) {
+            GameApp.drawTextCentered(headerFont, "EVOLUTION!", centerX, headerY, "purple-500");
+        } else {
+            GameApp.drawTextCentered(headerFont, "LEVEL UP!", centerX, headerY, "yellow-500");
+        }
         GameApp.endSpriteRendering();
 
         float cardsTopY = topY - headerH;
+        float cardInnerX = menuX + borderPadding;
+        float cardInnerW = menuW - borderPadding * 2;
+
+        // Arrow dimensions
+        float arrowW = 36f;
+        float arrowH = 36f;
+        float arrowOffset = (float)(Math.sin(levelUpArrowAnimTimer) * 4f); // Bounce effect
 
         for (int i = 0; i < count; i++) {
             LevelUpOption option = levelUpOptions.get(i);
@@ -1377,81 +2044,225 @@ public class PlayScreen extends ScalableGameScreen {
             float cardTop = cardsTopY - i * (cardH + gap);
             float cardY = cardTop - cardH;
 
-            StatUpgradeType type = option.stat;
+            String icon = option.icon;
 
-            int[] rgb = themeRGB(type);
-            String themeText = themeTextColor(type);
-            String icon = iconFor(type);
-
-            // Card background + accents
+            // Draw card golden border
             GameApp.startShapeRenderingFilled();
-
-            // base card
-            GameApp.setColor(18, 18, 24, (int)(235 * t));
-            GameApp.drawRect(menuX, cardY, menuW, cardH);
-
-            // subtle inner panel
-            GameApp.setColor(28, 28, 36, (int)(220 * t));
-            GameApp.drawRect(menuX + 10f, cardY + 10f, menuW - 20f, cardH - 20f);
-
-            // theme strip
-            GameApp.setColor(rgb[0], rgb[1], rgb[2], (int)(230 * t));
-            GameApp.drawRect(menuX, cardY, 10f, cardH);
-
-            // selection glow
-            if (selected) {
-                float p = 0.35f + 0.65f * levelUpSelectAnim;
-                GameApp.setColor(rgb[0], rgb[1], rgb[2], (int)(110 * p * t));
-                GameApp.drawRect(menuX - 6f, cardY - 6f, menuW + 12f, cardH + 12f);
-            }
-
+            GameApp.setColor(218, 165, 32, (int)(255 * t)); // Gold border
+            GameApp.drawRect(cardInnerX - 2f, cardY - 2f, cardInnerW + 4f, cardH + 4f);
             GameApp.endShapeRendering();
 
-            // Text + icon
-            GameApp.startSpriteRendering();
-
-            // icon
-            GameApp.drawTextCentered("default", icon, menuX + 34f, cardY + cardH / 2f + 10f, themeText);
-
-            float textX = menuX + 74f;
-
-            float titleY = cardY + cardH - 28f;
-            float previewY = cardY + cardH - 54f;
-            float descY = cardY + 18f;
-
-            // title
-            GameApp.drawText("default", option.title, textX, titleY, "white");
-
-            // level display "Level 2/5"
-            int currentLevel = player.getUpgradeLevel(option.stat);
-            int maxLevel = 5;
-            int nextLevel = Math.min(currentLevel + 1, maxLevel);
-            String levelText = "Level " + nextLevel + "/" + maxLevel;
-            GameApp.drawText("default", levelText, menuX + menuW - 140f, titleY, "white");
-
-            // stat preview "Current: X → New: Y"
-            String preview = buildPreviewText(option.stat, currentLevel);
-            GameApp.drawText("default", preview, textX, previewY, "white");
-
-            // description
-            GameApp.drawText("default", option.description, textX, descY, "white");
-
-            // selected hint
+            // Card background - gray with highlight for selected
+            GameApp.startShapeRenderingFilled();
             if (selected) {
-                GameApp.drawText("default", "ENTER to confirm", menuX + menuW - 200f, cardY + 10f, themeText);
+                float p = 0.6f + 0.4f * levelUpSelectAnim;
+                GameApp.setColor(60, 90, 120, (int)(255 * p * t)); // Blue-gray highlight
+            } else {
+                GameApp.setColor(55, 55, 65, (int)(240 * t)); // Gray background
+            }
+            GameApp.drawRect(cardInnerX, cardY, cardInnerW, cardH);
+            GameApp.endShapeRendering();
+
+            // Draw selection arrows using arrow.png
+            if (selected) {
+                GameApp.startSpriteRendering();
+                float arrowY = cardY + cardH / 2f - arrowH / 2f;
+                
+                // Left arrow - pointing right toward option (use negative width to flip)
+                float leftArrowX = cardInnerX - arrowW - 8f - arrowOffset;
+                if (GameApp.hasTexture("arrow_icon")) {
+                    // Flip horizontally by using negative width and offset
+                    GameApp.drawTexture("arrow_icon", leftArrowX + arrowW, arrowY, -arrowW, arrowH);
+                } else {
+                    GameApp.drawTextCentered("default", ">>", leftArrowX + arrowW/2, arrowY + arrowH/2 + 6f, "yellow-400");
+                }
+                
+                // Right arrow (original) - pointing left toward option
+                float rightArrowX = cardInnerX + cardInnerW + 8f + arrowOffset;
+                if (GameApp.hasTexture("arrow_icon")) {
+                    GameApp.drawTexture("arrow_icon", rightArrowX, arrowY, arrowW, arrowH);
+                } else {
+                    GameApp.drawTextCentered("default", "<<", rightArrowX + arrowW/2, arrowY + arrowH/2 + 6f, "yellow-400");
+                }
+                GameApp.endSpriteRendering();
             }
 
-            // shortcut label
-            GameApp.drawText("default", "[" + (i + 1) + "]", menuX + menuW - 40f, cardY + 10f, "white");
+            // Icon with black background frame
+            GameApp.startShapeRenderingFilled();
+            float iconFrameSize = 50f;
+            float iconFrameX = cardInnerX + 10f;
+            float iconFrameY = cardY + cardH / 2f - iconFrameSize / 2f;
+            // Gold border for icon
+            GameApp.setColor(218, 165, 32, (int)(255 * t));
+            GameApp.drawRect(iconFrameX - 2f, iconFrameY - 2f, iconFrameSize + 4f, iconFrameSize + 4f);
+            // Black background
+            GameApp.setColor(0, 0, 0, (int)(255 * t));
+            GameApp.drawRect(iconFrameX, iconFrameY, iconFrameSize, iconFrameSize);
+            GameApp.endShapeRendering();
+
+            // Draw icon texture
+            GameApp.startSpriteRendering();
+            float iconSize = 40f;
+            float iconX = iconFrameX + (iconFrameSize - iconSize) / 2f;
+            float iconY = iconFrameY + (iconFrameSize - iconSize) / 2f;
+            if (icon != null && GameApp.hasTexture(icon)) {
+                GameApp.drawTexture(icon, iconX, iconY, iconSize, iconSize);
+            }
+
+            // Text positioning - adjusted down by 5f
+            float textX = iconFrameX + iconFrameSize + 12f;
+            float titleY = cardY + cardH - 20f;
+            float descY = cardY + cardH / 2f - 5f;
+
+            // Title with "New!" label - use diverse PixelOperator fonts
+            String titleFont = "levelUpItemFont"; // PixelOperator-Bold
+            String newFont = "levelUpNewFont";    // PixelOperatorHB8 for accent
+            String levelFont = "levelUpLevelFont"; // PixelOperatorSC-Bold for level
+            boolean isNew = (option.isPassiveUpgrade() && option.passiveCurrentLevel == 0);
+            
+            if (isNew) {
+                GameApp.drawText(titleFont, option.passiveItem.displayName, textX, titleY, "white");
+                GameApp.drawText(newFont, "NEW!", textX + 105f, titleY, "orange-400");
+            } else {
+                String title = option.isPassiveUpgrade() ? option.passiveItem.displayName : option.title;
+                GameApp.drawText(titleFont, title, textX, titleY, "white");
+            }
+
+            // Level display on right - use Small Caps Bold font
+            String levelText = getLevelDisplayText(option);
+            float levelX = cardInnerX + cardInnerW - 45f;
+            float levelY = titleY - 8f;
+            // Use different color for MAX
+            String levelColor = levelText.equals("MAX") ? "yellow-400" : "white";
+            GameApp.drawText(levelFont, levelText, levelX, levelY, levelColor);
+
+            // Description - use PixelOperator Regular for easy reading
+            String descText = getFormattedDescription(option);
+            GameApp.drawText("levelUpDescFont", descText, textX, descY, "gray-300");
 
             GameApp.endSpriteRendering();
         }
+    }
 
-        // Footer instructions
+    /**
+     * Initialize and update falling orbs effect for level up menu.
+     */
+    private void initAndUpdateFallingOrbs(float screenWidth, float screenHeight, float dt) {
+        float topY = screenHeight + 30f; // Start from above screen
+        float fadeStartY = screenHeight * 0.30f; // Start fading at 70% from top (30% from bottom)
+        float bottomY = screenHeight * 0.05f; // Completely disappear at 5% from bottom
+        
+        // Initialize orbs if not done - MUCH DENSER
+        if (!levelUpOrbsInitialized) {
+            levelUpFallingOrbs.clear();
+            // Create many more orbs for very dense effect (150 orbs)
+            int orbCount = 150;
+            for (int i = 0; i < orbCount; i++) {
+                float x = GameApp.random(10f, screenWidth - 10f);
+                // Spread orbs from top to fade position for immediate rain effect
+                float y = GameApp.random(fadeStartY, topY);
+                float speed = GameApp.random(50f, 120f); // Faster falling
+                float size = GameApp.random(10f, 18f);
+                levelUpFallingOrbs.add(new FallingOrb(x, y, speed, size));
+            }
+            levelUpOrbsInitialized = true;
+        }
+        
+        // Update orbs - fall down, fade, and respawn at top
+        for (FallingOrb orb : levelUpFallingOrbs) {
+            orb.y -= orb.speed * dt;
+            
+            // Calculate alpha based on position (fade out between fadeStartY and bottomY)
+            if (orb.y < fadeStartY) {
+                // Calculate fade: 1.0 at fadeStartY, 0.0 at bottomY
+                float fadeRange = fadeStartY - bottomY;
+                float fadeProgress = (fadeStartY - orb.y) / fadeRange;
+                orb.alpha = Math.max(0f, 1f - fadeProgress);
+            } else {
+                orb.alpha = 1f;
+            }
+            
+            // Respawn at top when completely faded or below bottom
+            if (orb.y < bottomY || orb.alpha <= 0f) {
+                orb.y = topY + GameApp.random(0f, 50f);
+                orb.x = GameApp.random(10f, screenWidth - 10f);
+                orb.speed = GameApp.random(50f, 120f);
+                orb.alpha = 1f;
+            }
+        }
+    }
+
+    /**
+     * Render falling orbs effect with fade out.
+     */
+    private void renderFallingOrbs() {
+        if (levelUpFallingOrbs.isEmpty()) return;
+        
+        GameApp.enableTransparency();
         GameApp.startSpriteRendering();
-        float footerY = (topY - totalH) + 24f;
-        GameApp.drawTextCentered("default", "↑ ↓ select   ENTER confirm   (or press 1/2/3)", centerX, footerY, "white");
+        for (FallingOrb orb : levelUpFallingOrbs) {
+            if (orb.alpha <= 0.01f) continue; // Skip invisible orbs
+            
+            // Use orb animation if available with alpha
+            if (GameApp.hasAnimation("orb_animation")) {
+                // Set alpha for fade effect (convert to 0-255 int)
+                int alpha = (int)(orb.alpha * 255);
+                GameApp.setColor(255, 255, 255, alpha);
+                GameApp.drawAnimation("orb_animation", orb.x - orb.size/2, orb.y - orb.size/2, orb.size, orb.size);
+            }
+        }
+        // Reset color to full opacity
+        GameApp.setColor(255, 255, 255, 255);
         GameApp.endSpriteRendering();
+    }
+
+    /**
+     * Format description text professionally for level up options.
+     */
+    private String getFormattedDescription(LevelUpOption option) {
+        if (option.isPassiveUpgrade()) {
+            PassiveItemType item = option.passiveItem;
+            int nextLevel = option.passiveNextLevel;
+            
+            return switch (item) {
+                case WINGS -> "+" + (nextLevel * 10) + "% movement speed per level";
+                case PUMMAROLA -> "+" + String.format("%.1f", nextLevel * 0.2f) + " HP/sec per level";
+                case ATTRACTORB -> "+" + (nextLevel * 20) + "% pickup range per level";
+                case SPINACH -> "+" + (nextLevel * 10) + "% damage per level";
+                case ARMOR -> "-" + (nextLevel * 5) + "% damage taken per level";
+                case CLOVER -> "+" + (nextLevel * 5) + "% critical chance per level";
+                case HOLLOW_HEART -> "+" + (nextLevel * 20) + "% max HP per level";
+            };
+        } else if (option.isWeaponUpgrade()) {
+            return option.description;
+        } else if (option.isEvolution()) {
+            return "Transform your weapon into its ultimate form!";
+        }
+        return option.description;
+    }
+    
+    // Helper method to get level display text for different option types
+    // Format: "Lv.X" or "MAX" when at max level
+    private String getLevelDisplayText(LevelUpOption option) {
+        return switch (option.type) {
+            case STAT -> {
+                int currentLevel = player.getUpgradeLevel(option.stat);
+                int maxLevel = player.getMaxUpgradeLevel(option.stat);
+                int nextLevel = Math.min(currentLevel + 1, maxLevel);
+                yield nextLevel >= maxLevel ? "MAX" : "Lv." + nextLevel;
+            }
+            case WEAPON -> {
+                int nextLevel = option.weaponNextLevel;
+                int maxLevel = weapon.getMaxLevel();
+                yield nextLevel >= maxLevel ? "MAX" : "Lv." + nextLevel;
+            }
+            case PASSIVE -> {
+                int nextLevel = option.passiveNextLevel;
+                int maxLevel = option.passiveItem.maxLevel;
+                yield nextLevel >= maxLevel ? "MAX" : "Lv." + nextLevel;
+            }
+            case EVOLUTION -> "MAX";
+        };
     }
 
     private String buildPreviewText(StatUpgradeType type, int currentLevel) {
@@ -1623,13 +2434,64 @@ public class PlayScreen extends ScalableGameScreen {
         bosses = new ArrayList<>();
         xpOrbs = new ArrayList<>();
         breakableObjects = new ArrayList<>();
+        healingItems = new ArrayList<>();
+        treasureChests = new ArrayList<>();
+        bossesThatSpawnedChest.clear(); // Reset tracking set
 
         isLevelUpActive = false;
-        bossSpawned = false;
+        isGachaActive = false;
+        gachaCooldown = 0f; // Reset gacha cooldown
+        currentRound = 0;
         levelUpOptions.clear();
+        
+        // Initialize gacha system
+        gachaSystem = new GachaSystem();
+        gachaSystem.setPlayer(player);
+        gachaSystem.setWeapon(weapon);
+        gachaSystem.setSoundManager(soundManager);
+
+        // ============================================
+        // SHOWCASE MODE - For demo/presentation
+        // ============================================
+        GameConfig config = ConfigManager.loadConfig();
+        if (config.showcaseMode) {
+            GameApp.log("=== SHOWCASE MODE ENABLED ===");
+            
+            // 1. Add all passive items at max level (level 5)
+            for (PassiveItemType passiveType : PassiveItemType.values()) {
+                // Add passive item and level it up to max
+                for (int lvl = 0; lvl < passiveType.maxLevel; lvl++) {
+                    player.addOrLevelUpPassiveItem(passiveType);
+                }
+                GameApp.log("Added " + passiveType.displayName + " at max level " + passiveType.maxLevel);
+            }
+            
+            // 2. Level up weapon to max (level 8)
+            while (!weapon.isMaxLevel()) {
+                weapon.levelUp();
+            }
+            GameApp.log("Weapon leveled to max: " + weapon.getLevel());
+            
+            // 3. Evolve weapon (since all conditions are met)
+            weapon.evolve();
+            GameApp.log("Weapon evolved to DEATH SPIRAL!");
+            
+            // 4. Set time to 1 minute remaining (14 minutes elapsed)
+            // GAME_DURATION = 600s (10 min), we want 1 min left = 60s
+            // But user said "đã qua 14 phút" so maybe GAME_DURATION is 15 min (900s)?
+            // Let's set to 60f directly for 1 minute countdown
+            gameTime = 60f;
+            GameApp.log("Time set to 1 minute remaining (showcase mode)");
+            
+            // 5. Update HUD to show all items
+            hud.setWeapon(weapon);
+            hud.setPassiveItems(player.getOwnedPassiveItems());
+            
+            GameApp.log("=== SHOWCASE MODE SETUP COMPLETE ===");
+        }
 
         // Reset game state
-        gameTime = GAME_DURATION;
+        gameTime = config.showcaseMode ? 60f : GAME_DURATION;
         score = 0;
         enemySpawner.reset();
         collisionHandler.reset();
@@ -1704,11 +2566,11 @@ public class PlayScreen extends ScalableGameScreen {
         enemies.add(new Enemy(playerWorldX - 520, playerWorldY - 80, enemyBaseSpeed, enemyBaseHealth));
         enemies.add(new Enemy(playerWorldX + 100, playerWorldY + 530, enemyBaseSpeed, enemyBaseHealth));
 
-        // Spawn test breakable object (barrel) near player
-        // Spawn 100 pixels to the right of player for easy testing
+        // Spawn breakable objects randomly across all 16 rooms
         breakableObjects.clear();
-        breakableObjects.add(new BreakableObject(playerWorldX + 100, playerWorldY));
-        GameApp.log("Spawned test breakable object (barrel) at (" + (playerWorldX + 100) + ", " + playerWorldY + ")");
+        healingItems.clear();
+        spawnBreakableObjectsInAllRooms();
+        GameApp.log("Spawned breakable objects in all rooms");
 
         GameApp.log("Game reset: new run started, player.isDead() = " + player.isDead());
         GameApp.log("Player starting at world position: (" + playerWorldX + ", " + playerWorldY + ")");
@@ -2398,7 +3260,10 @@ public class PlayScreen extends ScalableGameScreen {
         return isPaused;
     }
 
-    private void spawnBossNearPlayer(float playerX, float playerY, float moveDirX, float moveDirY) {
+    /**
+     * Spawn MiniBoss at end of round with HP scaling
+     */
+    private void spawnMiniBossNearPlayer(float playerX, float playerY, float moveDirX, float moveDirY, int round) {
         float distance = 400f + (float) (Math.random() * 100f);
 
         float bx;
@@ -2409,7 +3274,7 @@ public class PlayScreen extends ScalableGameScreen {
             float nx = moveDirX / length;
             float ny = moveDirY / length;
 
-            // behind player
+            // Spawn behind player
             bx = playerX - nx * distance;
             by = playerY - ny * distance;
         } else {
@@ -2418,16 +3283,211 @@ public class PlayScreen extends ScalableGameScreen {
             by = playerY + (float) Math.sin(angle) * distance;
         }
 
-        int hp = 200 + (int) (Math.random() * 101); // 200-300
+        // HP scales with round: Base 150 + 30 per round
+        // Round 1: 180 HP, Round 5: 300 HP, Round 10: 450 HP
+        int baseHP = 150;
+        int hpPerRound = 30;
+        int hp = baseHP + (round * hpPerRound) + (int) (Math.random() * 51); // +0-50 random
+
         Boss boss = new Boss(bx, by, hp);
 
         if (bosses != null) {
             bosses.add(boss);
         }
 
-        bossSpawned = true;
+        // Play sound for miniboss spawn
+        if (soundManager != null) {
+            soundManager.playSound("levelup", 0.5f);
+        }
 
-        GameApp.log("Boss spawned at (" + bx + ", " + by + ") with HP " + hp);
+        GameApp.log("MiniBoss (Round " + round + ") spawned at (" + bx + ", " + by + ") with HP " + hp);
+    }
+
+    /**
+     * Spawn treasure chest when MiniBoss is killed
+     * CRITICAL: Only spawn once per boss to prevent duplicates
+     */
+    private void spawnTreasureChestAtBoss(Boss boss) {
+        if (boss == null || treasureChests == null) return;
+        
+        // CRITICAL: Check if this boss already spawned a chest (prevent duplicates)
+        if (bossesThatSpawnedChest.contains(boss)) {
+            GameApp.log("WARNING: Boss already spawned chest, skipping duplicate spawn");
+            return;
+        }
+        
+        // Mark this boss as having spawned a chest
+        bossesThatSpawnedChest.add(boss);
+        
+        // Also spawn some XP orbs
+        int orbCount = GameApp.randomInt(8, 16);
+        for (int i = 0; i < orbCount; i++) {
+            float offsetX = GameApp.random(-30f, 30f);
+            float offsetY = GameApp.random(-30f, 30f);
+            XPOrb orb = new XPOrb(boss.getX() + offsetX, boss.getY() + offsetY, 15);
+            xpOrbs.add(orb);
+        }
+        
+        // Spawn treasure chest at boss position
+        TreasureChest chest = new TreasureChest(boss.getX(), boss.getY());
+        treasureChests.add(chest);
+        
+        GameApp.log("Treasure chest spawned at MiniBoss position (" + boss.getX() + ", " + boss.getY() + ")");
+    }
+
+    // Cooldown to prevent rapid gacha triggers
+    private float gachaCooldown = 0f;
+    private static final float GACHA_COOLDOWN_DURATION = 3.0f; // 3 seconds cooldown after gacha (increased to prevent rapid triggers)
+    
+    /**
+     * Update treasure chests - check for player proximity and trigger gacha
+     */
+    private void updateTreasureChests(float delta) {
+        if (treasureChests == null) return;
+        
+        // CRITICAL: Don't process chests if game is over
+        if (isGameOver) {
+            return;
+        }
+        
+        // Update gacha cooldown
+        if (gachaCooldown > 0f) {
+            gachaCooldown -= delta;
+        }
+        
+        // Always cleanup collected chests first
+        treasureChests.removeIf(TreasureChest::isCollected);
+        
+        // Don't process chests while gacha is active or on cooldown
+        if (isGachaActive || gachaCooldown > 0f) {
+            // CRITICAL: Clear ALL chests when gacha is active (should be none, but safety)
+            if (isGachaActive && treasureChests.size() > 0) {
+                int cleared = treasureChests.size();
+                treasureChests.clear();
+                GameApp.log("DEBUG: Cleared " + cleared + " chests during active gacha");
+            }
+            return;
+        }
+        
+        // Update all chests
+        for (TreasureChest chest : treasureChests) {
+            chest.update(delta, playerWorldX, playerWorldY);
+        }
+        
+        // Find ONE chest ready for gacha
+        TreasureChest chestToTrigger = null;
+        for (TreasureChest chest : treasureChests) {
+            if (chest.isReadyForGacha()) {
+                chestToTrigger = chest;
+                break;
+            }
+        }
+        
+        // Trigger gacha for the chest (only if game is not over)
+        if (chestToTrigger != null && !isGachaActive && gachaCooldown <= 0f && !isGameOver) {
+            // Save chest position BEFORE removing
+            float chestX = chestToTrigger.getX();
+            float chestY = chestToTrigger.getY();
+            
+            // CRITICAL: Mark and remove chest IMMEDIATELY
+            chestToTrigger.triggerGacha();
+            chestToTrigger.collect();
+            treasureChests.remove(chestToTrigger);
+            
+            // CRITICAL: Cleanup ANY other chests that might be ready (safety check)
+            int beforeExtraCleanup = treasureChests.size();
+            treasureChests.removeIf(chest -> chest.isOpened() || chest.isReadyForGacha());
+            if (treasureChests.size() != beforeExtraCleanup) {
+                GameApp.log("WARNING: Removed " + (beforeExtraCleanup - treasureChests.size()) + " additional ready chests!");
+            }
+            
+            // Then start gacha with chest position
+            startGacha(chestX, chestY);
+            GameApp.log("Chest triggered gacha at (" + chestX + ", " + chestY + "). Remaining chests: " + treasureChests.size());
+        }
+    }
+
+    /**
+     * Render treasure chests (call within sprite rendering block)
+     * NOTE: Does not render chests when gacha is active
+     */
+    private void renderTreasureChests() {
+        if (treasureChests == null) return;
+        if (isGachaActive) return; // Don't render chests during gacha
+        
+        // Cleanup before rendering
+        treasureChests.removeIf(TreasureChest::isCollected);
+        
+        for (TreasureChest chest : treasureChests) {
+            // Double check - don't render collected or opened chests
+            if (!chest.isCollected() && !chest.isReadyForGacha()) {
+                chest.render(playerWorldX, playerWorldY);
+            }
+        }
+    }
+
+    /**
+     * Start the gacha sequence
+     * GachaSystem handles its own sound/music management
+     */
+    private void startGacha(float chestX, float chestY) {
+        if (gachaSystem == null) return;
+        
+        isGachaActive = true;
+        
+        // Set chest position before starting
+        gachaSystem.setChestPosition(chestX, chestY);
+        gachaSystem.start(); // GachaSystem will stop music and play jackpot sound
+        
+        GameApp.log("Gacha started at chest position (" + chestX + ", " + chestY + ")!");
+    }
+
+    /**
+     * Handle input for gacha system
+     * GachaSystem handles its own sound/music management
+     */
+    private void handleGachaInput() {
+        if (gachaSystem == null || !gachaSystem.isActive()) return;
+        
+        // Only accept input when gacha is completed
+        if (gachaSystem.isCompleted()) {
+            // Check for Done button click OR keyboard input
+            boolean doneClicked = gachaSystem.isDoneButtonClicked();
+            boolean keyboardPressed = GameApp.isKeyJustPressed(Input.Keys.ENTER) || 
+                                     GameApp.isKeyJustPressed(Input.Keys.SPACE);
+            
+            if (doneClicked || keyboardPressed) {
+                // Apply the upgrade (only applies once due to internal flag)
+                gachaSystem.applyUpgrade();
+                
+                // Close gacha (will restore music automatically)
+                gachaSystem.close();
+                isGachaActive = false;
+                
+                // CRITICAL: Cleanup ALL chests that might be in OPENED or ready state
+                if (treasureChests != null) {
+                    int beforeSize = treasureChests.size();
+                    // Remove all collected chests
+                    treasureChests.removeIf(TreasureChest::isCollected);
+                    // Also remove any chests that are opened (shouldn't exist, but safety check)
+                    treasureChests.removeIf(chest -> chest.isOpened() || chest.isReadyForGacha());
+                    int afterSize = treasureChests.size();
+                    if (beforeSize != afterSize) {
+                        GameApp.log("Cleaned up " + (beforeSize - afterSize) + " chests after gacha. Remaining: " + afterSize);
+                    }
+                }
+                
+                // Set cooldown to prevent immediate re-trigger
+                gachaCooldown = GACHA_COOLDOWN_DURATION;
+                
+                // Play click sound
+                if (soundManager != null) {
+                    soundManager.playSound("clickbutton", 0.5f);
+                }
+                
+                GameApp.log("Gacha completed and upgrade applied! All chests cleaned up. Cooldown started.");
+            }
+        }
     }
 
 }

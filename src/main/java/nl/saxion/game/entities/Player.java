@@ -6,6 +6,10 @@ import nl.saxion.game.systems.InputController;
 import nl.saxion.game.utils.CollisionChecker;
 import java.awt.Image;
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Player {
     // Animation states
@@ -24,20 +28,26 @@ public class Player {
     private float xpMagnetRange = 100f;
     private float damageMultiplier = 1f;
     
-    // ===== UPGRADE LEVELS =====
+    // ===== STAT UPGRADE LEVELS (Legacy system - kept for compatibility) =====
     private int healthRegenLevel = 0; // HEALTH_REGEN level (max 5)
     private int maxHealthLevel = 0; // MAX_HEALTH level (max 3)
     private int damageLevel = 0; // DAMAGE level (max 5)
     private int speedLevel = 0; // SPEED level (max 2)
     private int xpMagnetLevel = 0; // XP_MAGNET level (max 2)
     
+    // ===== PASSIVE ITEMS SYSTEM (New) =====
+    private Map<PassiveItemType, PassiveItem> passiveItems = new HashMap<>();
+    
     // ===== HEALTH REGEN SYSTEM =====
     private float healthRegenAccumulator = 0f; // Accumulated regen (not applied to health bar yet)
     private float healthRegenUpdateTimer = 0f; // Timer for 10-second updates
     private static final float REGEN_UPDATE_INTERVAL = 10f; // Update health every 10 seconds
-    private static final float REGEN_PER_LEVEL = 0.1f; // 0.1 HP/s per level
+    private static final float REGEN_PER_LEVEL = 0.1f; // 0.1 HP/s per level (stat upgrade)
     private static final int MAX_REGEN_LEVEL = 5; // Max level (0.5 HP/s)
     private HealthTextCallback healthTextCallback = null;
+    
+    // ===== DAMAGE REDUCTION FROM ARMOR =====
+    private float damageReductionMultiplier = 1f; // 1.0 = no reduction, 0.5 = 50% reduction
     
     // Base stats (stored for percentage calculations)
     private float baseSpeed;
@@ -118,14 +128,24 @@ public class Player {
             return;
         }
 
-        // Health regen: 0.1 HP/s per level (max 0.5 HP/s), accumulates and updates every 10 seconds
-        if (healthRegenLevel > 0 && health < maxHealth && !isDying) {
-            // Calculate regen rate: 0.1 HP/s per level, capped at 5 levels (0.5 HP/s)
+        // Calculate total health regen from both stat upgrade AND passive item (Pummarola)
+        float totalRegenRate = 0f;
+        
+        // Stat upgrade regen
+        if (healthRegenLevel > 0) {
             int effectiveLevel = Math.min(healthRegenLevel, MAX_REGEN_LEVEL);
-            float regenRate = REGEN_PER_LEVEL * effectiveLevel;
-            
+            totalRegenRate += REGEN_PER_LEVEL * effectiveLevel;
+        }
+        
+        // Passive item regen (Pummarola)
+        if (hasPassiveItem(PassiveItemType.PUMMAROLA)) {
+            totalRegenRate += getPassiveItem(PassiveItemType.PUMMAROLA).getMultiplier();
+        }
+        
+        // Apply health regen
+        if (totalRegenRate > 0 && health < maxHealth && !isDying) {
             // Accumulate regen (not applied to health bar yet)
-            healthRegenAccumulator += regenRate * delta;
+            healthRegenAccumulator += totalRegenRate * delta;
             
             // Update timer for 10-second health updates
             healthRegenUpdateTimer += delta;
@@ -156,8 +176,12 @@ public class Player {
         if (input.isMoveDown()) dirY -= 1f;
         if (input.isMoveLeft()) dirX -= 1f;
         if (input.isMoveRight()) dirX += 1f;
-        float dx = dirX * speed * delta;
-        float dy = dirY * speed * delta;
+        
+        // Calculate effective speed with passive item bonus (Wings)
+        float effectiveSpeed = getEffectiveSpeed();
+        
+        float dx = dirX * effectiveSpeed * delta;
+        float dy = dirY * effectiveSpeed * delta;
         float offsetX = (SPRITE_SIZE - HITBOX_WIDTH) / 2f;
         float offsetY = (SPRITE_SIZE - HITBOX_HEIGHT) / 2f;
 
@@ -170,8 +194,8 @@ public class Player {
             float length = (float) Math.sqrt(dx * dx + dy * dy);
             float normalizedDx = dx / length;
             float normalizedDy = dy / length;
-            dx = normalizedDx * speed * delta;
-            dy = normalizedDy * speed * delta;
+            dx = normalizedDx * effectiveSpeed * delta;
+            dy = normalizedDy * effectiveSpeed * delta;
         }
 
         // Simple collision check with epsilon for smooth movement near walls
@@ -368,7 +392,15 @@ public class Player {
         // Don't take damage if already dying
         if (isDying) return;
 
-        health -= amount;
+        // Apply damage reduction from Armor passive item
+        float effectiveReduction = 1f;
+        if (hasPassiveItem(PassiveItemType.ARMOR)) {
+            effectiveReduction = getPassiveItem(PassiveItemType.ARMOR).getMultiplier();
+        }
+        
+        int finalDamage = Math.max(1, (int)(amount * effectiveReduction));
+        
+        health -= finalDamage;
         health = (int) GameApp.clamp(health, 0, maxHealth);
 
         if (health <= 0) {
@@ -380,7 +412,7 @@ public class Player {
             // Trigger hit animation and reset to first frame
             hitAnimationTimer = HIT_ANIMATION_DURATION;
             GameApp.resetAnimation("player_hit");
-            System.out.println("Player took " + amount + " damage. HP: " + health + "/" + maxHealth);
+            System.out.println("Player took " + finalDamage + " damage (reduced from " + amount + "). HP: " + health + "/" + maxHealth);
         }
     }
 
@@ -566,7 +598,57 @@ public class Player {
     public int getXPToNextLevel() { return xpToNextLevel; }
 
     public float getXPMagnetRange() { return xpMagnetRange; }
-    public float getDamageMultiplier() { return damageMultiplier; }
+    
+    /**
+     * Get total damage multiplier from stat upgrades AND passive items.
+     */
+    public float getDamageMultiplier() {
+        float total = damageMultiplier;
+        
+        // Add Spinach passive item bonus
+        if (hasPassiveItem(PassiveItemType.SPINACH)) {
+            total *= getPassiveItem(PassiveItemType.SPINACH).getMultiplier();
+        }
+        
+        return total;
+    }
+    
+    /**
+     * Get effective speed including passive item bonuses.
+     */
+    public float getEffectiveSpeed() {
+        float effectiveSpeed = speed;
+        
+        // Add Wings passive item bonus
+        if (hasPassiveItem(PassiveItemType.WINGS)) {
+            effectiveSpeed *= getPassiveItem(PassiveItemType.WINGS).getMultiplier();
+        }
+        
+        return effectiveSpeed;
+    }
+    
+    /**
+     * Get cooldown reduction multiplier.
+     * Note: EMPTY_TOME has been removed, cooldown is now fixed.
+     */
+    public float getCooldownMultiplier() {
+        // No cooldown reduction passive in current version
+        return 1f;
+    }
+    
+    /**
+     * Get effective max health including passive item bonuses.
+     */
+    public int getEffectiveMaxHealth() {
+        float effectiveMax = maxHealth;
+        
+        // Add Hollow Heart passive item bonus
+        if (hasPassiveItem(PassiveItemType.HOLLOW_HEART)) {
+            effectiveMax = baseMaxHealth * getPassiveItem(PassiveItemType.HOLLOW_HEART).getMultiplier();
+        }
+        
+        return (int) effectiveMax;
+    }
 
     public void applyStatUpgrade(StatUpgradeType type) {
         switch (type) {
@@ -637,4 +719,137 @@ public class Player {
         return getUpgradeLevel(type) >= getMaxUpgradeLevel(type);
     }
 
+    // ============================================
+    // PASSIVE ITEMS SYSTEM
+    // ============================================
+
+    /**
+     * Add a new passive item or level up existing one.
+     * @return true if successfully added/leveled up
+     */
+    public boolean addOrLevelUpPassiveItem(PassiveItemType type) {
+        if (passiveItems.containsKey(type)) {
+            // Level up existing
+            PassiveItem item = passiveItems.get(type);
+            if (item.levelUp()) {
+                GameApp.log("Passive item " + type.displayName + " leveled up to " + item.getLevel());
+                applyPassiveItemEffects();
+                return true;
+            }
+            return false; // Already maxed
+        } else {
+            // Add new
+            PassiveItem item = new PassiveItem(type);
+            passiveItems.put(type, item);
+            GameApp.log("Acquired new passive item: " + type.displayName);
+            applyPassiveItemEffects();
+            return true;
+        }
+    }
+
+    /**
+     * Check if player has a specific passive item.
+     */
+    public boolean hasPassiveItem(PassiveItemType type) {
+        return passiveItems.containsKey(type);
+    }
+
+    /**
+     * Get a specific passive item.
+     */
+    public PassiveItem getPassiveItem(PassiveItemType type) {
+        return passiveItems.get(type);
+    }
+
+    /**
+     * Get level of a passive item (0 if not owned).
+     */
+    public int getPassiveItemLevel(PassiveItemType type) {
+        if (passiveItems.containsKey(type)) {
+            return passiveItems.get(type).getLevel();
+        }
+        return 0;
+    }
+
+    /**
+     * Check if a passive item is at max level.
+     */
+    public boolean isPassiveItemMaxed(PassiveItemType type) {
+        if (passiveItems.containsKey(type)) {
+            return passiveItems.get(type).isMaxLevel();
+        }
+        return false;
+    }
+
+    /**
+     * Get list of all owned passive items.
+     */
+    public List<PassiveItem> getOwnedPassiveItems() {
+        return new ArrayList<>(passiveItems.values());
+    }
+
+    /**
+     * Get count of owned passive items.
+     */
+    public int getPassiveItemCount() {
+        return passiveItems.size();
+    }
+
+    /**
+     * Check if ALL passive items are owned AND at max level.
+     * This is required for weapon evolution.
+     */
+    public boolean areAllPassiveItemsMaxed() {
+        // Must have all 6 passive items
+        if (passiveItems.size() < PassiveItemType.values().length) {
+            return false;
+        }
+        
+        // All must be at max level
+        for (PassiveItem item : passiveItems.values()) {
+            if (!item.isMaxLevel()) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Apply passive item effects to player stats.
+     * Called after adding or leveling up passive items.
+     */
+    private void applyPassiveItemEffects() {
+        // Hollow Heart - Max HP increase (recalculate max health)
+        if (hasPassiveItem(PassiveItemType.HOLLOW_HEART)) {
+            float multiplier = getPassiveItem(PassiveItemType.HOLLOW_HEART).getMultiplier();
+            int newMaxHealth = (int)(baseMaxHealth * multiplier);
+            // Also add stat upgrade bonus
+            newMaxHealth = (int)(newMaxHealth * (1f + (maxHealthLevel * 0.1f)));
+            maxHealth = newMaxHealth;
+            // Don't change current health percentage
+        }
+        
+        // Other effects are calculated on-the-fly in their respective methods
+        // (getDamageMultiplier, getEffectiveSpeed, getCooldownMultiplier, etc.)
+    }
+
+    /**
+     * Get list of available passive items that can still be upgraded.
+     */
+    public List<PassiveItemType> getAvailablePassiveItemUpgrades() {
+        List<PassiveItemType> available = new ArrayList<>();
+        
+        for (PassiveItemType type : PassiveItemType.values()) {
+            if (!hasPassiveItem(type)) {
+                // Don't have it yet - can acquire
+                available.add(type);
+            } else if (!isPassiveItemMaxed(type)) {
+                // Have it but not maxed - can level up
+                available.add(type);
+            }
+        }
+        
+        return available;
+    }
 }

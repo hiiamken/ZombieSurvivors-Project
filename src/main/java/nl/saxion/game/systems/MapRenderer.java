@@ -1,5 +1,8 @@
 package nl.saxion.game.systems;
 
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import nl.saxion.game.utils.TMXMapData;
 import nl.saxion.gameapp.GameApp;
 
@@ -12,13 +15,64 @@ public class MapRenderer {
     private static final int MAPS_TO_RENDER = 3;     // 3x3 grid around player
 
     private final Map<Integer, TMXMapData> tmxMapDataByRoomIndex;
+    
+    // Reference to ResourceLoader for Nearest filter textures
+    private ResourceLoader resourceLoader;
+    
+    // SpriteBatch and camera for rendering with Nearest filter textures
+    private SpriteBatch sharpBatch;
+    private OrthographicCamera camera;
+    private boolean useSharpRendering = true; // Enable sharp rendering by default
 
     public MapRenderer(Map<Integer, TMXMapData> tmxMapDataByRoomIndex) {
         this.tmxMapDataByRoomIndex = tmxMapDataByRoomIndex;
+        
+        // Initialize SpriteBatch and camera for sharp rendering
+        try {
+            sharpBatch = new SpriteBatch();
+            camera = new OrthographicCamera();
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not create SpriteBatch for sharp rendering");
+            useSharpRendering = false;
+        }
+    }
+    
+    /**
+     * Set the ResourceLoader reference for accessing Nearest filter textures.
+     * @param resourceLoader The ResourceLoader instance
+     */
+    public void setResourceLoader(ResourceLoader resourceLoader) {
+        this.resourceLoader = resourceLoader;
+    }
+    
+    /**
+     * Dispose resources used by MapRenderer.
+     */
+    public void dispose() {
+        if (sharpBatch != null) {
+            sharpBatch.dispose();
+            sharpBatch = null;
+        }
     }
 
     public void render(float playerWorldX, float playerWorldY) {
-        GameApp.startSpriteRendering();
+        // Check if we can use sharp rendering with Nearest filter textures
+        boolean canUseSharp = useSharpRendering && resourceLoader != null && sharpBatch != null && camera != null;
+        
+        if (canUseSharp) {
+            // Setup camera to match GameApp world size
+            float worldWidth = GameApp.getWorldWidth();
+            float worldHeight = GameApp.getWorldHeight();
+            camera.setToOrtho(false, worldWidth, worldHeight);
+            camera.update();
+            
+            // Use custom SpriteBatch for sharp rendering
+            sharpBatch.setProjectionMatrix(camera.combined);
+            sharpBatch.begin();
+        } else {
+            // Fallback to GameApp sprite rendering
+            GameApp.startSpriteRendering();
+        }
 
         // Calculate which map player is currently in
         int centerMapRow = getMapRowFromWorldY(playerWorldY);
@@ -48,12 +102,20 @@ public class MapRenderer {
 
                 // Only render if in viewport
                 if (isMapInViewport(screenX, screenY)) {
-                    renderSingleMap(mapRow, mapCol, screenX, screenY);
+                    if (canUseSharp) {
+                        renderSingleMapSharp(mapRow, mapCol, screenX, screenY);
+                    } else {
+                        renderSingleMap(mapRow, mapCol, screenX, screenY);
+                    }
                 }
             }
         }
 
-        GameApp.endSpriteRendering();
+        if (canUseSharp) {
+            sharpBatch.end();
+        } else {
+            GameApp.endSpriteRendering();
+        }
     }
 
     private void renderSingleMap(int mapRow, int mapCol, float screenX, float screenY) {
@@ -63,6 +125,30 @@ public class MapRenderer {
 
         if (GameApp.hasTexture(roomKey)) {
             GameApp.drawTexture(roomKey, screenX, screenY, MAP_TILE_WIDTH, MAP_TILE_HEIGHT);
+        }
+    }
+    
+    /**
+     * Render a single map using Nearest filter texture for sharp pixel rendering.
+     */
+    private void renderSingleMapSharp(int mapRow, int mapCol, float screenX, float screenY) {
+        int mapIndex = mapRow * 4 + mapCol;
+        mapIndex = wrapMapCoordinate(mapIndex, 16);
+        String roomKey = getRoomTextureKey(mapIndex);
+
+        // Try to get Nearest filter texture from ResourceLoader
+        Texture sharpTexture = resourceLoader.getMapTextureWithNearestFilter(roomKey);
+        
+        if (sharpTexture != null && sharpBatch != null) {
+            // Render with Nearest filter texture for sharp pixels
+            sharpBatch.draw(sharpTexture, screenX, screenY, MAP_TILE_WIDTH, MAP_TILE_HEIGHT);
+        } else if (GameApp.hasTexture(roomKey)) {
+            // Fallback to GameApp rendering
+            sharpBatch.end();
+            GameApp.startSpriteRendering();
+            GameApp.drawTexture(roomKey, screenX, screenY, MAP_TILE_WIDTH, MAP_TILE_HEIGHT);
+            GameApp.endSpriteRendering();
+            sharpBatch.begin();
         }
     }
 

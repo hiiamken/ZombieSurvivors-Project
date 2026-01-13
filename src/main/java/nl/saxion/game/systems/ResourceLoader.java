@@ -1,5 +1,8 @@
 package nl.saxion.game.systems;
 
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import nl.saxion.game.config.ConfigManager;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.utils.TMXMapData;
@@ -12,6 +15,9 @@ import java.util.Map;
 // Handles loading and disposing of game resources
 public class ResourceLoader {
     private SoundManager soundManager;
+    
+    // Map textures loaded with Nearest filter for sharp pixel rendering
+    private final Map<String, Texture> mapTexturesWithNearestFilter = new HashMap<>();
     
     public void loadGameResources() {
         // Load audio resources
@@ -105,23 +111,96 @@ public class ResourceLoader {
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 22);
 
         // Load breakable object sprite sheet (64x64 frames)
-        // Row 0: barrel - cols 0-2 idle, cols 3-6 break animation
+        // Sprite sheet layout: Each object type uses 1 row
+        // Cols 0-2: idle animation, Cols 3-6: break animation
+        // Row 1: Barrel, Row 3: Box, Row 5: Rock, Row 7: Sign, Row 9: Mushroom, Row 11: Chest
         GameApp.addSpriteSheet("object_sheet", "assets/tiles/object.png", 64, 64);
 
-        // Create barrel idle animation (row 0, cols 0-2, looping)
-        GameApp.addEmptyAnimation("barrel_idle", 0.2f, true);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 0);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 1);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_idle", "object_sheet", 0, 2);
+        // Create animations for all 6 object types
+        // Each type uses same row: idle (cols 0-2, looping), break (cols 3-6, not looping)
+        createObjectAnimations("barrel", 1);      // Barrel - row 1
+        createObjectAnimations("box", 3);         // Box - row 3
+        createObjectAnimations("rock", 5);        // Rock - row 5
+        createObjectAnimations("sign", 7);        // Sign - row 7
+        createObjectAnimations("mushroom", 9);    // Mushroom - row 9
+        createObjectAnimations("chest", 11);      // Chest - row 11
+        
+        GameApp.log("Loaded all 6 breakable object types animations");
+        
+        // Load chicken texture for healing item
+        try {
+            GameApp.addTexture("chicken_item", "assets/ui/chicken.png");
+            GameApp.log("Loaded chicken healing item texture");
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not load chicken.png for healing item");
+        }
 
-        // Create barrel break animation (row 0, cols 3-6, NOT looping)
-        GameApp.addEmptyAnimation("barrel_break", 0.15f, false);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 3);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 4);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 5);
-        GameApp.addAnimationFrameFromSpritesheet("barrel_break", "object_sheet", 0, 6);
+        // Load treasure chest textures - shiny animation frames (1-11) for idle
+        for (int i = 1; i <= 11; i++) {
+            String key = "chest_shiny_" + i;
+            String path = "assets/ui/shiny" + i + ".png";
+            try {
+                GameApp.addTexture(key, path);
+            } catch (Exception e) {
+                GameApp.log("Warning: Could not load " + path);
+            }
+        }
+        
+        // Load open animation frames (open1, open2) - for opening animation
+        try {
+            GameApp.addTexture("chest_open_1", "assets/ui/open1.png");
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not load open1.png");
+        }
+        try {
+            GameApp.addTexture("chest_open_2", "assets/ui/open2.png");
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not load open2.png");
+        }
+        
+        GameApp.log("Loaded treasure chest animation frames (shiny1-11, open1-2)");
 
-        // Load 16 individual map textures
+        // Load passive item icons (64x64 images)
+        try { GameApp.addTexture("passive_spinach", "assets/ui/spinach.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load spinach.png"); }
+        
+        try { GameApp.addTexture("passive_armor", "assets/ui/armor.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load armor.png"); }
+        
+        try { GameApp.addTexture("passive_wings", "assets/ui/wings.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load wings.png"); }
+        
+        try { GameApp.addTexture("passive_clover", "assets/ui/clover.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load clover.png"); }
+        
+        try { GameApp.addTexture("passive_attractorb", "assets/ui/Attractorb.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load Attractorb.png"); }
+        
+        try { GameApp.addTexture("passive_pummarola", "assets/ui/pummarola.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load pummarola.png"); }
+        
+        try { GameApp.addTexture("passive_hollowheart", "assets/ui/hollowhear.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load hollowhear.png"); }
+        
+        // Load weapon icon for gacha
+        try { GameApp.addTexture("weapon_icon", "assets/Bullet/Bullet.png"); }
+        catch (Exception e) { GameApp.log("Warning: Could not load Bullet.png for weapon icon"); }
+        
+        // Load pistol icon for HUD weapon display
+        try { GameApp.addTexture("piston_icon", "assets/ui/piston.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load Bullet.png for weapon icon"); }
+        
+        // Load arrow icon for level up menu
+        try { GameApp.addTexture("arrow_icon", "assets/ui/arrow.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load arrow.png"); }
+        
+        // Load star icon for score display
+        try { GameApp.addTexture("star_icon", "assets/ui/star.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load star.png"); }
+        
+        GameApp.log("Loaded passive item icons, weapon icon, arrow icon and star icon");
+
+        // Load 16 individual map textures with NEAREST filter for sharp pixel rendering
         // Note: Game uses room_00.png to room_15.png, NOT map1.png
         // If you change map images, update room_XX.png files, not map1.png
         int loadedCount = 0;
@@ -133,14 +212,60 @@ public class ResourceLoader {
                 if (GameApp.hasTexture(roomKey)) {
                     GameApp.disposeTexture(roomKey);
                 }
-                GameApp.addTexture(roomKey, roomPath);
+                
+                // Load texture with NEAREST filter for sharp pixel art rendering
+                loadTextureWithNearestFilter(roomKey, roomPath);
                 loadedCount++;
             } catch (Exception e) {
                 GameApp.log("Warning: Could not load " + roomPath + " - " + e.getMessage());
             }
         }
 
-        GameApp.log("Loaded " + loadedCount + " map textures (room_00.png to room_15.png)");
+        GameApp.log("Loaded " + loadedCount + " map textures with Nearest filter (room_00.png to room_15.png)");
+    }
+    
+    /**
+     * Load a texture with NEAREST filter for sharp pixel-perfect rendering.
+     * This prevents blurring when textures are scaled.
+     * 
+     * @param key The texture key to register
+     * @param path The path to the texture file
+     */
+    private void loadTextureWithNearestFilter(String key, String path) {
+        try {
+            // First, load the texture normally with GameApp
+            GameApp.addTexture(key, path);
+            
+            // Then, load again with LibGDX to apply Nearest filter
+            Texture texture = new Texture(Gdx.files.internal(path));
+            texture.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+            
+            // Store in our map for direct rendering
+            mapTexturesWithNearestFilter.put(key, texture);
+            
+        } catch (Exception e) {
+            GameApp.log("Error loading texture with Nearest filter: " + key + " - " + e.getMessage());
+            // Fallback: just load normally
+            GameApp.addTexture(key, path);
+        }
+    }
+    
+    /**
+     * Get a map texture with Nearest filter applied.
+     * @param key The texture key
+     * @return The Texture object with Nearest filter, or null if not found
+     */
+    public Texture getMapTextureWithNearestFilter(String key) {
+        return mapTexturesWithNearestFilter.get(key);
+    }
+    
+    /**
+     * Check if a map texture with Nearest filter exists.
+     * @param key The texture key
+     * @return true if the texture exists
+     */
+    public boolean hasMapTextureWithNearestFilter(String key) {
+        return mapTexturesWithNearestFilter.containsKey(key);
     }
 
     public Map<Integer, TMXMapData> loadTMXMaps() {
@@ -237,20 +362,74 @@ public class ResourceLoader {
         GameApp.disposeAnimation("orb_animation");
         GameApp.disposeSpritesheet("orb_sheet");
 
-        // Dispose breakable object animations and sprite sheet
-        GameApp.disposeAnimation("barrel_idle");
-        GameApp.disposeAnimation("barrel_break");
+        // Dispose breakable object animations and sprite sheet (all 6 types)
+        String[] objectTypes = {"barrel", "box", "rock", "sign", "mushroom", "chest"};
+        for (String type : objectTypes) {
+            GameApp.disposeAnimation(type + "_idle");
+            GameApp.disposeAnimation(type + "_break");
+        }
         GameApp.disposeSpritesheet("object_sheet");
+        
+        // Dispose chicken healing item texture
+        GameApp.disposeTexture("chicken_item");
+        
+        // Dispose treasure chest textures
+        for (int i = 1; i <= 11; i++) {
+            GameApp.disposeTexture("chest_shiny_" + i);
+        }
+        GameApp.disposeTexture("chest_open_1");
+        GameApp.disposeTexture("chest_open_2");
+        
+        // Dispose passive item icons
+        GameApp.disposeTexture("passive_spinach");
+        GameApp.disposeTexture("passive_armor");
+        GameApp.disposeTexture("passive_wings");
+        GameApp.disposeTexture("passive_clover");
+        GameApp.disposeTexture("passive_attractorb");
+        GameApp.disposeTexture("passive_pummarola");
+        GameApp.disposeTexture("passive_hollowheart");
+        GameApp.disposeTexture("weapon_icon");
 
         // Dispose all map textures
         for (int i = 0; i < 16; i++) {
             String roomKey = getRoomTextureKey(i);
             GameApp.disposeTexture(roomKey);
         }
+        
+        // Dispose Nearest filter textures
+        for (Texture texture : mapTexturesWithNearestFilter.values()) {
+            if (texture != null) {
+                texture.dispose();
+            }
+        }
+        mapTexturesWithNearestFilter.clear();
     }
 
     private String getRoomTextureKey(int mapIndex) {
         return "room_" + String.format("%02d", mapIndex);
+    }
+    
+    /**
+     * Helper method to create idle and break animations for a breakable object type.
+     * Both animations use the same row: cols 0-2 for idle, cols 3-6 for break.
+     * @param name The animation name prefix (e.g., "barrel", "box")
+     * @param row The sprite sheet row containing both idle (cols 0-2) and break (cols 3-6) frames
+     */
+    private void createObjectAnimations(String name, int row) {
+        // Create idle animation (cols 0-2, looping)
+        String idleAnim = name + "_idle";
+        GameApp.addEmptyAnimation(idleAnim, 0.2f, true);
+        GameApp.addAnimationFrameFromSpritesheet(idleAnim, "object_sheet", row, 0);
+        GameApp.addAnimationFrameFromSpritesheet(idleAnim, "object_sheet", row, 1);
+        GameApp.addAnimationFrameFromSpritesheet(idleAnim, "object_sheet", row, 2);
+        
+        // Create break animation (cols 3-6, NOT looping) - same row!
+        String breakAnim = name + "_break";
+        GameApp.addEmptyAnimation(breakAnim, 0.15f, false);
+        GameApp.addAnimationFrameFromSpritesheet(breakAnim, "object_sheet", row, 3);
+        GameApp.addAnimationFrameFromSpritesheet(breakAnim, "object_sheet", row, 4);
+        GameApp.addAnimationFrameFromSpritesheet(breakAnim, "object_sheet", row, 5);
+        GameApp.addAnimationFrameFromSpritesheet(breakAnim, "object_sheet", row, 6);
     }
     
     /**
