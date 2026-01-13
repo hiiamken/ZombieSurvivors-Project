@@ -1,7 +1,7 @@
 package nl.saxion.game.entities;
 
 public enum StatUpgradeType {
-    SPEED("Wings", 5), // Max 5 levels, +10% per level (like VS Wings item, +50% total)
+    SPEED("Swift Boots", 5), // Max 5 levels, +10% per level (different from PassiveItemType.WINGS)
     DAMAGE("Damage Boost", 5), // Max 5 levels, +5% per level
     MAX_HEALTH("Max Health", 3), // Max 3 levels, +10% per level
     HEALTH_REGEN("Health Regen", 5), // Max 5 levels, +0.1 HP/s per level

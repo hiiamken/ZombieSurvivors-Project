@@ -54,6 +54,12 @@ public class CollisionHandler {
                 if (e.isDead() || e.isDying() || !e.isActive()) {
                     continue;
                 }
+                
+                // Skip enemies already hit by this bullet (for pierce system)
+                int enemyId = System.identityHashCode(e);
+                if (b.hasHitEnemy(enemyId)) {
+                    continue;
+                }
 
                 // Use DAMAGE hitbox for bullet collision
                 Rectangle enemyDamageHitbox = e.getDamageHitBox();
@@ -65,7 +71,6 @@ public class CollisionHandler {
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
                     int damage = b.getDamage();
                     e.takeDamage(damage);
-                    b.destroy();
 
                     // Spawn damage text at enemy position
                     if (damageTextSystem != null) {
@@ -84,7 +89,13 @@ public class CollisionHandler {
                         }
                     }
 
-                    break;
+                    // Pierce system: check if bullet should continue or be destroyed
+                    boolean shouldContinue = b.onHitEnemy(enemyId);
+                    if (!shouldContinue) {
+                        b.destroy();
+                        break; // Bullet destroyed, stop checking enemies
+                    }
+                    // If bullet pierces, continue checking other enemies (don't break)
                 }
             }
         }

@@ -16,6 +16,10 @@ public class GameConfig {
 
     public boolean debugEnabled;
     public boolean fullscreen;
+    
+    // Showcase mode - starts at 14 minutes elapsed (1 minute remaining)
+    // All passive items and weapon at max level + evolved
+    public boolean showcaseMode;
 
     public GameConfig() {}
 
@@ -34,6 +38,7 @@ public class GameConfig {
 
         cfg.debugEnabled = false; // Debug disabled by default
         cfg.fullscreen = true; // Fullscreen enabled by default
+        cfg.showcaseMode = false; // Showcase mode disabled by default
 
         return cfg;
     }
