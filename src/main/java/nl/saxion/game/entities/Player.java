@@ -4,6 +4,7 @@ package nl.saxion.game.entities;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.systems.InputController;
 import nl.saxion.game.utils.CollisionChecker;
+import com.badlogic.gdx.graphics.Color;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -22,9 +23,10 @@ public class Player {
     private float worldY;
 
     // ===== XP / LEVEL SYSTEM =====
+    // Balanced for max level at minute 8-9 of 10-minute game
     private int currentLevel = 1;
     private int currentXP = 0;
-    private int xpToNextLevel = 100;
+    private int xpToNextLevel = 75; // Formula: 50 + level * 25 = 75 at level 1
     private float xpMagnetRange = 100f;
     private float damageMultiplier = 1f;
     
@@ -45,6 +47,51 @@ public class Player {
     private static final float REGEN_PER_LEVEL = 0.1f; // 0.1 HP/s per level (stat upgrade)
     private static final int MAX_REGEN_LEVEL = 5; // Max level (0.5 HP/s)
     private HealthTextCallback healthTextCallback = null;
+    
+    // ===== BLOOD PARTICLES =====
+    private List<BloodParticle> bloodParticles = new ArrayList<>();
+    
+    // Blood particle class for damage effect
+    private static class BloodParticle {
+        float x, y;
+        float vx, vy;
+        float lifetime;
+        float maxLifetime;
+        float size;
+        Color color;
+        
+        BloodParticle(float x, float y) {
+            this.x = x;
+            this.y = y;
+            // Random velocity direction (spread outward)
+            float angle = GameApp.random(0f, 360f) * (float) Math.PI / 180f;
+            float speed = GameApp.random(60f, 120f);
+            this.vx = (float) Math.cos(angle) * speed;
+            this.vy = (float) Math.sin(angle) * speed;
+            this.lifetime = GameApp.random(0.3f, 0.6f);
+            this.maxLifetime = lifetime;
+            this.size = GameApp.random(2f, 5f);
+            // Red blood color with slight variation
+            float r = GameApp.random(0.8f, 1.0f);
+            float g = GameApp.random(0.0f, 0.2f);
+            float b = 0f;
+            this.color = new Color(r, g, b, 1f);
+        }
+        
+        void update(float delta) {
+            x += vx * delta;
+            y += vy * delta;
+            vy -= 150f * delta; // Gravity
+            vx *= 0.98f; // Air resistance
+            lifetime -= delta;
+            // Fade out - clamp alpha to 0-1
+            color.a = Math.max(0f, Math.min(1f, lifetime / maxLifetime));
+        }
+        
+        boolean isAlive() {
+            return lifetime > 0;
+        }
+    }
     
     // ===== DAMAGE REDUCTION FROM ARMOR =====
     private float damageReductionMultiplier = 1f; // 1.0 = no reduction, 0.5 = 50% reduction
@@ -137,9 +184,9 @@ public class Player {
             totalRegenRate += REGEN_PER_LEVEL * effectiveLevel;
         }
         
-        // Passive item regen (Pummarola)
-        if (hasPassiveItem(PassiveItemType.PUMMAROLA)) {
-            totalRegenRate += getPassiveItem(PassiveItemType.PUMMAROLA).getMultiplier();
+        // Passive item regen (Life Essence)
+        if (hasPassiveItem(PassiveItemType.LIFE_ESSENCE)) {
+            totalRegenRate += getPassiveItem(PassiveItemType.LIFE_ESSENCE).getMultiplier();
         }
         
         // Apply health regen
@@ -169,6 +216,9 @@ public class Player {
         if (hitAnimationTimer > 0) {
             hitAnimationTimer -= delta;
         }
+        
+        // Update blood particles
+        updateBloodParticles(delta);
 
         float dirX = 0f;
         float dirY = 0f;
@@ -392,16 +442,19 @@ public class Player {
         // Don't take damage if already dying
         if (isDying) return;
 
-        // Apply damage reduction from Armor passive item
+        // Apply damage reduction from Iron Shield passive item
         float effectiveReduction = 1f;
-        if (hasPassiveItem(PassiveItemType.ARMOR)) {
-            effectiveReduction = getPassiveItem(PassiveItemType.ARMOR).getMultiplier();
+        if (hasPassiveItem(PassiveItemType.IRON_SHIELD)) {
+            effectiveReduction = getPassiveItem(PassiveItemType.IRON_SHIELD).getMultiplier();
         }
         
         int finalDamage = Math.max(1, (int)(amount * effectiveReduction));
         
         health -= finalDamage;
         health = (int) GameApp.clamp(health, 0, maxHealth);
+        
+        // Spawn blood particles when taking damage
+        spawnBloodParticles();
 
         if (health <= 0) {
             // Start death sequence
@@ -416,6 +469,60 @@ public class Player {
         }
     }
 
+    // Spawn blood particles when player takes damage
+    private void spawnBloodParticles() {
+        // Don't spawn if player is dying
+        if (isDying) return;
+        
+        // Spawn 8-12 blood particles
+        int particleCount = GameApp.randomInt(8, 13);
+        float centerX = worldX + SPRITE_SIZE / 2f;
+        float centerY = worldY + SPRITE_SIZE / 2f;
+        
+        for (int i = 0; i < particleCount; i++) {
+            bloodParticles.add(new BloodParticle(centerX, centerY));
+        }
+        
+        GameApp.log("Blood particles spawned: " + particleCount + " at (" + centerX + ", " + centerY + ")");
+    }
+    
+    // Update blood particles
+    private void updateBloodParticles(float delta) {
+        bloodParticles.removeIf(p -> !p.isAlive());
+        for (BloodParticle p : bloodParticles) {
+            p.update(delta);
+        }
+    }
+    
+    // Render blood particles (call this from PlayScreen)
+    // Converts world coordinates to screen coordinates using player position as camera center
+    public void renderBloodParticles(float playerWorldX, float playerWorldY) {
+        if (bloodParticles.isEmpty()) return;
+        
+        float screenCenterX = GameApp.getWorldWidth() / 2f;
+        float screenCenterY = GameApp.getWorldHeight() / 2f;
+        
+        GameApp.startShapeRenderingFilled();
+        for (BloodParticle p : bloodParticles) {
+            // Convert world coordinates to screen coordinates
+            float screenX = screenCenterX + (p.x - playerWorldX);
+            float screenY = screenCenterY + (p.y - playerWorldY);
+            
+            // Clamp alpha to valid range 0-255
+            int alpha = Math.max(0, Math.min(255, (int)(255 * p.color.a)));
+            int r = Math.max(0, Math.min(255, (int)(p.color.r * 255)));
+            int g = Math.max(0, Math.min(255, (int)(p.color.g * 255)));
+            int b = Math.max(0, Math.min(255, (int)(p.color.b * 255)));
+            
+            // Skip nearly invisible particles
+            if (alpha < 5) continue;
+            
+            GameApp.setColor(r, g, b, alpha);
+            GameApp.drawRect(screenX - p.size/2, screenY - p.size/2, p.size, p.size);
+        }
+        GameApp.endShapeRendering();
+    }
+    
     public void heal(int amount) {
         int oldHealth = health;
         health += amount;
@@ -590,7 +697,9 @@ public class Player {
     public void levelUp() {
         currentXP -= xpToNextLevel;
         currentLevel++;
-        xpToNextLevel = 100 + currentLevel * 50;
+        // Balanced XP curve: player should max level at minute 8-9 of 10-minute game
+        // Formula: 50 + level * 25 (more gentle curve)
+        xpToNextLevel = 50 + currentLevel * 25;
     }
 
     public int getCurrentLevel() { return currentLevel; }
@@ -605,9 +714,9 @@ public class Player {
     public float getDamageMultiplier() {
         float total = damageMultiplier;
         
-        // Add Spinach passive item bonus
-        if (hasPassiveItem(PassiveItemType.SPINACH)) {
-            total *= getPassiveItem(PassiveItemType.SPINACH).getMultiplier();
+        // Add Power Herb passive item bonus
+        if (hasPassiveItem(PassiveItemType.POWER_HERB)) {
+            total *= getPassiveItem(PassiveItemType.POWER_HERB).getMultiplier();
         }
         
         return total;
@@ -619,9 +728,9 @@ public class Player {
     public float getEffectiveSpeed() {
         float effectiveSpeed = speed;
         
-        // Add Wings passive item bonus
-        if (hasPassiveItem(PassiveItemType.WINGS)) {
-            effectiveSpeed *= getPassiveItem(PassiveItemType.WINGS).getMultiplier();
+        // Add Swift Boots passive item bonus
+        if (hasPassiveItem(PassiveItemType.SWIFT_BOOTS)) {
+            effectiveSpeed *= getPassiveItem(PassiveItemType.SWIFT_BOOTS).getMultiplier();
         }
         
         return effectiveSpeed;
@@ -642,9 +751,9 @@ public class Player {
     public int getEffectiveMaxHealth() {
         float effectiveMax = maxHealth;
         
-        // Add Hollow Heart passive item bonus
-        if (hasPassiveItem(PassiveItemType.HOLLOW_HEART)) {
-            effectiveMax = baseMaxHealth * getPassiveItem(PassiveItemType.HOLLOW_HEART).getMultiplier();
+        // Add Vitality Core passive item bonus
+        if (hasPassiveItem(PassiveItemType.VITALITY_CORE)) {
+            effectiveMax = baseMaxHealth * getPassiveItem(PassiveItemType.VITALITY_CORE).getMultiplier();
         }
         
         return (int) effectiveMax;
@@ -820,9 +929,9 @@ public class Player {
      * Called after adding or leveling up passive items.
      */
     private void applyPassiveItemEffects() {
-        // Hollow Heart - Max HP increase (recalculate max health)
-        if (hasPassiveItem(PassiveItemType.HOLLOW_HEART)) {
-            float multiplier = getPassiveItem(PassiveItemType.HOLLOW_HEART).getMultiplier();
+        // Vitality Core - Max HP increase (recalculate max health)
+        if (hasPassiveItem(PassiveItemType.VITALITY_CORE)) {
+            float multiplier = getPassiveItem(PassiveItemType.VITALITY_CORE).getMultiplier();
             int newMaxHealth = (int)(baseMaxHealth * multiplier);
             // Also add stat upgrade bonus
             newMaxHealth = (int)(newMaxHealth * (1f + (maxHealthLevel * 0.1f)));

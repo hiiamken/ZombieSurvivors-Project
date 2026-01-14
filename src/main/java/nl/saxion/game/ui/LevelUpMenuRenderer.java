@@ -12,6 +12,9 @@ import java.util.List;
  */
 public class LevelUpMenuRenderer {
     
+    // Font loading flag to ensure fonts are loaded only once
+    private static boolean fontsLoaded = false;
+    
     /**
      * Render level up menu with VS style
      */
@@ -19,6 +22,9 @@ public class LevelUpMenuRenderer {
                       float delta, float animTimer, float selectAnim, 
                       boolean isOpening, Player player, Weapon weapon) {
         if (options == null || options.isEmpty()) return;
+        
+        // Ensure fonts are loaded
+        ensureFontsLoaded();
         
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
@@ -35,13 +41,13 @@ public class LevelUpMenuRenderer {
         GameApp.drawRect(0, 0, screenWidth, screenHeight);
         GameApp.endShapeRendering();
         
-        // Menu panel dimensions (Vampire Survivors style - compact)
+        // Menu panel dimensions (Vampire Survivors style - improved spacing)
         int count = Math.min(3, options.size()); // Show max 3 options
-        float menuW = screenWidth * 0.45f; // Narrower panel
-        float optionH = 90f; // Option height
-        float gap = 14f; // Gap between options
-        float padding = 20f;
-        float titleAreaH = 70f;
+        float menuW = screenWidth * 0.50f; // Slightly wider for better text space
+        float optionH = 100f; // Increased height for better text spacing
+        float gap = 18f; // Increased gap between options
+        float padding = 25f; // More padding
+        float titleAreaH = 80f; // More space for title
         
         float totalH = (count * optionH) + ((count - 1) * gap) + (padding * 2) + titleAreaH;
         float menuX = centerX - menuW / 2f;
@@ -70,11 +76,11 @@ public class LevelUpMenuRenderer {
         GameApp.endShapeRendering();
         
         // Title "LEVEL UP!" inside panel with beautiful font
-        // Position from bottom: menuY + totalH - 35f (35f from top)
+        // Position from bottom: menuY + totalH - 40f (40f from top)
         GameApp.startSpriteRendering();
-        float titleY = menuY + totalH - 35f;
+        float titleY = menuY + totalH - 40f;
         String titleFont = GameApp.hasFont("levelUpTitleFont") ? "levelUpTitleFont" : "default";
-        GameApp.drawTextCentered(titleFont, "LEVEL UP!", centerX, titleY, "yellow-500");
+        GameApp.drawTextCentered(titleFont, "LEVEL UP!", centerX, titleY, "yellow-400");
         GameApp.endSpriteRendering();
         
         // Render options
@@ -143,11 +149,11 @@ public class LevelUpMenuRenderer {
             GameApp.drawTexture(option.icon, iconX, iconY, iconSize, iconSize);
         }
         
-        // Text content
-        float textX = x + 100f;
-        float titleY = y + height - 25f;
+        // Text content with improved spacing
+        float textX = x + 105f;
+        float titleY = y + height - 30f; // More space from top
         
-        // Title
+        // Title with better font
         String titleText = option.title;
         // Remove "NEW: " prefix if exists (we'll show "New!" separately)
         boolean isNew = false;
@@ -160,22 +166,35 @@ public class LevelUpMenuRenderer {
             isNew = true;
         }
         
-        GameApp.drawText("default", titleText, textX, titleY, "white");
+        // Use better font for title
+        String titleFont = GameApp.hasFont("upgradeItemFont") ? "upgradeItemFont" : "default";
+        GameApp.drawText(titleFont, titleText, textX, titleY, "white");
         
-        // "New!" label (for new passive items)
+        // "NEW!" label with highlight (for new passive items)
         if (isNew) {
-            float newLabelX = textX + GameApp.getTextWidth("default", titleText) + 12f;
-            GameApp.drawText("default", "New!", newLabelX, titleY, "yellow-500");
+            String newFont = GameApp.hasFont("upgradeNewFont") ? "upgradeNewFont" : "default";
+            float newLabelX = textX + GameApp.getTextWidth(titleFont, titleText) + 15f;
+            // Draw background highlight for NEW label
+            GameApp.endSpriteRendering();
+            GameApp.startShapeRenderingFilled();
+            GameApp.setColor(255, 215, 0, (int)(180 * menuAlpha)); // Gold background
+            float newBgWidth = GameApp.getTextWidth(newFont, "NEW!") + 8f;
+            GameApp.drawRect(newLabelX - 4f, titleY - 2f, newBgWidth, 18f);
+            GameApp.endShapeRendering();
+            GameApp.startSpriteRendering();
+            GameApp.drawText(newFont, "NEW!", newLabelX, titleY, "black");
         }
         
-        // Description
-        float descY = y + 28f;
-        GameApp.drawText("default", option.description, textX, descY, "gray-300");
+        // Description with better font and spacing
+        float descY = y + 30f; // Adjusted spacing for larger fonts
+        String descFont = GameApp.hasFont("upgradeDescFont") ? "upgradeDescFont" : "default";
+        GameApp.drawText(descFont, option.description, textX, descY, "gray-200");
         
-        // Level text (right side)
+        // Level text (right side) with better font
         String levelText = getLevelText(option, player, weapon);
-        float levelX = x + width - GameApp.getTextWidth("default", levelText) - 20f;
-        GameApp.drawText("default", levelText, levelX, titleY, "white");
+        String levelFont = GameApp.hasFont("upgradeLevelFont") ? "upgradeLevelFont" : "default";
+        float levelX = x + width - GameApp.getTextWidth(levelFont, levelText) - 25f;
+        GameApp.drawText(levelFont, levelText, levelX, titleY, "cyan-300");
         
         GameApp.endSpriteRendering();
     }
@@ -197,5 +216,51 @@ public class LevelUpMenuRenderer {
     
     private float easeOutCubic(float t) {
         return 1f - (float)Math.pow(1 - t, 3);
+    }
+    
+    /**
+     * Ensure all fonts for the upgrade menu are loaded
+     */
+    private void ensureFontsLoaded() {
+        if (fontsLoaded) return;
+        
+        try {
+            // Title font - large and bold for "LEVEL UP!"
+            if (!GameApp.hasFont("levelUpTitleFont")) {
+                GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 24,
+                    "yellow-400", 2.5f, "black", 3, 3, "orange-800", true);
+            }
+            
+            // Item name font - larger size, very readable
+            if (!GameApp.hasFont("upgradeItemFont")) {
+                GameApp.addStyledFont("upgradeItemFont", "fonts/PressStart2P-Regular.ttf", 14,
+                    "white", 2.0f, "black", 2, 2, "gray-800", true);
+            }
+            
+            // Description font - readable size for descriptions
+            if (!GameApp.hasFont("upgradeDescFont")) {
+                GameApp.addStyledFont("upgradeDescFont", "fonts/VT323-Regular.ttf", 16,
+                    "gray-200", 1.5f, "black", 1, 1, "gray-900", true);
+            }
+            
+            // Level font - larger, more visible for level indicators
+            if (!GameApp.hasFont("upgradeLevelFont")) {
+                GameApp.addStyledFont("upgradeLevelFont", "fonts/PressStart2P-Regular.ttf", 16,
+                    "cyan-300", 2.0f, "black", 2, 2, "blue-900", true);
+            }
+            
+            // NEW label font - attention-grabbing
+            if (!GameApp.hasFont("upgradeNewFont")) {
+                GameApp.addStyledFont("upgradeNewFont", "fonts/PressStart2P-Regular.ttf", 10,
+                    "black", 1.5f, "yellow-400", 1, 1, "orange-600", true);
+            }
+            
+            fontsLoaded = true;
+            GameApp.log("Upgrade menu fonts loaded successfully");
+            
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not load some upgrade menu fonts: " + e.getMessage());
+            fontsLoaded = true; // Set to true anyway to avoid repeated attempts
+        }
     }
 }

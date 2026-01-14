@@ -3,6 +3,7 @@ package nl.saxion.game.entities;
 /**
  * MiniBoss entity - spawns at the end of each round (every 60 seconds)
  * Has hit animation when damaged for better visual feedback
+ * Uses dedicated Boss sprite sheets (Boss_Idle, Boss_run, Boss_Hit)
  */
 public class Boss {
 
@@ -18,7 +19,7 @@ public class Boss {
     private float speed;
     private float size;
 
-    public static final float SPRITE_SIZE = 48f;
+    public static final float SPRITE_SIZE = 48f; // Larger than zombie (36f)
 
     // Hit animation system
     private boolean isHit = false;
@@ -28,6 +29,12 @@ public class Boss {
     // Death animation tracking
     private float deathAnimTimer = 0f;
     private static final float DEATH_ANIM_DURATION = 0.8f; // Duration before removal
+    
+    // Knockback system (less than regular zombies - boss is tanky)
+    private float knockbackX = 0f;
+    private float knockbackY = 0f;
+    private static final float KNOCKBACK_STRENGTH = 30f;  // Less than regular zombies (80)
+    private static final float KNOCKBACK_DECAY = 10f;     // Faster decay for boss
 
     public Boss(float startX, float startY, int hp) {
         x = startX;
@@ -40,7 +47,10 @@ public class Boss {
         isDying = false;
 
         size = 48f;
-        speed = 55f;
+        speed = 45f; // Slightly slower but tankier
+        
+        // Use Boss animations
+        this.currentAnimation = "boss_run";
     }
     
     private boolean facingRight = true;
@@ -83,7 +93,7 @@ public class Boss {
         // If currently in hit state, show hit animation but still allow movement
         if (isHit) {
             state = BossState.HIT;
-            currentAnimation = "boss_attack"; // Reuse attack animation for hit effect
+            currentAnimation = "boss_hit";
             
             // Still move during hit, but slower
             if (distance > 0.001f) {
@@ -98,7 +108,7 @@ public class Boss {
         // If close enough -> ATTACK
         if (distance < 70f) {
             state = BossState.ATTACK;
-            currentAnimation = "boss_attack";
+            currentAnimation = "boss_run"; // Keep run animation, attack is handled by collision
 
             if (attackCooldown == 0f) {
                 attackCooldown = 0.6f;
@@ -110,6 +120,19 @@ public class Boss {
         state = BossState.RUN;
         currentAnimation = "boss_run";
 
+        // Apply knockback first
+        if (knockbackX != 0 || knockbackY != 0) {
+            x += knockbackX * delta;
+            y += knockbackY * delta;
+            
+            // Decay knockback faster for boss
+            knockbackX *= (1f - KNOCKBACK_DECAY * delta);
+            knockbackY *= (1f - KNOCKBACK_DECAY * delta);
+            
+            if (Math.abs(knockbackX) < 1f) knockbackX = 0f;
+            if (Math.abs(knockbackY) < 1f) knockbackY = 0f;
+        }
+        
         // Movement toward player
         if (distance > 0.001f) {
             float nx = dx / distance;
@@ -187,5 +210,23 @@ public class Boss {
 
     public void setRewardsGiven(boolean value) {
         rewardsGiven = value;
+    }
+    
+    /**
+     * Apply knockback when hit by bullet (less than regular zombies)
+     * @param bulletDirX normalized direction X of bullet
+     * @param bulletDirY normalized direction Y of bullet
+     * @param strength knockback strength multiplier
+     */
+    public void applyKnockback(float bulletDirX, float bulletDirY, float strength) {
+        knockbackX = bulletDirX * KNOCKBACK_STRENGTH * strength;
+        knockbackY = bulletDirY * KNOCKBACK_STRENGTH * strength;
+    }
+    
+    /**
+     * Apply knockback with default strength
+     */
+    public void applyKnockback(float bulletDirX, float bulletDirY) {
+        applyKnockback(bulletDirX, bulletDirY, 1.0f);
     }
 }

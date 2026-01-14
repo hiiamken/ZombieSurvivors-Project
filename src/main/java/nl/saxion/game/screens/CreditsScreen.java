@@ -83,9 +83,10 @@ public class CreditsScreen extends ScalableGameScreen {
         createButtons();
         initCreditsContent();
         
-        // Reset scroll position - start at 0, content begins below visible area
-        scrollY = 0f;
+        // Reset scroll position - start at top for film reel effect
+        scrollY = 0f; // Start from top
         autoScroll = true;
+        animTimer = 0f; // Reset animation timer
 
         if (soundManager != null && musicVolume > 0) {
             soundManager.playMusic(true);
@@ -157,6 +158,11 @@ public class CreditsScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("red_pressed_long")) {
             GameApp.addTexture("red_pressed_long", "assets/ui/red_pressed_long.png");
         }
+        
+        // Saxion logo
+        if (!GameApp.hasTexture("saxion_logo")) {
+            GameApp.addTexture("saxion_logo", "assets/ui/saxion.png");
+        }
 
         // Fonts - Professional hierarchy
         if (!GameApp.hasFont("creditsGameTitle")) {
@@ -176,8 +182,8 @@ public class CreditsScreen extends ScalableGameScreen {
                     "white", 0f, "black", 1, 1, "gray-700", true);
         }
         if (!GameApp.hasFont("creditsSmall")) {
-            GameApp.addStyledFont("creditsSmall", "fonts/PixelOperatorMono-Bold.ttf", 14,
-                    "gray-500", 0f, "black", 1, 1, "gray-700", true);
+            GameApp.addStyledFont("creditsSmall", "fonts/PixelOperatorMono-Bold.ttf", 18,
+                    "gray-400", 0f, "black", 1, 1, "gray-700", true);
         }
         if (!GameApp.hasFont("creditsSpecial")) {
             GameApp.addStyledFont("creditsSpecial", "fonts/upheavtt.ttf", 22,
@@ -240,30 +246,52 @@ public class CreditsScreen extends ScalableGameScreen {
             "Craig Bradley"
         }));
         
+        // Saxion University
+        creditSections.add(new CreditSection("UNIVERSITY", new String[]{
+            "SAXION_LOGO" // Special marker for logo
+        }));
+        
+        // Game Inspiration
+        creditSections.add(new CreditSection("INSPIRED BY", new String[]{
+            "Vampire Survivors"
+        }));
+        
+        // Legal Notice
+        creditSections.add(new CreditSection("LEGAL NOTICE", new String[]{
+            "This is a non-commercial educational project",
+            "Created for learning purposes only",
+            "No commercial intent or profit"
+        }));
+        
         // Calculate total credits height
         calculateTotalHeight();
     }
 
     private void calculateTotalHeight() {
-        float height = 100f; // Initial padding
+        float height = 50f; // Reduced initial padding
         
         for (CreditSection section : creditSections) {
             if (!section.title.isEmpty()) {
-                height += 60f; // Section title (matches drawing)
+                height += 50f; // Reduced section title spacing
             }
-            height += section.names.length * 45f; // Names (matches drawing)
-            height += 40f; // Section spacing (matches drawing)
+            for (String name : section.names) {
+                if (name.equals("SAXION_LOGO")) {
+                    height += 140f; // More space for larger logo with proper spacing
+                } else {
+                    height += 35f; // Reduced name spacing
+                }
+            }
+            height += 25f; // Reduced section spacing
         }
         
-        height += 100f; // End padding
+        height += 50f; // Reduced end padding
         totalCreditsHeight = height;
     }
 
     @Override
     public void hide() {
-        if (soundManager != null) {
-            soundManager.stopMusic();
-        }
+        // Don't stop music when leaving - keep it playing for other menu screens
+        // Music will only stop when entering PlayScreen or quitting game
         if (cursorPointer != null) {
             cursorPointer.dispose();
             cursorPointer = null;
@@ -304,14 +332,23 @@ public class CreditsScreen extends ScalableGameScreen {
 
         // Handle scroll input
         handleScrollInput(delta);
+        
+        // Auto-resume scrolling when no manual input
+        if (!GameApp.isKeyPressed(Input.Keys.UP) && !GameApp.isKeyPressed(Input.Keys.DOWN) &&
+            !GameApp.isKeyPressed(Input.Keys.W) && !GameApp.isKeyPressed(Input.Keys.S)) {
+            // Resume auto scroll after manual control
+            if (!autoScroll) {
+                autoScroll = true;
+            }
+        }
 
-        // Auto scroll - credits move DOWN (scrollY increases)
+        // Auto scroll - credits move UP like real film credits (scrollY increases)
         if (autoScroll) {
             scrollY += scrollSpeed * delta;
             
-            // Reset when all credits have scrolled past - smooth loop
-            if (scrollY > totalCreditsHeight) {
-                scrollY = 0f; // Loop back to start
+            // When credits fully leave top, restart from bottom
+            if (scrollY > totalCreditsHeight + 200f) {
+                scrollY = 0f; // Restart from bottom
             }
         }
 
@@ -367,8 +404,8 @@ public class CreditsScreen extends ScalableGameScreen {
             autoScroll = !autoScroll;
         }
         
-        // Clamp scroll - don't go below 0
-        scrollY = Math.max(0f, Math.min(scrollY, totalCreditsHeight + 50f));
+        // Optional clamp - only limit max, don't block negative values
+        scrollY = Math.min(scrollY, totalCreditsHeight + 200f);
     }
 
     private void drawBackground() {
@@ -459,12 +496,13 @@ public class CreditsScreen extends ScalableGameScreen {
         float visibleTop = panelY + panelHeight - 90f;   // Below CREDITS title
         float visibleBottom = panelY + 70f;               // Above panel bottom (and BACK button)
         
-        // Starting Y position - content starts ABOVE visible area and moves DOWN
-        float baseY = visibleTop + 50f;
-        float currentY = baseY - scrollY;
+        // START just below visible area - credits move UP like real film credits
+        float startY = visibleBottom - 40f;
+        float currentY = startY + scrollY; // Credits move UP as scrollY increases
         
         GameApp.startSpriteRendering();
         
+        // Render sections in normal order (will appear from bottom to top)
         for (CreditSection section : creditSections) {
             // Section title
             if (!section.title.isEmpty()) {
@@ -472,23 +510,50 @@ public class CreditsScreen extends ScalableGameScreen {
                 
                 // STRICT bounds check - only draw within visible area
                 if (titleY <= visibleTop && titleY >= visibleBottom) {
-                    GameApp.drawTextCentered("creditsSectionTitle", section.title, centerX, titleY, "yellow-300");
+                    // Special styling for different sections
+                    if (section.title.equals("INSPIRED BY")) {
+                        GameApp.drawTextCentered("creditsSpecial", section.title, centerX, titleY, "cyan-400");
+                    } else {
+                        GameApp.drawTextCentered("creditsSectionTitle", section.title, centerX, titleY, "yellow-300");
+                    }
                 }
-                currentY -= 60f;
+                currentY -= 50f; // Move up for next item
             }
             
             // Names
             for (String name : section.names) {
-                float nameY = currentY;
+                float itemY = currentY;
                 
-                // STRICT bounds check
-                if (nameY <= visibleTop && nameY >= visibleBottom) {
-                    GameApp.drawTextCentered("creditsName", name, centerX, nameY, "white");
+                // STRICT bounds check - only draw within visible area
+                if (itemY <= visibleTop && itemY >= visibleBottom) {
+                    if (name.equals("SAXION_LOGO")) {
+                        // Draw Saxion logo with 16:9 aspect ratio and proper spacing
+                        if (GameApp.hasTexture("saxion_logo")) {
+                            float logoHeight = 120f;  // Increased height
+                            float logoWidth = 200f;  // 16:9 aspect ratio
+                            GameApp.drawTexture("saxion_logo", centerX - logoWidth/2, itemY - logoHeight/2, logoWidth, logoHeight);
+                        }
+                        currentY -= 140f; // More space like text line spacing
+                    } else {
+                        // Special styling for legal notice
+                        if (section.title.equals("LEGAL NOTICE")) {
+                            GameApp.drawTextCentered("creditsSmall", name, centerX, itemY, "gray-300");
+                        } else {
+                            GameApp.drawTextCentered("creditsName", name, centerX, itemY, "white");
+                        }
+                        currentY -= 35f; // Move up for next item
+                    }
+                } else {
+                    // Still need to advance position even if not drawing
+                    if (name.equals("SAXION_LOGO")) {
+                        currentY -= 140f;
+                    } else {
+                        currentY -= 35f;
+                    }
                 }
-                currentY -= 45f;
             }
             
-            currentY -= 40f; // Section spacing
+            currentY -= 25f; // Section spacing
         }
         
         GameApp.endSpriteRendering();

@@ -132,10 +132,10 @@ public class LevelUpOption {
     // Private constructor for evolution
     private LevelUpOption(boolean isEvolution) {
         this.type = Type.EVOLUTION;
-        this.title = "*** " + WeaponUpgrade.EVOLUTION_NAME + " ***";
-        this.description = WeaponUpgrade.EVOLUTION_DESCRIPTION;
+        this.title = WeaponUpgrade.EVOLUTION_NAME;
+        this.description = "Ultimate form!";
         this.previewText = "EVOLVE YOUR WEAPON!";
-        this.icon = "piston_icon"; // Use piston texture for weapon for evolution too
+        this.icon = "pistonevo"; // Use evolved piston texture
         this.themeRGB = new int[]{148, 0, 211}; // Purple
         this.themeTextColor = "purple-500";
         
@@ -192,13 +192,13 @@ public class LevelUpOption {
         }
         
         return switch (type) {
-            case SPINACH -> String.format("+%d%% dmg → +%d%% dmg", curLevel * 10, nextLevel * 10);
-            case ARMOR -> String.format("-%d%% taken → -%d%% taken", curLevel * 5, nextLevel * 5);
-            case WINGS -> String.format("+%d%% spd → +%d%% spd", curLevel * 10, nextLevel * 10);
-            case CLOVER -> String.format("+%d%% crit → +%d%% crit", curLevel * 5, nextLevel * 5);
-            case ATTRACTORB -> String.format("+%d%% range → +%d%% range", curLevel * 20, nextLevel * 20);
-            case PUMMAROLA -> String.format("+%.1f HP/s → +%.1f HP/s", curLevel * 0.2f, nextLevel * 0.2f);
-            case HOLLOW_HEART -> String.format("+%d%% HP → +%d%% HP", curLevel * 20, nextLevel * 20);
+            case POWER_HERB -> String.format("+%d%% dmg → +%d%% dmg", curLevel * 10, nextLevel * 10);
+            case IRON_SHIELD -> String.format("-%d%% taken → -%d%% taken", curLevel * 5, nextLevel * 5);
+            case SWIFT_BOOTS -> String.format("+%d%% spd → +%d%% spd", curLevel * 10, nextLevel * 10);
+            case LUCKY_COIN -> String.format("+%d%% crit → +%d%% crit", curLevel * 5, nextLevel * 5);
+            case MAGNET_STONE -> String.format("+%d%% range → +%d%% range", curLevel * 20, nextLevel * 20);
+            case LIFE_ESSENCE -> String.format("+%.1f HP/s → +%.1f HP/s", curLevel * 0.2f, nextLevel * 0.2f);
+            case VITALITY_CORE -> String.format("+%d%% HP → +%d%% HP", curLevel * 20, nextLevel * 20);
         };
     }
 

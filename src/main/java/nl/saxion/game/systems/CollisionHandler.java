@@ -1,6 +1,7 @@
 package nl.saxion.game.systems;
 
 import nl.saxion.game.entities.*;
+import nl.saxion.game.entities.WeaponUpgrade;
 import nl.saxion.game.utils.CollisionChecker;
 import nl.saxion.gameapp.GameApp;
 
@@ -11,9 +12,9 @@ import java.util.function.Consumer;
 
 // Handles all collision detection and cleanup
 public class CollisionHandler {
-    private static final float DAMAGE_COOLDOWN_DURATION = 0.5f;
+    private static final float DAMAGE_COOLDOWN_DURATION = 0.6f;
     private static final int ENEMY_TOUCH_DAMAGE = 1;
-    private static final int BOSS_TOUCH_DAMAGE = 3;
+    private static final int BOSS_TOUCH_DAMAGE = 2;
 
 
     private float playerDamageCooldown = 0f;
@@ -23,6 +24,9 @@ public class CollisionHandler {
     
     // Sound manager for playing damage sound
     private SoundManager soundManager;
+    
+    // Player reference for lifesteal
+    private Player playerRef;
 
     public void update(float delta) {
         // Player Damage cooldown
@@ -69,16 +73,33 @@ public class CollisionHandler {
                 float eH = enemyDamageHitbox.height;
 
                 if (GameApp.rectOverlap(bX, bY, bW, bH, eX, eY, eW, eH)) {
-                    int damage = b.getDamage();
+                    // Critical hit: 25% chance - deals 1.5x damage and shows yellow text
+                    boolean isCrit = GameApp.random(0f, 1f) < 0.25f;
+                    int baseDamage = b.getDamage();
+                    int damage = isCrit ? (int)(baseDamage * 1.5f) : baseDamage;
+                    
                     e.takeDamage(damage);
+                    
+                    // Apply knockback (like Vampire Survivors)
+                    float bulletDirX = b.getDirX();
+                    float bulletDirY = b.getDirY();
+                    e.applyKnockback(bulletDirX, bulletDirY);
+                    
+                    // Lifesteal for evolved bullets (10% of damage dealt)
+                    if (b.isEvolved() && playerRef != null) {
+                        float lifestealPercent = WeaponUpgrade.getEvolvedLifestealPercent();
+                        int healAmount = (int)(damage * lifestealPercent);
+                        if (healAmount > 0) {
+                            playerRef.heal(healAmount);
+                        }
+                    }
 
                     // Spawn damage text at enemy position
                     if (damageTextSystem != null) {
                         // Use enemy center position for damage text spawn
                         float enemyCenterX = eX + eW / 2f;
                         float enemyCenterY = eY + eH / 2f;
-                        // Simple crit check: 10% chance or if damage > 15
-                        boolean isCrit = GameApp.random(0f, 1f) < 0.1f || damage > 15;
+                        // Crit shows yellow text, normal shows orange/red
                         damageTextSystem.spawnDamageText(enemyCenterX, enemyCenterY, damage, isCrit);
                     }
 
@@ -141,13 +162,20 @@ public class CollisionHandler {
                 if (GameApp.rectOverlap(bX, bY, bW, bH, bx, by, bw, bh)) {
                     int damage = b.getDamage();
                     boss.takeDamage(damage);
+                    
+                    // Apply knockback (less than regular zombies - boss is tanky)
+                    float bulletDirX = b.getDirX();
+                    float bulletDirY = b.getDirY();
+                    boss.applyKnockback(bulletDirX, bulletDirY);
+                    
                     b.destroy();
 
                     // Damage text
                     if (damageTextSystem != null) {
                         float centerX = bx + bw / 2f;
                         float centerY = by + bh / 2f;
-                        boolean isCrit = GameApp.random(0f, 1f) < 0.1f || damage > 15;
+                        // Critical hit: 25% chance - shows yellow text
+                        boolean isCrit = GameApp.random(0f, 1f) < 0.25f;
                         damageTextSystem.spawnDamageText(centerX, centerY, damage, isCrit);
                     }
 
@@ -286,6 +314,10 @@ public class CollisionHandler {
     
     public void setSoundManager(SoundManager soundManager) {
         this.soundManager = soundManager;
+    }
+    
+    public void setPlayer(Player player) {
+        this.playerRef = player;
     }
 
     /**

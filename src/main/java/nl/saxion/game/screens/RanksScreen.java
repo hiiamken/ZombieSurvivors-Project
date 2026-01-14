@@ -296,9 +296,8 @@ public class RanksScreen extends ScalableGameScreen {
     
     @Override
     public void hide() {
-        if (soundManager != null) {
-            soundManager.stopMusic();
-        }
+        // Don't stop music when leaving - keep it playing for other menu screens
+        // Music will only stop when entering PlayScreen or quitting game
         if (cursorPointer != null) {
             cursorPointer.dispose();
             cursorPointer = null;

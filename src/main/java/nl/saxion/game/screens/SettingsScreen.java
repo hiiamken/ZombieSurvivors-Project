@@ -18,12 +18,23 @@ public class SettingsScreen extends ScalableGameScreen {
     // "pause" = return to pause menu in PlayScreen
     private static String returnScreen = "menu";
     
+    // Static reference to PlayScreen for rendering frozen game background
+    private static PlayScreen playScreenReference = null;
+    
     /**
      * Set the screen to return to when closing settings.
      * @param screen "menu" or "pause"
      */
     public static void setReturnScreen(String screen) {
         returnScreen = screen;
+    }
+    
+    /**
+     * Set the PlayScreen reference for rendering frozen game background.
+     * @param playScreen The PlayScreen instance
+     */
+    public static void setPlayScreenReference(PlayScreen playScreen) {
+        playScreenReference = playScreen;
     }
     
     /**
@@ -74,7 +85,7 @@ public class SettingsScreen extends ScalableGameScreen {
     
     // Font name for settings screen
     private static final String SETTINGS_FONT = "settings_font";
-    private static final String SETTINGS_FONT_SMALL = "settings_font_small";
+    private static final String SETTINGS_FONT_SMALL = "settings_font_small_large"; // Changed name to force reload
     
     // Toggle button position (between cells 37 and 38)
     // Row 4 (same as FULL SCREEN tab), columns 7-8
@@ -108,7 +119,7 @@ public class SettingsScreen extends ScalableGameScreen {
     private static final float BUTTON_PRESS_DURATION = 0.1f; // 100ms animation
 
     public SettingsScreen() {
-        super(640, 360); // 16:9 aspect ratio - smaller world size for zoom effect
+        super(960, 540); // 16:9 aspect ratio - match PlayScreen world size for consistent scaling
     }
 
     @Override
@@ -216,15 +227,14 @@ public class SettingsScreen extends ScalableGameScreen {
             GameApp.addTexture("tab_1", "assets/ui/Tab_1.png");
         }
         
-        // Load custom font for settings screen title (large, like Credits)
+        // Load custom font for settings screen title - styled like RANKS and CREDITS
         if (!GameApp.hasFont(SETTINGS_FONT)) {
-            GameApp.addFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 20);
+            GameApp.addStyledFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 42,
+                    "yellow-400", 0f, "black", 3, 3, "gray-700", true);
         }
         
-        // Load smaller font for tab labels
-        if (!GameApp.hasFont(SETTINGS_FONT_SMALL)) {
-            GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 8);
-        }
+        // Load smaller font for tab labels - force reload with larger size
+        GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 24);
         
         // Load toggle button textures
         if (!GameApp.hasTexture("green_toggle")) {
@@ -294,6 +304,9 @@ public class SettingsScreen extends ScalableGameScreen {
         // Save settings when leaving screen
         saveSettingsToConfig();
         
+        // Clean up PlayScreen reference
+        playScreenReference = null;
+        
         // Don't stop music when leaving settings - keep it playing for menu
         // Music will continue in MainMenuScreen
 
@@ -315,8 +328,14 @@ public class SettingsScreen extends ScalableGameScreen {
         // Clear screen with dark background
         GameApp.clearScreen(BG_COLOR);
         
-        // Draw background texture
-        drawBackground();
+        // Draw background based on return screen
+        if ("pause".equals(returnScreen) && playScreenReference != null) {
+            // Render frozen game background when coming from pause
+            drawFrozenGameBackground();
+        } else {
+            // Draw normal menu background
+            drawBackground();
+        }
 
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
@@ -417,6 +436,36 @@ public class SettingsScreen extends ScalableGameScreen {
         GameApp.startSpriteRendering();
         GameApp.drawTexture("mainmenu_bg", bgX, bgY, bgWidth, bgHeight);
         GameApp.endSpriteRendering();
+    }
+    
+    /**
+     * Draw frozen game background when accessed from pause menu.
+     */
+    private void drawFrozenGameBackground() {
+        if (playScreenReference == null) {
+            // Fallback to normal background if no PlayScreen reference
+            drawBackground();
+            return;
+        }
+        
+        try {
+            // Render the frozen game state as background
+            playScreenReference.renderFrozenGameBackground();
+            
+            // Add dark overlay to make settings panel more visible
+            float screenWidth = GameApp.getWorldWidth();
+            float screenHeight = GameApp.getWorldHeight();
+            
+            GameApp.enableTransparency();
+            GameApp.startShapeRenderingFilled();
+            GameApp.setColor(0, 0, 0, 120); // Semi-transparent dark overlay
+            GameApp.drawRect(0, 0, screenWidth, screenHeight);
+            GameApp.endShapeRendering();
+        } catch (Exception e) {
+            // Fallback to normal background if rendering fails
+            GameApp.log("Failed to render frozen game background: " + e.getMessage());
+            drawBackground();
+        }
     }
     
     // Handle mouse input for toggle button and volume controls
@@ -967,16 +1016,16 @@ public class SettingsScreen extends ScalableGameScreen {
             // Draw tab texture
             GameApp.drawTexture("tab_1", tabX, tabY, tabWidth, tabHeight);
             
-            // Draw tab label with black outline (left-aligned, smaller font)
+            // Draw tab label with black outline (left-aligned, larger font with more spacing)
             String label = TAB_LABELS[i];
-            float textX = tabX + 45f; // Left margin
+            float textX = tabX + 75f; // Further increased left margin for better spacing from icons
             // Adjust Y to center text vertically (drawText uses baseline, so offset down by ~3px)
             float textY = tabY + (tabHeight / 2f) - 8f;
             
             // Draw icons for each tab
             float iconSize = tabHeight * 0.8f;
-            // Fullscreen icon needs different X offset
-            float iconX = (i == 0) ? textX - 27f : textX - 30f;
+            // Position icons independently from text, with fixed spacing from tab start
+            float iconX = tabX + 15f; // Fixed position from tab start, not relative to text
             float iconY = tabY + (tabHeight - iconSize) / 2f; // Center icon vertically
             
             String iconTexture = null;
@@ -1022,21 +1071,10 @@ public class SettingsScreen extends ScalableGameScreen {
         }
     }
     
-    // Draw text with black outline (white text, black border) - centered
+    // Draw text with styled font (already has outline built in)
     private void drawTextWithOutline(String text, float x, float y) {
-        // Draw black outline (8 directions)
-        float offset = 1f;
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y - offset, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y + offset, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y - offset, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y - offset, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x - offset, y + offset, "black");
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x + offset, y + offset, "black");
-        
-        // Draw white text on top
-        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y, "white");
+        // Styled font already has shadow/outline built in - just draw yellow text
+        GameApp.drawTextCentered(SETTINGS_FONT, text, x, y, "yellow-400");
     }
     
     // Draw text with black outline (white text, black border) - left-aligned, smaller font

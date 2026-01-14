@@ -8,5 +8,6 @@
   "keyMoveRight": 32,
   "keyShoot": 62,
   "debugEnabled": true,
-  "fullscreen": true
+  "fullscreen": true,
+  "showcaseMode": false
 }

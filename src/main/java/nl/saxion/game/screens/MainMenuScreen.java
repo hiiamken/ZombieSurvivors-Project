@@ -344,12 +344,9 @@ public class MainMenuScreen extends ScalableGameScreen {
 
     @Override
     public void hide() {
-        // Stop background music when leaving menu
-        if (soundManager != null) {
-            soundManager.stopMusic();
-            // Don't dispose here - keep sounds loaded for other screens
-            // Only dispose when game is closing
-        }
+        // Don't stop music when leaving menu - keep it playing for other menu screens
+        // Music will only stop when entering PlayScreen or quitting game
+        // This prevents music from resetting when switching between menu screens
         
         // Dispose font
         GameApp.disposeFont("buttonFont");

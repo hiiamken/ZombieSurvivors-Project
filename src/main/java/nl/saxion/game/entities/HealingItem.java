@@ -6,7 +6,7 @@ import nl.saxion.gameapp.GameApp;
  * Healing item (chicken) that drops from breakable objects.
  * Similar to XPOrb but restores player health instead of giving XP.
  * Features magnet system that pulls item toward player when in range.
- * Compatible with Orb Magnet passive item (ATTRACTORB).
+ * Compatible with Magnet Stone passive item (MAGNET_STONE).
  */
 public class HealingItem {
 
@@ -19,8 +19,15 @@ public class HealingItem {
     private float baseMagnetRange = 60f;  // Slightly smaller than orbs by default
     private float magnetSpeed = 120f;
 
-    // Render size (smaller, no pulsing effect)
-    private static final float BASE_SIZE = 24f;
+    // Render size with pulsing animation for visibility
+    private static final float BASE_SIZE = 28f;
+    private static final float PULSE_MIN_SIZE = 26f;
+    private static final float PULSE_MAX_SIZE = 32f;
+    private static final float PULSE_SPEED = 3.0f; // Pulsing speed
+    private static final float GLOW_RADIUS = 20f;
+    
+    // Animation timer for pulsing effect
+    private float animationTimer = 0f;
 
     /**
      * Creates a healing item at the specified position.
@@ -39,10 +46,11 @@ public class HealingItem {
      * @param delta Time since last frame
      * @param playerX Player's world X position
      * @param playerY Player's world Y position
-     * @param magnetBonusRange Bonus magnet range from ATTRACTORB passive item
+     * @param magnetBonusRange Bonus magnet range from MAGNET_STONE passive item
      */
     public void update(float delta, float playerX, float playerY, float magnetBonusRange) {
         lifetime -= delta;
+        animationTimer += delta;
 
         if (collected) return;
 
@@ -76,7 +84,7 @@ public class HealingItem {
     }
 
     /**
-     * Renders the healing item (chicken texture) - static, no animation.
+     * Renders the healing item (chicken texture) with pulsing animation.
      * Requires sprite rendering to be active.
      * @param playerWorldX Player's world X position
      * @param playerWorldY Player's world Y position
@@ -87,10 +95,11 @@ public class HealingItem {
         float screenX = GameApp.getWorldWidth() / 2f + (x - playerWorldX);
         float screenY = GameApp.getWorldHeight() / 2f + (y - playerWorldY);
 
-        // Fixed size, no pulsing effect
-        float size = BASE_SIZE;
+        // Pulsing size effect using sine wave
+        float pulse = (float) Math.sin(animationTimer * PULSE_SPEED);
+        float size = BASE_SIZE + (PULSE_MAX_SIZE - PULSE_MIN_SIZE) * 0.5f * (pulse + 1f) * 0.3f;
 
-        // Draw chicken texture
+        // Draw chicken texture with pulsing effect
         if (GameApp.hasTexture("chicken_item")) {
             GameApp.drawTexture("chicken_item", 
                 screenX - size / 2, 
@@ -98,7 +107,6 @@ public class HealingItem {
                 size, size);
         } else {
             // Fallback: draw a red circle with cross (health symbol)
-            // This requires shape rendering, so it's a last resort
             GameApp.setColor(255, 100, 100, 255);
             GameApp.drawCircle(screenX, screenY, size / 2);
         }

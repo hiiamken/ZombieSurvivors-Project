@@ -6,6 +6,7 @@ import nl.saxion.game.entities.Enemy;
 import nl.saxion.game.entities.Player;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.entities.Boss;
+import nl.saxion.game.systems.EnemySpawner.StampedeZombie;
 
 
 import java.util.List;
@@ -166,6 +167,39 @@ public class GameRenderer {
                 screenY + bullet.getHeight() > 0 && screenY < worldH) {
 
             GameApp.drawTexture("bullet", screenX, screenY, bullet.getWidth(), bullet.getHeight());
+        }
+    }
+    
+    /**
+     * Render stampede zombies - they run straight across screen
+     */
+    public void renderStampedeZombies(java.util.List<StampedeZombie> stampedeZombies) {
+        if (stampedeZombies == null) return;
+        
+        float worldW = GameApp.getWorldWidth();
+        float worldH = GameApp.getWorldHeight();
+        float spriteSize = Enemy.SPRITE_SIZE; // Same size as regular zombies
+        
+        for (StampedeZombie sz : stampedeZombies) {
+            // Calculate screen position
+            float offsetX = sz.x - playerWorldX;
+            float offsetY = sz.y - playerWorldY;
+            float screenX = worldW / 2f + offsetX;
+            float screenY = worldH / 2f + offsetY;
+            
+            // Only render if in viewport
+            if (screenX + spriteSize > 0 && screenX < worldW &&
+                    screenY + spriteSize > 0 && screenY < worldH) {
+                
+                String animKey = sz.currentAnimation;
+                boolean flipX = !sz.facingRight;
+                
+                if (GameApp.hasAnimation(animKey)) {
+                    GameApp.drawAnimation(animKey, screenX, screenY, spriteSize, spriteSize, 0, flipX, false);
+                } else {
+                    GameApp.drawTexture("enemy", screenX, screenY, spriteSize, spriteSize);
+                }
+            }
         }
     }
 }

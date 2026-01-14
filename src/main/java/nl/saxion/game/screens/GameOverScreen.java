@@ -512,12 +512,12 @@ public class GameOverScreen extends ScalableGameScreen {
         int texW = GameApp.getTextureWidth("green_long");
         int texH = GameApp.getTextureHeight("green_long");
         
-        float buttonWidth = texW / 2f;
-        float buttonHeight = texH / 2f;
-        float buttonSpacing = 20f; // Spacing between buttons
+        float buttonWidth = texW / 1.4f; // Bigger buttons for better visibility
+        float buttonHeight = texH / 1.4f;
+        float buttonSpacing = 15f; // Tighter spacing
         
-        // Play Again button (green) - positioned lower on screen
-        float playAgainY = centerY - 80; // Better vertical positioning
+        // Play Again button (green) - positioned in center area
+        float playAgainY = centerY - 60; // Better vertical positioning
         Button playAgainButton = new Button(centerX - buttonWidth / 2, playAgainY, buttonWidth, buttonHeight, "");
         playAgainButton.setOnClick(() -> {
             // Will be handled by handleInput with delay

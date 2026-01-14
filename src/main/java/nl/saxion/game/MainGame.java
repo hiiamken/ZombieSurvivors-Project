@@ -6,6 +6,7 @@ import nl.saxion.game.screens.PlayerInputScreen;
 import nl.saxion.game.screens.RanksScreen;
 import nl.saxion.game.screens.SettingsScreen;
 import nl.saxion.game.screens.CreditsScreen;
+import nl.saxion.game.screens.HowToPlayScreen;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.config.ConfigManager;
@@ -20,6 +21,7 @@ public class MainGame {
         // Register all game screens
         GameApp.addScreen("menu", new MainMenuScreen());
         GameApp.addScreen("playerinput", new PlayerInputScreen());
+        GameApp.addScreen("howtoplay", new HowToPlayScreen());
         GameApp.addScreen("play", new PlayScreen());
         GameApp.addScreen("ranks", new RanksScreen());
         GameApp.addScreen("settings", new SettingsScreen());
@@ -49,6 +51,29 @@ public class MainGame {
                 true,  // resizable = true - allows window resizing
                 "menu"
         );
+        
+        // Set window icon after game starts
+        try {
+            // Access Lwjgl3Graphics to get window
+            if (com.badlogic.gdx.Gdx.graphics instanceof com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics) {
+                com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics graphics = 
+                    (com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics)com.badlogic.gdx.Gdx.graphics;
+                com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window window = graphics.getWindow();
+                
+                if (window != null) {
+                    // Load icon as Pixmap (setIcon requires Pixmap[], not String)
+                    com.badlogic.gdx.graphics.Pixmap iconPixmap = new com.badlogic.gdx.graphics.Pixmap(
+                        com.badlogic.gdx.Gdx.files.internal("ui/gameicon.png")
+                    );
+                    window.setIcon(iconPixmap);
+                    iconPixmap.dispose();
+                    GameApp.log("Window icon set successfully");
+                }
+            }
+        } catch (Exception e) {
+            GameApp.log("Warning: Could not set window icon: " + e.getMessage());
+            // Don't print stack trace in production, just log the message
+        }
         
         // Apply fullscreen setting from config after game starts
         if (config.fullscreen) {
