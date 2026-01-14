@@ -8,26 +8,26 @@ package nl.saxion.game.entities;
  * Uses texture keys for rendering (no emojis - not supported by default font).
  */
 public enum PassiveItemType {
-    // Damage boost - Spinach
-    SPINACH("Spinach", 5, "+10% damage per level", "passive_spinach"),
+    // Damage boost - Power Herb
+    POWER_HERB("Power Herb", 5, "+10% damage per level", "passive_powerherb"),
     
-    // Damage reduction - Armor
-    ARMOR("Armor", 5, "-5% damage taken per level", "passive_armor"),
+    // Damage reduction - Iron Shield
+    IRON_SHIELD("Iron Shield", 5, "-5% damage taken per level", "passive_ironshield"),
     
-    // Movement speed - Wings
-    WINGS("Wings", 5, "+10% movement speed per level", "passive_wings"),
+    // Movement speed - Swift Boots
+    SWIFT_BOOTS("Swift Boots", 5, "+10% movement speed per level", "passive_swiftboots"),
     
-    // Critical chance - Clover (NEW)
-    CLOVER("Clover", 5, "+5% critical chance per level", "passive_clover"),
+    // Critical chance - Lucky Coin
+    LUCKY_COIN("Lucky Coin", 5, "+5% critical chance per level", "passive_luckycoin"),
     
-    // XP pickup range - Attractorb (NEW)
-    ATTRACTORB("Attractorb", 5, "+20% pickup range per level", "passive_attractorb"),
+    // XP pickup range - Magnet Stone
+    MAGNET_STONE("Magnet Stone", 5, "+20% pickup range per level", "passive_magnetstone"),
     
-    // Health regeneration - Pummarola
-    PUMMAROLA("Pummarola", 5, "+0.2 HP/sec per level", "passive_pummarola"),
+    // Health regeneration - Life Essence
+    LIFE_ESSENCE("Life Essence", 5, "+0.2 HP/sec per level", "passive_lifeessence"),
     
-    // Max health increase - Hollow Heart
-    HOLLOW_HEART("Hollow Heart", 5, "+20% max HP per level", "passive_hollowheart");
+    // Max health increase - Vitality Core
+    VITALITY_CORE("Vitality Core", 5, "+20% max HP per level", "passive_vitalitycore");
 
     public final String displayName;
     public final int maxLevel;
@@ -53,13 +53,13 @@ public enum PassiveItemType {
      */
     public String getDescriptionForLevel(int level) {
         return switch (this) {
-            case SPINACH -> String.format("+%d%% damage", level * 10);
-            case ARMOR -> String.format("-%d%% damage taken", level * 5);
-            case WINGS -> String.format("+%d%% movement speed", level * 10);
-            case CLOVER -> String.format("+%d%% critical chance", level * 5);
-            case ATTRACTORB -> String.format("+%d%% pickup range", level * 20);
-            case PUMMAROLA -> String.format("+%.1f HP/sec", level * 0.2f);
-            case HOLLOW_HEART -> String.format("+%d%% max HP", level * 20);
+            case POWER_HERB -> String.format("+%d%% damage", level * 10);
+            case IRON_SHIELD -> String.format("-%d%% damage taken", level * 5);
+            case SWIFT_BOOTS -> String.format("+%d%% movement speed", level * 10);
+            case LUCKY_COIN -> String.format("+%d%% critical chance", level * 5);
+            case MAGNET_STONE -> String.format("+%d%% pickup range", level * 20);
+            case LIFE_ESSENCE -> String.format("+%.1f HP/sec", level * 0.2f);
+            case VITALITY_CORE -> String.format("+%d%% max HP", level * 20);
         };
     }
 
@@ -69,13 +69,13 @@ public enum PassiveItemType {
      */
     public float getMultiplierForLevel(int level) {
         return switch (this) {
-            case SPINACH -> 1f + (level * 0.10f);     // +10% per level
-            case ARMOR -> 1f - (level * 0.05f);       // -5% per level (damage reduction)
-            case WINGS -> 1f + (level * 0.10f);       // +10% per level
-            case CLOVER -> level * 0.05f;             // +5% per level (additive crit chance)
-            case ATTRACTORB -> 1f + (level * 0.20f);  // +20% per level
-            case PUMMAROLA -> level * 0.2f;           // +0.2 HP/s per level (additive)
-            case HOLLOW_HEART -> 1f + (level * 0.20f); // +20% per level
+            case POWER_HERB -> 1f + (level * 0.10f);     // +10% per level
+            case IRON_SHIELD -> 1f - (level * 0.05f);       // -5% per level (damage reduction)
+            case SWIFT_BOOTS -> 1f + (level * 0.10f);       // +10% per level
+            case LUCKY_COIN -> level * 0.05f;             // +5% per level (additive crit chance)
+            case MAGNET_STONE -> 1f + (level * 0.20f);  // +20% per level
+            case LIFE_ESSENCE -> level * 0.2f;           // +0.2 HP/s per level (additive)
+            case VITALITY_CORE -> 1f + (level * 0.20f); // +20% per level
         };
     }
 
@@ -84,13 +84,13 @@ public enum PassiveItemType {
      */
     public int[] getThemeRGB() {
         return switch (this) {
-            case SPINACH -> new int[]{231, 76, 60};    // Red (damage)
-            case ARMOR -> new int[]{149, 165, 166};    // Gray (defense)
-            case WINGS -> new int[]{52, 152, 219};     // Blue (speed)
-            case CLOVER -> new int[]{46, 204, 113};    // Green (luck)
-            case ATTRACTORB -> new int[]{155, 89, 182}; // Purple (magnet)
-            case PUMMAROLA -> new int[]{241, 148, 138}; // Pink (healing)
-            case HOLLOW_HEART -> new int[]{241, 196, 15}; // Yellow (health)
+            case POWER_HERB -> new int[]{231, 76, 60};    // Red (damage)
+            case IRON_SHIELD -> new int[]{149, 165, 166};    // Gray (defense)
+            case SWIFT_BOOTS -> new int[]{52, 152, 219};     // Blue (speed)
+            case LUCKY_COIN -> new int[]{46, 204, 113};    // Green (luck)
+            case MAGNET_STONE -> new int[]{155, 89, 182}; // Purple (magnet)
+            case LIFE_ESSENCE -> new int[]{241, 148, 138}; // Pink (healing)
+            case VITALITY_CORE -> new int[]{241, 196, 15}; // Yellow (health)
         };
     }
 
@@ -99,13 +99,13 @@ public enum PassiveItemType {
      */
     public String getThemeTextColor() {
         return switch (this) {
-            case SPINACH -> "red-500";
-            case ARMOR -> "gray-400";
-            case WINGS -> "blue-500";
-            case CLOVER -> "green-500";
-            case ATTRACTORB -> "purple-500";
-            case PUMMAROLA -> "pink-500";
-            case HOLLOW_HEART -> "yellow-500";
+            case POWER_HERB -> "red-500";
+            case IRON_SHIELD -> "gray-400";
+            case SWIFT_BOOTS -> "blue-500";
+            case LUCKY_COIN -> "green-500";
+            case MAGNET_STONE -> "purple-500";
+            case LIFE_ESSENCE -> "pink-500";
+            case VITALITY_CORE -> "yellow-500";
         };
     }
     

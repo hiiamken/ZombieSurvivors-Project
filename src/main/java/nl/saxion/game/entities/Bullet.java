@@ -203,6 +203,8 @@ public class Bullet {
     public float getHeight() { return height; }
 
     public int getDamage() { return damage; }
+    public float getDirX() { return vx; }  // vx is normalized direction
+    public float getDirY() { return vy; }  // vy is normalized direction
 
     public Rectangle getHitBox() {
         return hitBox;

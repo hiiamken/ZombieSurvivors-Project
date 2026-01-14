@@ -67,16 +67,17 @@ public class ResourceLoader {
         GameApp.addSpriteSheet("zombie4_hit_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
         GameApp.addSpriteSheet("zombie4_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
 
-        // Load boss sprite sheets (TEMP: reuse Zombie4 assets)
-        GameApp.addSpriteSheet("boss_idle_sheet", "assets/enemy/Zombie 4_idle.png", 32, 32);
-        GameApp.addSpriteSheet("boss_run_sheet", "assets/enemy/Zombie 4_run.png", 32, 32);
-        GameApp.addSpriteSheet("boss_attack_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
-        GameApp.addSpriteSheet("boss_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
+        // Load boss sprite sheets (NEW: dedicated Boss sprites)
+        GameApp.addSpriteSheet("boss_idle_sheet", "assets/enemy/Boss_Idle.png", 32, 32);
+        GameApp.addSpriteSheet("boss_run_sheet", "assets/enemy/Boss_run.png", 32, 32);
+        GameApp.addSpriteSheet("boss_hit_sheet", "assets/enemy/Boss_Hit.png", 32, 32);
+        // Note: No Boss_Death.png, fallback to Boss_Hit for death animation
+        GameApp.addSpriteSheet("boss_death_sheet", "assets/enemy/Boss_Hit.png", 32, 32);
 
         // Create boss animations
         GameApp.addAnimationFromSpritesheet("boss_idle", "boss_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("boss_run", "boss_run_sheet", 0.1f, true);
-        GameApp.addAnimationFromSpritesheet("boss_attack", "boss_attack_sheet", 0.12f, true);
+        GameApp.addAnimationFromSpritesheet("boss_hit", "boss_hit_sheet", 0.15f, false);
         GameApp.addAnimationFromSpritesheet("boss_death", "boss_death_sheet", 0.2f, false);
 
 
@@ -100,15 +101,27 @@ public class ResourceLoader {
 
         GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");
 
-        // Load XP orb sprite sheet
+        // Load XP orb sprite sheet (legacy - kept for fallback)
         GameApp.addSpriteSheet("orb_sheet", "assets/enemy/orb.png", 16, 16);
 
-        // Create XP orb animation from row 9, columns 19-22 (4 frames)
+        // Create XP orb animation from row 9, columns 19-22 (4 frames) - legacy fallback
         GameApp.addEmptyAnimation("orb_animation", 0.15f, true);
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 19);
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 20);
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 21);
         GameApp.addAnimationFrameFromSpritesheet("orb_animation", "orb_sheet", 9, 22);
+        
+        // Load new orb textures (3 types: blue, green, red)
+        try { GameApp.addTexture("orb_blue", "assets/ui/orbblue.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load orbblue.png"); }
+        
+        try { GameApp.addTexture("orb_green", "assets/ui/orbgreen.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load orbgreen.png"); }
+        
+        try { GameApp.addTexture("orb_red", "assets/ui/orbred.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load orbred.png"); }
+        
+        GameApp.log("Loaded 3 orb type textures (blue, green, red)");
 
         // Load breakable object sprite sheet (64x64 frames)
         // Sprite sheet layout: Each object type uses 1 row
@@ -161,25 +174,25 @@ public class ResourceLoader {
         GameApp.log("Loaded treasure chest animation frames (shiny1-11, open1-2)");
 
         // Load passive item icons (64x64 images)
-        try { GameApp.addTexture("passive_spinach", "assets/ui/spinach.png"); } 
+        try { GameApp.addTexture("passive_powerherb", "assets/ui/spinach.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load spinach.png"); }
         
-        try { GameApp.addTexture("passive_armor", "assets/ui/armor.png"); } 
+        try { GameApp.addTexture("passive_ironshield", "assets/ui/armor.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load armor.png"); }
         
-        try { GameApp.addTexture("passive_wings", "assets/ui/wings.png"); } 
+        try { GameApp.addTexture("passive_swiftboots", "assets/ui/wings.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load wings.png"); }
         
-        try { GameApp.addTexture("passive_clover", "assets/ui/clover.png"); } 
+        try { GameApp.addTexture("passive_luckycoin", "assets/ui/clover.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load clover.png"); }
         
-        try { GameApp.addTexture("passive_attractorb", "assets/ui/Attractorb.png"); } 
+        try { GameApp.addTexture("passive_magnetstone", "assets/ui/Attractorb.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load Attractorb.png"); }
         
-        try { GameApp.addTexture("passive_pummarola", "assets/ui/pummarola.png"); } 
+        try { GameApp.addTexture("passive_lifeessence", "assets/ui/pummarola.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load pummarola.png"); }
         
-        try { GameApp.addTexture("passive_hollowheart", "assets/ui/hollowhear.png"); } 
+        try { GameApp.addTexture("passive_vitalitycore", "assets/ui/hollowhear.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load hollowhear.png"); }
         
         // Load weapon icon for gacha
@@ -189,6 +202,10 @@ public class ResourceLoader {
         // Load pistol icon for HUD weapon display
         try { GameApp.addTexture("piston_icon", "assets/ui/piston.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load Bullet.png for weapon icon"); }
+        
+        // Load evolved pistol icon for evolution menu
+        try { GameApp.addTexture("pistonevo", "assets/ui/pistonevo.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load pistonevo.png for evolution icon"); }
         
         // Load arrow icon for level up menu
         try { GameApp.addTexture("arrow_icon", "assets/ui/arrow.png"); } 
@@ -222,6 +239,14 @@ public class ResourceLoader {
         }
 
         GameApp.log("Loaded " + loadedCount + " map textures with Nearest filter (room_00.png to room_15.png)");
+        
+        // Load zombie cats sprite sheet (512x417, 32x32 per frame, 13 rows x 16 cols)
+        GameApp.addSpriteSheet("zombie_cats_sheet", "assets/ui/ZombieCatsSprites.png", 32, 32);
+        GameApp.log("Loaded zombie cats sprite sheet (13 rows x 16 cols)");
+        
+        // Load zombie hand sprite sheet (800x32, 32x32 per frame, 1 row x 25 cols)
+        GameApp.addSpriteSheet("zombie_hand_sheet", "assets/ui/BONUSZombieHand.png", 32, 32);
+        GameApp.log("Loaded zombie hand sprite sheet (1 row x 25 cols)");
     }
     
     /**
@@ -361,6 +386,11 @@ public class ResourceLoader {
         // Dispose XP orb animation and sprite sheet
         GameApp.disposeAnimation("orb_animation");
         GameApp.disposeSpritesheet("orb_sheet");
+        
+        // Dispose new orb textures
+        GameApp.disposeTexture("orb_blue");
+        GameApp.disposeTexture("orb_green");
+        GameApp.disposeTexture("orb_red");
 
         // Dispose breakable object animations and sprite sheet (all 6 types)
         String[] objectTypes = {"barrel", "box", "rock", "sign", "mushroom", "chest"};
@@ -381,13 +411,13 @@ public class ResourceLoader {
         GameApp.disposeTexture("chest_open_2");
         
         // Dispose passive item icons
-        GameApp.disposeTexture("passive_spinach");
-        GameApp.disposeTexture("passive_armor");
-        GameApp.disposeTexture("passive_wings");
-        GameApp.disposeTexture("passive_clover");
-        GameApp.disposeTexture("passive_attractorb");
-        GameApp.disposeTexture("passive_pummarola");
-        GameApp.disposeTexture("passive_hollowheart");
+        GameApp.disposeTexture("passive_powerherb");
+        GameApp.disposeTexture("passive_ironshield");
+        GameApp.disposeTexture("passive_swiftboots");
+        GameApp.disposeTexture("passive_luckycoin");
+        GameApp.disposeTexture("passive_magnetstone");
+        GameApp.disposeTexture("passive_lifeessence");
+        GameApp.disposeTexture("passive_vitalitycore");
         GameApp.disposeTexture("weapon_icon");
 
         // Dispose all map textures
@@ -403,6 +433,12 @@ public class ResourceLoader {
             }
         }
         mapTexturesWithNearestFilter.clear();
+        
+        // Dispose zombie cats sprite sheet
+        GameApp.disposeSpritesheet("zombie_cats_sheet");
+        
+        // Dispose zombie hand sprite sheet
+        GameApp.disposeSpritesheet("zombie_hand_sheet");
     }
 
     private String getRoomTextureKey(int mapIndex) {

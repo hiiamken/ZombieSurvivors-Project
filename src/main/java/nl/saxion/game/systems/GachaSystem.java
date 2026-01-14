@@ -87,8 +87,8 @@ public class GachaSystem {
     // Coin particles (casino effect - burst from chest)
     private List<CoinParticle> coinParticles = new ArrayList<>();
     private float coinSpawnTimer = 0f;
-    private static final float COIN_BURST_INTERVAL = 0.05f; // Spawn burst every 0.05s during scroll
-    private static final int COINS_PER_BURST = 8; // Spawn 8 coins per burst
+    private static final float COIN_BURST_INTERVAL = 0.03f; // Spawn burst faster for dense fountain
+    private static final int COINS_PER_BURST = 12; // More coins per burst for impressive effect
     
     // Random
     private Random random = new Random();
@@ -116,12 +116,17 @@ public class GachaSystem {
         void update(float delta) {
             x += vx * delta;
             y += vy * delta;
-            vy -= 400 * delta; // Gravity
+            vy -= 600 * delta; // Stronger gravity for better parabolic arc
+            vx *= 0.995f; // Slight air resistance
             rotation += rotationSpeed * delta;
             life -= delta;
             
-            // Fade out
-            alpha = Math.max(0, life / maxLife);
+            // Fade out only in last 30% of life
+            if (life < maxLife * 0.3f) {
+                alpha = life / (maxLife * 0.3f);
+            } else {
+                alpha = 1f;
+            }
         }
         
         boolean isDead() { return life <= 0 || y < -50f; }
@@ -254,17 +259,17 @@ public class GachaSystem {
         scrollItems.clear();
         
         // COMMON
-        scrollItems.add(new GachaItem("Spinach", "+10% Damage", Rarity.COMMON, PassiveItemType.SPINACH));
-        scrollItems.add(new GachaItem("Armor", "-5% Damage Taken", Rarity.COMMON, PassiveItemType.ARMOR));
-        scrollItems.add(new GachaItem("Wings", "+10% Move Speed", Rarity.COMMON, PassiveItemType.WINGS));
+        scrollItems.add(new GachaItem("Power Herb", "+10% Damage", Rarity.COMMON, PassiveItemType.POWER_HERB));
+        scrollItems.add(new GachaItem("Iron Shield", "-5% Damage Taken", Rarity.COMMON, PassiveItemType.IRON_SHIELD));
+        scrollItems.add(new GachaItem("Swift Boots", "+10% Move Speed", Rarity.COMMON, PassiveItemType.SWIFT_BOOTS));
         
         // UNCOMMON
-        scrollItems.add(new GachaItem("Clover", "+5% Critical Chance", Rarity.UNCOMMON, PassiveItemType.CLOVER));
-        scrollItems.add(new GachaItem("Attractorb", "+20% Pickup Range", Rarity.UNCOMMON, PassiveItemType.ATTRACTORB));
+        scrollItems.add(new GachaItem("Lucky Coin", "+5% Critical Chance", Rarity.UNCOMMON, PassiveItemType.LUCKY_COIN));
+        scrollItems.add(new GachaItem("Magnet Stone", "+20% Pickup Range", Rarity.UNCOMMON, PassiveItemType.MAGNET_STONE));
         
         // RARE
-        scrollItems.add(new GachaItem("Pummarola", "+0.2 HP/sec Regen", Rarity.RARE, PassiveItemType.PUMMAROLA));
-        scrollItems.add(new GachaItem("Hollow Heart", "+20% Max HP", Rarity.RARE, PassiveItemType.HOLLOW_HEART));
+        scrollItems.add(new GachaItem("Life Essence", "+0.2 HP/sec Regen", Rarity.RARE, PassiveItemType.LIFE_ESSENCE));
+        scrollItems.add(new GachaItem("Vitality Core", "+20% Max HP", Rarity.RARE, PassiveItemType.VITALITY_CORE));
         
         // EPIC
         scrollItems.add(new GachaItem("Weapon Power", "Upgrade Weapon!", Rarity.EPIC));
@@ -508,29 +513,36 @@ public class GachaSystem {
     }
     
     /**
-     * Spawn coin burst from chest (explosive casino effect)
+     * Spawn coin burst from chest - FOUNTAIN STYLE parabolic spray!
+     * Coins burst upward like a water fountain and fall down with gravity
      */
     private void spawnCoinBurst() {
-        // Spawn multiple coins from chest position (explosive burst)
+        // Spawn coins in FOUNTAIN pattern - burst upward and spread outward
         for (int i = 0; i < COINS_PER_BURST; i++) {
-            // Random angle in full circle (360 degrees)
-            float angle = random.nextFloat() * 360f;
-            // Random speed (explosive burst - fast initial velocity)
-            float speed = 200f + random.nextFloat() * 400f;
+            // Fountain spray: mostly upward (-60 to -120 degrees) with spread
+            float baseAngle = -90f; // Straight up
+            float spread = (random.nextFloat() - 0.5f) * 70f; // ±35 degree spread
+            float angle = baseAngle + spread;
             
-            // Calculate velocity from angle
+            // High initial velocity for fountain effect
+            float speed = 320f + random.nextFloat() * 200f; // Fast upward burst
+            
+            // Calculate velocity - mostly upward with spread
             float vx = (float)Math.cos(Math.toRadians(angle)) * speed;
-            float vy = (float)Math.sin(Math.toRadians(angle)) * speed;
+            float vy = (float)Math.sin(Math.toRadians(angle)) * speed * 1.3f; // Extra upward
+            
+            // Add horizontal spread for fountain look
+            vx += (random.nextFloat() - 0.5f) * 150f;
             
             // Random coin type (mostly gold, some silver)
-            boolean isGold = random.nextFloat() < 0.75f; // 75% gold, 25% silver
+            boolean isGold = random.nextFloat() < 0.7f; // 70% gold, 30% silver
             
-            float life = 1.5f + random.nextFloat() * 1.5f;
-            float size = 10f + random.nextFloat() * 10f;
+            float life = 2.2f + random.nextFloat() * 1.0f; // Longer life for full arc
+            float size = 6f + random.nextFloat() * 6f; // 6-12 pixels
             
-            // Spawn from chest position with small random offset
-            float spawnX = chestX + (random.nextFloat() - 0.5f) * 20f;
-            float spawnY = chestY + (random.nextFloat() - 0.5f) * 20f;
+            // Spawn from chest opening (slightly above center)
+            float spawnX = chestX + (random.nextFloat() - 0.5f) * 15f;
+            float spawnY = chestY + 15f + random.nextFloat() * 5f; // Above chest
             
             coinParticles.add(new CoinParticle(spawnX, spawnY, vx, vy, life, size, isGold));
         }

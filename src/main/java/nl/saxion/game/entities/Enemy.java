@@ -22,21 +22,27 @@ public class Enemy {
     // Wall hitbox (small, for wall collision)
     public static final int HITBOX_WIDTH = 12;
     public static final int HITBOX_HEIGHT = 12;
-    // Damage hitbox (larger, covers body and head for player-enemy collision)
-    public static final int DAMAGE_HITBOX_WIDTH = 18;
-    public static final int DAMAGE_HITBOX_HEIGHT = 20;
+    // Damage hitbox (smaller to reduce early damage - was 18x20, now 14x16)
+    public static final int DAMAGE_HITBOX_WIDTH = 14;
+    public static final int DAMAGE_HITBOX_HEIGHT = 16;
 
     // Wall hitbox offset: adjusted to match sprite position
     private static final float WALL_OFFSET_X = 20f;
     private static final float WALL_OFFSET_Y = 16f;
 
-    // Damage hitbox offset: centered to cover sprite
+    // Damage hitbox offset: centered to cover sprite (adjusted for smaller hitbox)
     private static final float DAMAGE_OFFSET_X = (SPRITE_SIZE - DAMAGE_HITBOX_WIDTH) / 2f;
     private static final float DAMAGE_OFFSET_Y = (SPRITE_SIZE - DAMAGE_HITBOX_HEIGHT) / 2f;
 
     // Separation constants (to prevent zombies from overlapping - like Vampire Survivors)
     private static final float SEPARATION_RADIUS = 28f;  // Minimum distance between zombies (larger for bigger sprites)
     private static final float SEPARATION_FORCE = 90f;   // Push force strength
+    
+    // Knockback system (like Vampire Survivors) - INCREASED for visible effect
+    private float knockbackX = 0f;
+    private float knockbackY = 0f;
+    private static final float KNOCKBACK_STRENGTH = 250f;  // Base knockback distance (increased significantly)
+    private static final float KNOCKBACK_DECAY = 5f;       // How fast knockback decays (slower decay)
 
     // Soft despawn zones (like Vampire Survivors) - adjusted for 960x540 world view
     public static final float ACTIVE_RADIUS = 700f;   // Active zone: update AI, move, attack
@@ -286,6 +292,20 @@ public class Enemy {
             dy = normalizedDy * speed * delta;
         }
 
+        // Apply knockback first
+        if (knockbackX != 0 || knockbackY != 0) {
+            x += knockbackX * delta;
+            y += knockbackY * delta;
+            
+            // Decay knockback
+            knockbackX *= (1f - KNOCKBACK_DECAY * delta);
+            knockbackY *= (1f - KNOCKBACK_DECAY * delta);
+            
+            // Stop knockback when very small
+            if (Math.abs(knockbackX) < 1f) knockbackX = 0f;
+            if (Math.abs(knockbackY) < 1f) knockbackY = 0f;
+        }
+        
         // Move freely (no wall collision - enemies can pass through walls like VS)
         x += dx;
         y += dy;
@@ -407,6 +427,24 @@ public class Enemy {
             isDying = true;
             deathAnimationTimer = 0f;
         }
+    }
+    
+    /**
+     * Apply knockback when hit by bullet (like Vampire Survivors)
+     * @param bulletDirX normalized direction X of bullet
+     * @param bulletDirY normalized direction Y of bullet
+     * @param strength knockback strength multiplier
+     */
+    public void applyKnockback(float bulletDirX, float bulletDirY, float strength) {
+        knockbackX = bulletDirX * KNOCKBACK_STRENGTH * strength;
+        knockbackY = bulletDirY * KNOCKBACK_STRENGTH * strength;
+    }
+    
+    /**
+     * Apply knockback with default strength
+     */
+    public void applyKnockback(float bulletDirX, float bulletDirY) {
+        applyKnockback(bulletDirX, bulletDirY, 1.0f);
     }
 
     public boolean isDead() {

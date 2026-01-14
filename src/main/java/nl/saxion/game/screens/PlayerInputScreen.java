@@ -97,6 +97,32 @@ public class PlayerInputScreen extends ScalableGameScreen {
         super(1280, 720);
     }
     
+    // Validation methods
+    private boolean isUsernameValid() {
+        return !username.isEmpty() && username.length() <= MAX_USERNAME_LENGTH;
+    }
+    
+    private boolean isClassValid() {
+        if (studentClass.isEmpty()) return false;
+        if (classOtherMode) {
+            return studentClass.length() <= MAX_CLASS_LENGTH;
+        }
+        return selectedClassIndex >= 0 && selectedClassIndex < CLASS_OPTIONS.length - 1;
+    }
+    
+    private boolean isGroupValid() {
+        if (groupNumber.isEmpty()) return false;
+        if (groupOtherMode) {
+            try {
+                int groupNum = Integer.parseInt(groupNumber);
+                return groupNum >= 0 && groupNum <= 100 && groupNumber.length() <= MAX_GROUP_LENGTH;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return selectedGroupIndex >= 0 && selectedGroupIndex < GROUP_OPTIONS.length - 1;
+    }
+    
     @Override
     public void show() {
         DebugLogger.log("PlayerInputScreen.show() called");
@@ -201,11 +227,11 @@ public class PlayerInputScreen extends ScalableGameScreen {
                     "gray-500", 0f, "black", 1, 1, "gray-700", true);
         }
         if (!GameApp.hasFont("dropdownItem")) {
-            GameApp.addStyledFont("dropdownItem", "fonts/PressStart2P-Regular.ttf", 13,
+            GameApp.addStyledFont("dropdownItem", "fonts/PressStart2P-Regular.ttf", 20,
                     "white", 0f, "black", 1, 1, "gray-700", true);
         }
         if (!GameApp.hasFont("buttonFont")) {
-            GameApp.addStyledFont("buttonFont", "fonts/upheavtt.ttf", 40,
+            GameApp.addStyledFont("buttonFont", "fonts/upheavtt.ttf", 32,
                     "white", 0f, "black", 2, 2, "gray-700", true);
         }
         
@@ -237,6 +263,12 @@ public class PlayerInputScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("mainmenu_bg")) {
             GameApp.addTexture("mainmenu_bg", "assets/ui/mainmenu.png");
         }
+        if (!GameApp.hasTexture("greentick")) {
+            GameApp.addTexture("greentick", "assets/ui/greentick.png");
+        }
+        if (!GameApp.hasTexture("close")) {
+            GameApp.addTexture("close", "assets/ui/close.png");
+        }
         
         resourcesLoaded = true;
     }
@@ -246,7 +278,7 @@ public class PlayerInputScreen extends ScalableGameScreen {
         
         int texW = GameApp.getTextureWidth("green_long");
         int texH = GameApp.getTextureHeight("green_long");
-        float scale = 0.7f;
+        float scale = 0.85f; // Increased size to fit longer text like "HOW TO PLAY"
         
         buttonWidth = texW * scale;
         buttonHeight = texH * scale;
@@ -254,21 +286,33 @@ public class PlayerInputScreen extends ScalableGameScreen {
         float screenWidth = GameApp.getWorldWidth();
         float centerX = screenWidth / 2;
         
-        float buttonY = 80f;
-        float buttonSpacing = 30f;
+        float buttonY = 60f; // Moved up slightly
+        float buttonSpacing = 20f; // Reduced spacing
         
-        // Back button (red)
-        float backX = centerX - buttonWidth - buttonSpacing / 2;
-        Button backButton = new Button(backX, buttonY, buttonWidth, buttonHeight, "");
+        // Calculate total width needed for 3 buttons
+        float totalWidth = buttonWidth * 3 + buttonSpacing * 2;
+        float startX = centerX - totalWidth / 2;
+        
+        // Back button (red) - left
+        Button backButton = new Button(startX, buttonY, buttonWidth, buttonHeight, "");
         backButton.setOnClick(() -> {});
         if (GameApp.hasTexture("red_long")) {
             backButton.setSprites("red_long", "red_long", "red_long", "red_pressed_long");
         }
         buttons.add(backButton);
         
-        // Start button (green)
-        float startX = centerX + buttonSpacing / 2;
-        Button startButton = new Button(startX, buttonY, buttonWidth, buttonHeight, "");
+        // How to Play button (blue) - center
+        float howToPlayX = startX + buttonWidth + buttonSpacing;
+        Button howToPlayButton = new Button(howToPlayX, buttonY, buttonWidth, buttonHeight, "");
+        howToPlayButton.setOnClick(() -> {});
+        if (GameApp.hasTexture("blue_long")) {
+            howToPlayButton.setSprites("blue_long", "blue_long", "blue_long", "blue_pressed_long");
+        }
+        buttons.add(howToPlayButton);
+        
+        // Start button (green) - right
+        float startGameX = startX + (buttonWidth + buttonSpacing) * 2;
+        Button startButton = new Button(startGameX, buttonY, buttonWidth, buttonHeight, "");
         startButton.setOnClick(() -> {});
         if (GameApp.hasTexture("green_long")) {
             startButton.setSprites("green_long", "green_long", "green_long", "green_pressed_long");
@@ -278,9 +322,8 @@ public class PlayerInputScreen extends ScalableGameScreen {
     
     @Override
     public void hide() {
-        if (soundManager != null) {
-            soundManager.stopMusic();
-        }
+        // Don't stop music when leaving - keep it playing for other menu screens
+        // Music will only stop when entering PlayScreen or quitting game
         if (cursorPointer != null) {
             cursorPointer.dispose();
             cursorPointer = null;
@@ -398,10 +441,10 @@ public class PlayerInputScreen extends ScalableGameScreen {
         float centerX = screenWidth / 2;
         float centerY = screenHeight / 2;
         
-        float panelWidth = 650f;
-        float panelHeight = 480f;
+        float panelWidth = 750f; // Wider panel for better spacing
+        float panelHeight = 520f; // Taller panel for more room
         float panelX = centerX - panelWidth / 2;
-        float panelY = centerY - panelHeight / 2 + 30f;
+        float panelY = centerY - panelHeight / 2 + 40f; // Moved up slightly
         
         // Panel background
         GameApp.enableTransparency();
@@ -427,12 +470,12 @@ public class PlayerInputScreen extends ScalableGameScreen {
         float subtitleY = titleY - 30f;
         GameApp.drawTextCentered("inputHint", "Fill in your details to join the leaderboard", centerX, subtitleY, "gray-300");
         
-        // Field layout
-        float fieldStartY = subtitleY - 60f;
-        float fieldSpacing = 100f;
-        fieldWidth = 450f;
-        fieldHeight = 50f;
-        float labelOffsetY = 35f;
+        // Field layout - improved spacing and sizing
+        float fieldStartY = subtitleY - 70f;
+        float fieldSpacing = 110f; // More spacing between fields
+        fieldWidth = 500f; // Wider fields
+        fieldHeight = 55f; // Taller fields
+        float labelOffsetY = 40f; // More space for labels
         
         String[] labels = {"USERNAME", "CLASS", "GROUP"};
         
@@ -443,8 +486,8 @@ public class PlayerInputScreen extends ScalableGameScreen {
             fieldXPositions[i] = fieldX;
             fieldYPositions[i] = fieldY - fieldHeight;
             
-            // Label
-            GameApp.drawTextCentered("inputLabel", labels[i], centerX, fieldY + labelOffsetY, "white");
+            // Label - moved down by 20f
+            GameApp.drawTextCentered("inputLabel", labels[i], centerX, fieldY + labelOffsetY - 20f, "white");
             
             GameApp.endSpriteRendering();
             
@@ -557,13 +600,16 @@ public class PlayerInputScreen extends ScalableGameScreen {
                 }
             }
             
-            // Checkmark for filled fields
+            // Validation icons - greentick for valid, close for invalid
             if (i == 0 && !username.isEmpty()) {
-                GameApp.drawText("inputCounter", "OK", fieldX + fieldWidth + 10f, textY, "green-400");
+                String iconTexture = isUsernameValid() ? "greentick" : "close";
+                GameApp.drawTexture(iconTexture, fieldX + fieldWidth + 10f, textY - 8f, 16f, 16f);
             } else if (i == 1 && !studentClass.isEmpty()) {
-                GameApp.drawText("inputCounter", "OK", fieldX + fieldWidth + 10f, textY, "green-400");
+                String iconTexture = isClassValid() ? "greentick" : "close";
+                GameApp.drawTexture(iconTexture, fieldX + fieldWidth + 10f, textY - 8f, 16f, 16f);
             } else if (i == 2 && !groupNumber.isEmpty()) {
-                GameApp.drawText("inputCounter", "OK", fieldX + fieldWidth + 10f, textY, "green-400");
+                String iconTexture = isGroupValid() ? "greentick" : "close";
+                GameApp.drawTexture(iconTexture, fieldX + fieldWidth + 10f, textY - 8f, 16f, 16f);
             }
         }
         
@@ -578,9 +624,9 @@ public class PlayerInputScreen extends ScalableGameScreen {
         float hintY = fieldStartY - 3 * fieldSpacing - 10f;
         GameApp.drawTextCentered("inputHint", "TAB to switch | ENTER to start", centerX, hintY, "gray-300");
         
-        // Error message
+        // Error message - moved up by 20f
         if (!errorMessage.isEmpty()) {
-            float errorY = hintY - 25f;
+            float errorY = hintY + 30f;
             GameApp.drawTextCentered("inputError", errorMessage, centerX, errorY, "red-400");
         }
         
@@ -702,8 +748,8 @@ public class PlayerInputScreen extends ScalableGameScreen {
     private void drawButtonText() {
         GameApp.startSpriteRendering();
         
-        String[] buttonTexts = {"BACK", "START GAME"};
-        String[] buttonColors = {"button_red_text", "button_green_text"};
+        String[] buttonTexts = {"BACK", "HOW TO PLAY", "START GAME"};
+        String[] buttonColors = {"button_red_text", "button_blue_text", "button_green_text"};
         
         for (int i = 0; i < buttons.size() && i < buttonTexts.length; i++) {
             Button button = buttons.get(i);
@@ -1088,8 +1134,13 @@ public class PlayerInputScreen extends ScalableGameScreen {
                     button.setPressed(true);
                     
                     if (i == 0) {
+                        // Back button
                         pendingAction = () -> GameApp.switchScreen("menu");
                     } else if (i == 1) {
+                        // How to Play button
+                        pendingAction = () -> GameApp.switchScreen("howtoplay");
+                    } else if (i == 2) {
+                        // Start Game button
                         pendingAction = () -> tryStartGame();
                     }
                     

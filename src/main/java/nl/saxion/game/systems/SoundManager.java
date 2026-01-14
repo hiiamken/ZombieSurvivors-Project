@@ -9,6 +9,7 @@ import java.util.Map;
 /**
  * Manages all game audio (sound effects and background music).
  * Uses GameApp audio methods for loading and playback.
+ * Supports 3-track ingame music cycling: ingame.mp3 → ingame2.mp3 → ingame3.mp3 → loop
  */
 public class SoundManager {
     // Sound effect keys mapping
@@ -16,7 +17,11 @@ public class SoundManager {
     
     // Music keys
     private static final String MENU_MUSIC_KEY = "bgm";  // Background music for menus
-    private static final String INGAME_MUSIC_KEY = "ingame_music";  // Background music for gameplay
+    
+    // Ingame music tracks (3-track cycling system)
+    private static final String[] INGAME_MUSIC_KEYS = {"ingame_music_1", "ingame_music_2", "ingame_music_3"};
+    private static final String[] INGAME_MUSIC_FILES = {"audio/ingame.mp3", "audio/ingame2.mp3", "audio/ingame3.mp3"};
+    private int currentTrackIndex = 0;  // Current track playing (0, 1, or 2)
     
     // Volume settings
     private float masterVolume = 1.0f;
@@ -44,25 +49,40 @@ public class SoundManager {
         loadSound("damaged", "audio/damaged.mp3");
         loadSound("gameover", "audio/gameover.mp3");
         loadSound("jackpot", "audio/jackpot.mp3"); // Gacha jackpot sound
+        loadSound("meoww", "audio/meoww.mp3"); // Cat healing easter egg sound
         
-        // Load background music for menus (if available)
-        try {
-            GameApp.addMusic(MENU_MUSIC_KEY, "audio/background.mp3");
-            if (GameApp.hasMusic(MENU_MUSIC_KEY)) {
-                GameApp.log("Menu background music loaded successfully");
+        // Load background music for menus (if available and not already loaded)
+        // CRITICAL: Only load if not already loaded to prevent music from being reset
+        if (!GameApp.hasMusic(MENU_MUSIC_KEY)) {
+            try {
+                GameApp.addMusic(MENU_MUSIC_KEY, "audio/background.mp3");
+                if (GameApp.hasMusic(MENU_MUSIC_KEY)) {
+                    GameApp.log("Menu background music loaded successfully");
+                }
+            } catch (Exception e) {
+                GameApp.log("Warning: Could not load menu background music: " + e.getMessage());
             }
-        } catch (Exception e) {
-            GameApp.log("Warning: Could not load menu background music: " + e.getMessage());
+        } else {
+            GameApp.log("Menu background music already loaded, skipping reload");
         }
         
-        // Load ingame background music (if available)
-        try {
-            GameApp.addMusic(INGAME_MUSIC_KEY, "audio/ingame.mp3");
-            if (GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-                GameApp.log("Ingame background music loaded successfully");
+        // Load all 3 ingame background music tracks for cycling
+        // Track order: ingame.mp3 → ingame2.mp3 → ingame3.mp3 → loop back
+        for (int i = 0; i < INGAME_MUSIC_KEYS.length; i++) {
+            String key = INGAME_MUSIC_KEYS[i];
+            String file = INGAME_MUSIC_FILES[i];
+            if (!GameApp.hasMusic(key)) {
+                try {
+                    GameApp.addMusic(key, file);
+                    if (GameApp.hasMusic(key)) {
+                        GameApp.log("Ingame music track " + (i + 1) + " loaded: " + file);
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Warning: Could not load ingame music " + file + ": " + e.getMessage());
+                }
+            } else {
+                GameApp.log("Ingame music track " + (i + 1) + " already loaded");
             }
-        } catch (Exception e) {
-            GameApp.log("Warning: Could not load ingame background music: " + e.getMessage());
         }
         
         GameApp.log("SoundManager: Loaded " + soundKeys.size() + " sound effects");
@@ -140,18 +160,50 @@ public class SoundManager {
      */
     public void playMenuMusic(boolean loop) {
         if (!GameApp.hasMusic(MENU_MUSIC_KEY)) {
+            GameApp.log("Menu music not loaded, cannot play");
             return;
         }
         
         // Stop ingame music if playing
         stopIngameMusic();
         
-        // Check if music is already playing (even from another SoundManager instance)
+        // CRITICAL: Check if music is already playing BEFORE doing anything else
+        // This prevents music from restarting when switching between menu screens
+        try {
+            Music music = GameApp.getMusic(MENU_MUSIC_KEY);
+            if (music != null) {
+                boolean isCurrentlyPlaying = music.isPlaying();
+                GameApp.log("Menu music check: music exists, isPlaying=" + isCurrentlyPlaying);
+                
+                if (isCurrentlyPlaying) {
+                    // Music is already playing, just update volume if needed
+                    // Menu music volume is 10% of normal music volume
+                    float finalVolume = masterVolume * musicVolume * 0.1f;
+                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
+                    music.setVolume(finalVolume);
+                    isMenuMusicPlaying = true;
+                    GameApp.log("Menu music already playing, skipping restart (volume updated to " + finalVolume + ")");
+                    return; // CRITICAL: Return here to prevent restart
+                }
+            } else {
+                GameApp.log("Menu music object is null");
+            }
+        } catch (Exception e) {
+            GameApp.log("Error checking if menu music is playing: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Don't restart if this instance thinks it's playing
+        if (isMenuMusicPlaying) {
+            GameApp.log("This SoundManager instance thinks menu music is playing, skipping");
+            return;
+        }
+        
+        // Final check before playing - prevent restart if music is already playing
         try {
             Music music = GameApp.getMusic(MENU_MUSIC_KEY);
             if (music != null && music.isPlaying()) {
-                // Music is already playing, just update volume if needed
-                // Menu music volume is 10% of normal music volume
+                GameApp.log("Final check: Menu music is playing, NOT calling GameApp.playMusic()");
                 float finalVolume = masterVolume * musicVolume * 0.1f;
                 finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
                 music.setVolume(finalVolume);
@@ -159,70 +211,106 @@ public class SoundManager {
                 return;
             }
         } catch (Exception e) {
-            // Ignore, will try to play
+            GameApp.log("Error in final check: " + e.getMessage());
         }
         
-        // Don't restart if this instance thinks it's playing
-        if (isMenuMusicPlaying) {
-            return;
-        }
-        
+        // Only play if music is NOT currently playing
         try {
             // Calculate final volume: master * music * 0.1 (10% volume for menu)
             float finalVolume = masterVolume * musicVolume * 0.1f;
             finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
             
+            GameApp.log("Menu music NOT playing, calling GameApp.playMusic()");
             GameApp.playMusic(MENU_MUSIC_KEY, loop, finalVolume);
             isMenuMusicPlaying = true;
             GameApp.log("Menu background music started");
         } catch (Exception e) {
             GameApp.log("Error playing menu music: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
     /**
-     * Play ingame background music with looping.
-     * @param loop Whether to loop the music
+     * Play ingame background music with 3-track cycling system.
+     * Tracks cycle: ingame.mp3 → ingame2.mp3 → ingame3.mp3 → loop back
+     * @param loop Whether to loop (ignored - we handle looping via track cycling)
      */
     public void playIngameMusic(boolean loop) {
-        if (!GameApp.hasMusic(INGAME_MUSIC_KEY)) {
+        // Check if at least first track is loaded
+        if (!GameApp.hasMusic(INGAME_MUSIC_KEYS[0])) {
+            GameApp.log("Ingame music not loaded, cannot play");
             return;
         }
         
         // Stop menu music if playing
         stopMusic();
         
-        // Check if music is already playing
-        try {
-            Music music = GameApp.getMusic(INGAME_MUSIC_KEY);
-            if (music != null && music.isPlaying()) {
-                // Music is already playing, just update volume if needed
-                // Ingame music volume is 10% of normal music volume
-                float finalVolume = masterVolume * musicVolume * 0.1f;
-                finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                music.setVolume(finalVolume);
-                isIngameMusicPlaying = true;
-                return;
+        // Check if any track is already playing
+        if (isIngameMusicPlaying) {
+            for (String key : INGAME_MUSIC_KEYS) {
+                try {
+                    Music music = GameApp.getMusic(key);
+                    if (music != null && music.isPlaying()) {
+                        // Update volume and return
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        music.setVolume(GameApp.clamp(finalVolume, 0f, 1f));
+                        return;
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
             }
-        } catch (Exception e) {
-            // Ignore, will try to play
         }
         
-        // Don't restart if this instance thinks it's playing
-        if (isIngameMusicPlaying) {
+        // Start playing from first track
+        currentTrackIndex = 0;
+        playCurrentTrack();
+    }
+    
+    /**
+     * Play the current track in the cycling playlist.
+     */
+    private void playCurrentTrack() {
+        String key = INGAME_MUSIC_KEYS[currentTrackIndex];
+        
+        if (!GameApp.hasMusic(key)) {
+            GameApp.log("Track " + (currentTrackIndex + 1) + " not loaded: " + key);
             return;
         }
         
         try {
-            // Calculate final volume: master * music * 0.1 (10% volume for ingame)
             float finalVolume = masterVolume * musicVolume * 0.1f;
             finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
             
-            GameApp.playMusic(INGAME_MUSIC_KEY, loop, finalVolume);
+            // Play WITHOUT loop - we'll manually advance to next track when this one ends
+            GameApp.playMusic(key, false, finalVolume);
             isIngameMusicPlaying = true;
-            GameApp.log("Ingame background music started");
+            GameApp.log("Playing ingame track " + (currentTrackIndex + 1) + "/3: " + INGAME_MUSIC_FILES[currentTrackIndex]);
         } catch (Exception e) {
-            GameApp.log("Error playing ingame music: " + e.getMessage());
+            GameApp.log("Error playing track " + key + ": " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Update music system - call this every frame to handle track cycling.
+     * When current track ends, automatically plays the next one.
+     * @param delta Time since last frame
+     */
+    public void updateIngameMusic(float delta) {
+        if (!isIngameMusicPlaying) return;
+        
+        // Check if current track has finished
+        String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
+        try {
+            Music music = GameApp.getMusic(currentKey);
+            if (music != null && !music.isPlaying()) {
+                // Current track finished - advance to next track
+                currentTrackIndex = (currentTrackIndex + 1) % INGAME_MUSIC_KEYS.length;
+                GameApp.log("Track ended, cycling to track " + (currentTrackIndex + 1) + "/3");
+                playCurrentTrack();
+            }
+        } catch (Exception e) {
+            // Ignore errors
         }
     }
     
@@ -250,19 +338,21 @@ public class SoundManager {
     }
     
     /**
-     * Stop ingame background music.
+     * Stop all ingame background music tracks.
      */
     public void stopIngameMusic() {
-        if (!GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            return;
+        // Stop all 3 tracks
+        for (String key : INGAME_MUSIC_KEYS) {
+            if (GameApp.hasMusic(key)) {
+                try {
+                    GameApp.stopMusic(key);
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
         }
-        
-        try {
-            GameApp.stopMusic(INGAME_MUSIC_KEY);
-            isIngameMusicPlaying = false;
-        } catch (Exception e) {
-            GameApp.log("Error stopping ingame music: " + e.getMessage());
-        }
+        isIngameMusicPlaying = false;
+        currentTrackIndex = 0;
     }
     
     /**
@@ -270,21 +360,17 @@ public class SoundManager {
      * @param volumeMultiplier Volume multiplier (0.0 - 1.0), will be multiplied by normal volume
      */
     public void setIngameMusicVolumeTemporary(float volumeMultiplier) {
-        if (!GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            return;
-        }
+        if (!isIngameMusicPlaying) return;
         
-        if (!isIngameMusicPlaying) {
-            return;
-        }
+        // Update volume on currently playing track
+        String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
+        if (!GameApp.hasMusic(currentKey)) return;
         
         try {
-            Music music = GameApp.getMusic(INGAME_MUSIC_KEY);
+            Music music = GameApp.getMusic(currentKey);
             if (music != null && music.isPlaying()) {
-                // Calculate volume: master * music * 0.1 (normal) * volumeMultiplier (temporary reduction)
                 float finalVolume = masterVolume * musicVolume * 0.1f * GameApp.clamp(volumeMultiplier, 0f, 1f);
-                finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                music.setVolume(finalVolume);
+                music.setVolume(GameApp.clamp(finalVolume, 0f, 1f));
             }
         } catch (Exception e) {
             GameApp.log("Error setting temporary ingame music volume: " + e.getMessage());
@@ -295,21 +381,17 @@ public class SoundManager {
      * Restore ingame music volume to normal (after level up menu closes).
      */
     public void restoreIngameMusicVolume() {
-        if (!GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            return;
-        }
+        if (!isIngameMusicPlaying) return;
         
-        if (!isIngameMusicPlaying) {
-            return;
-        }
+        // Restore volume on currently playing track
+        String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
+        if (!GameApp.hasMusic(currentKey)) return;
         
         try {
-            Music music = GameApp.getMusic(INGAME_MUSIC_KEY);
+            Music music = GameApp.getMusic(currentKey);
             if (music != null && music.isPlaying()) {
-                // Restore to normal volume: master * music * 0.1 (10% volume for ingame)
                 float finalVolume = masterVolume * musicVolume * 0.1f;
-                finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                music.setVolume(finalVolume);
+                music.setVolume(GameApp.clamp(finalVolume, 0f, 1f));
             }
         } catch (Exception e) {
             GameApp.log("Error restoring ingame music volume: " + e.getMessage());
@@ -348,17 +430,18 @@ public class SoundManager {
         }
         
         // Update ingame music volume if playing (10% volume)
-        if (isIngameMusicPlaying && GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            try {
-                Music music = GameApp.getMusic(INGAME_MUSIC_KEY);
-                if (music != null) {
-                    // Ingame music volume is 10% of normal music volume
-                    float finalVolume = masterVolume * musicVolume * 0.1f;
-                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                    music.setVolume(finalVolume);
+        if (isIngameMusicPlaying) {
+            String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
+            if (GameApp.hasMusic(currentKey)) {
+                try {
+                    Music music = GameApp.getMusic(currentKey);
+                    if (music != null) {
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        music.setVolume(GameApp.clamp(finalVolume, 0f, 1f));
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Error setting ingame music volume: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                GameApp.log("Error setting ingame music volume: " + e.getMessage());
             }
         }
     }
@@ -386,17 +469,18 @@ public class SoundManager {
         }
         
         // Update ingame music volume if playing (10% volume)
-        if (isIngameMusicPlaying && GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            try {
-                Music music = GameApp.getMusic(INGAME_MUSIC_KEY);
-                if (music != null) {
-                    // Ingame music volume is 10% of normal music volume
-                    float finalVolume = masterVolume * musicVolume * 0.1f;
-                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                    music.setVolume(finalVolume);
+        if (isIngameMusicPlaying) {
+            String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
+            if (GameApp.hasMusic(currentKey)) {
+                try {
+                    Music music = GameApp.getMusic(currentKey);
+                    if (music != null) {
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        music.setVolume(GameApp.clamp(finalVolume, 0f, 1f));
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Error updating ingame music master volume: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                GameApp.log("Error updating ingame music master volume: " + e.getMessage());
             }
         }
     }
@@ -459,12 +543,14 @@ public class SoundManager {
             }
         }
         
-        // Dispose ingame music
-        if (GameApp.hasMusic(INGAME_MUSIC_KEY)) {
-            try {
-                GameApp.disposeMusic(INGAME_MUSIC_KEY);
-            } catch (Exception e) {
-                GameApp.log("Error disposing ingame music: " + e.getMessage());
+        // Dispose all ingame music tracks
+        for (String key : INGAME_MUSIC_KEYS) {
+            if (GameApp.hasMusic(key)) {
+                try {
+                    GameApp.disposeMusic(key);
+                } catch (Exception e) {
+                    GameApp.log("Error disposing ingame music " + key + ": " + e.getMessage());
+                }
             }
         }
         

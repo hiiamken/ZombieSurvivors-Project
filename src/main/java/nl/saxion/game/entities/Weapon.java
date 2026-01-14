@@ -215,6 +215,78 @@ public class Weapon {
                 );
                 bullets.add(bullet);
             }
+            
+            // === MULTI-SHOT FRONT (Level 5+): 3 bullets in spread pattern ===
+            if (WeaponUpgrade.hasMultiShotFront(level)) {
+                int frontBullets = WeaponUpgrade.getFrontSpreadBulletCount(level);
+                float spreadAngle = 25f; // degrees between each bullet
+                float startAngle = -spreadAngle * (frontBullets - 1) / 2f;
+                
+                for (int i = 0; i < frontBullets; i++) {
+                    float angle = startAngle + i * spreadAngle;
+                    float radians = (float) Math.toRadians(angle);
+                    
+                    // Rotate the direction vector
+                    float cos = (float) Math.cos(radians);
+                    float sin = (float) Math.sin(radians);
+                    float spreadDirX = dirX * cos - dirY * sin;
+                    float spreadDirY = dirX * sin + dirY * cos;
+                    
+                    int baseDamage = GameApp.randomInt(baseMinDamage, baseMaxDamage + 1);
+                    int finalDamage = (int) (baseDamage * weaponDamageMult * player.getDamageMultiplier() * 0.7f);
+                    
+                    Bullet bullet = new Bullet(
+                            bulletStartX,
+                            bulletStartY,
+                            spreadDirX,
+                            spreadDirY,
+                            finalDamage,
+                            bulletSpeed,
+                            bulletWidth,
+                            bulletHeight,
+                            pierceCount
+                    );
+                    bullets.add(bullet);
+                }
+            }
+            
+            // === MULTI-SHOT BACK (Level 8+): 3 bullets backward ===
+            if (WeaponUpgrade.hasMultiShotBack(level)) {
+                int backBullets = WeaponUpgrade.getBackBulletCount(level);
+                float spreadAngle = 20f; // degrees between each bullet
+                float startAngle = -spreadAngle * (backBullets - 1) / 2f;
+                
+                // Reverse direction for backward bullets
+                float backDirX = -dirX;
+                float backDirY = -dirY;
+                
+                for (int i = 0; i < backBullets; i++) {
+                    float angle = startAngle + i * spreadAngle;
+                    float radians = (float) Math.toRadians(angle);
+                    
+                    // Rotate the backward direction vector
+                    float cos = (float) Math.cos(radians);
+                    float sin = (float) Math.sin(radians);
+                    float spreadDirX = backDirX * cos - backDirY * sin;
+                    float spreadDirY = backDirX * sin + backDirY * cos;
+                    
+                    int baseDamage = GameApp.randomInt(baseMinDamage, baseMaxDamage + 1);
+                    int finalDamage = (int) (baseDamage * weaponDamageMult * player.getDamageMultiplier() * 0.6f);
+                    
+                    Bullet bullet = new Bullet(
+                            bulletStartX,
+                            bulletStartY,
+                            spreadDirX,
+                            spreadDirY,
+                            finalDamage,
+                            bulletSpeed * 0.9f, // Back bullets slightly slower
+                            bulletWidth,
+                            bulletHeight,
+                            pierceCount
+                    );
+                    bullets.add(bullet);
+                }
+            }
         }
 
         // Play shooting sound at 10% volume (only once)

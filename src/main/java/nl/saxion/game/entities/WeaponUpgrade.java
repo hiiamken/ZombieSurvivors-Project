@@ -2,65 +2,79 @@ package nl.saxion.game.entities;
 
 /**
  * Contains weapon upgrade definitions for each level.
- * Weapon max level is 8, with each level providing specific improvements.
+ * Weapon max level is 10, with each level providing specific improvements.
  * 
- * PISTOL EVOLUTION PATH:
+ * BALANCED PISTOL EVOLUTION PATH (for Vampire Survivors feel):
  * Level 1: Base (2 bullets, normal damage)
- * Level 2: +1 bullet (3 total)
- * Level 3: +15% fire rate
- * Level 4: +1 bullet (4 total), +10% damage
- * Level 5: Bullets pierce 1 enemy
- * Level 6: +1 bullet (5 total), +15% fire rate
- * Level 7: Bullets pierce +1 enemy (2 total)
- * Level 8 (MAX): +2 bullets (7 total), +25% damage
+ * Level 2: +1 bullet (3 total), +10% damage
+ * Level 3: ★ MULTI-SHOT FRONT - Shoots 3 bullets forward in spread pattern
+ * Level 4: +1 bullet (4 total), +15% damage
+ * Level 5: +20% fire rate
+ * Level 6: Bullets pierce 1 enemy, +10% fire rate
+ * Level 7: +1 bullet (5 total), +20% damage
+ * Level 8: ★ MULTI-SHOT BACK - Shoots 3 bullets backward
+ * Level 9: Bullets pierce +1 enemy (2 total), +15% fire rate
+ * Level 10 (MAX): +2 bullets (7 total), +30% damage, pierce +1 (3 total)
  * 
- * EVOLUTION (requires weapon MAX + ALL passive items MAX):
- * DEATH SPIRAL - 8 bullets in rotating pattern, auto-target, infinite pierce, +150% damage
+ * EVOLUTION (requires weapon MAX level 10 + ALL passive items MAX):
+ * DEATH SPIRAL - 8 bullets in rotating pattern, auto-target, infinite pierce, slower fire rate, 10% lifesteal
  */
 public class WeaponUpgrade {
     
-    public static final int WEAPON_MAX_LEVEL = 8;
+    public static final int WEAPON_MAX_LEVEL = 10;
     
     /**
      * Get bullet count bonus for weapon level.
      */
     public static int getBulletCountForLevel(int level) {
         return switch (level) {
-            case 1 -> 2;  // Base: 2 bullets
-            case 2 -> 3;  // +1 bullet
-            case 3 -> 3;  // No change
-            case 4 -> 4;  // +1 bullet
-            case 5 -> 4;  // No change
-            case 6 -> 5;  // +1 bullet
-            case 7 -> 5;  // No change
-            case 8 -> 7;  // +2 bullets
+            case 1 -> 2;   // Base: 2 bullets
+            case 2 -> 3;   // +1 bullet
+            case 3 -> 3;   // No change
+            case 4 -> 4;   // +1 bullet
+            case 5 -> 4;   // Multi-shot front (no base bullet change)
+            case 6 -> 4;   // No change
+            case 7 -> 5;   // +1 bullet
+            case 8 -> 5;   // Multi-shot back (no base bullet change)
+            case 9 -> 5;   // No change
+            case 10 -> 7;  // +2 bullets (MAX)
             default -> 2;
         };
     }
     
     /**
      * Get fire rate multiplier for weapon level.
+     * Smoother progression for satisfying upgrades
      */
     public static float getFireRateMultiplierForLevel(int level) {
         return switch (level) {
-            case 1, 2 -> 1.0f;     // Base
-            case 3 -> 1.15f;       // +15%
-            case 4, 5 -> 1.15f;    // Keep +15%
-            case 6 -> 1.30f;       // +15% more = +30% total
-            case 7, 8 -> 1.30f;    // Keep +30%
+            case 1, 2, 3, 4 -> 1.0f; // Base (no fire rate boost until level 5)
+            case 5 -> 1.20f;        // +20% fire rate
+            case 6 -> 1.30f;        // +10% more = +30% total
+            case 7 -> 1.30f;        // Keep +30%
+            case 8 -> 1.30f;        // Keep +30%
+            case 9 -> 1.45f;        // +15% more = +45% total
+            case 10 -> 1.50f;       // +5% more = +50% total (fast!)
             default -> 1.0f;
         };
     }
     
     /**
      * Get damage multiplier for weapon level.
+     * Progressive scaling to handle late-game zombie hordes
      */
     public static float getDamageMultiplierForLevel(int level) {
         return switch (level) {
-            case 1, 2, 3 -> 1.0f;  // Base
-            case 4 -> 1.10f;       // +10%
-            case 5, 6, 7 -> 1.10f; // Keep +10%
-            case 8 -> 1.35f;       // +25% more = +35% total
+            case 1 -> 1.0f;         // Base
+            case 2 -> 1.10f;        // +10%
+            case 3 -> 1.10f;        // Keep +10%
+            case 4 -> 1.25f;        // +15% more = +25% total
+            case 5 -> 1.25f;        // Keep +25%
+            case 6 -> 1.25f;        // Keep +25%
+            case 7 -> 1.45f;        // +20% more = +45% total
+            case 8 -> 1.45f;        // Keep +45%
+            case 9 -> 1.45f;        // Keep +45%
+            case 10 -> 1.75f;       // +30% more = +75% total (powerful!)
             default -> 1.0f;
         };
     }
@@ -68,15 +82,44 @@ public class WeaponUpgrade {
     /**
      * Get pierce count (how many enemies bullet can pass through).
      * 0 = no pierce (destroy on first hit)
+     * Critical for clearing zombie hordes in late game
      */
     public static int getPierceCountForLevel(int level) {
         return switch (level) {
-            case 1, 2, 3, 4 -> 0;  // No pierce
-            case 5 -> 1;           // Pierce 1 enemy
-            case 6 -> 1;           // Keep pierce 1
-            case 7, 8 -> 2;        // Pierce 2 enemies
+            case 1, 2, 3, 4, 5 -> 0;  // No pierce
+            case 6, 7, 8 -> 1;         // Pierce 1 enemy
+            case 9 -> 2;               // Pierce 2 enemies
+            case 10 -> 3;              // Pierce 3 enemies (crowd control!)
             default -> 0;
         };
+    }
+    
+    /**
+     * Check if this level has multi-shot front (3 bullets forward in spread).
+     */
+    public static boolean hasMultiShotFront(int level) {
+        return level >= 3; // Now unlocks at level 3
+    }
+    
+    /**
+     * Check if this level has multi-shot back (3 bullets backward).
+     */
+    public static boolean hasMultiShotBack(int level) {
+        return level >= 8;
+    }
+    
+    /**
+     * Get number of front spread bullets (0 if not unlocked).
+     */
+    public static int getFrontSpreadBulletCount(int level) {
+        return hasMultiShotFront(level) ? 3 : 0;
+    }
+    
+    /**
+     * Get number of back bullets (0 if not unlocked).
+     */
+    public static int getBackBulletCount(int level) {
+        return hasMultiShotBack(level) ? 3 : 0;
     }
     
     /**
@@ -92,13 +135,15 @@ public class WeaponUpgrade {
     public static String getDescriptionForLevel(int level) {
         return switch (level) {
             case 1 -> "Base weapon";
-            case 2 -> "+1 bullet (3 total)";
-            case 3 -> "+15% fire rate";
-            case 4 -> "+1 bullet, +10% damage";
-            case 5 -> "Bullets pierce 1 enemy";
-            case 6 -> "+1 bullet, +15% fire rate";
-            case 7 -> "Bullets pierce +1 enemy";
-            case 8 -> "+2 bullets, +25% damage (MAX)";
+            case 2 -> "+1 bullet, +10% damage";
+            case 3 -> "MULTI-SHOT: +3 front bullets";
+            case 4 -> "+1 bullet, +15% damage";
+            case 5 -> "+20% fire rate";
+            case 6 -> "Pierce 1 enemy, +10% fire rate";
+            case 7 -> "+1 bullet, +20% damage";
+            case 8 -> "MULTI-SHOT: +3 back bullets";
+            case 9 -> "Pierce +1, +15% fire rate";
+            case 10 -> "+2 bullets, +30% damage, Pierce +1 (MAX)";
             default -> "Unknown";
         };
     }
@@ -138,10 +183,11 @@ public class WeaponUpgrade {
     
     // ============================================
     // EVOLUTION STATS (DEATH SPIRAL)
+    // Nerfed: Slower fire rate, but has 10% lifesteal
     // ============================================
     
     public static final String EVOLUTION_NAME = "Death Spiral";
-    public static final String EVOLUTION_DESCRIPTION = "8 rotating bullets, auto-target, infinite pierce";
+    public static final String EVOLUTION_DESCRIPTION = "8 rotating bullets, infinite pierce, 10% lifesteal";
     public static final String EVOLUTION_ICON = "💀";
     
     /**
@@ -153,16 +199,17 @@ public class WeaponUpgrade {
     
     /**
      * Get evolved weapon fire rate multiplier.
+     * NERFED: Slower than before (was 3.0f, now 1.5f)
      */
     public static float getEvolvedFireRateMultiplier() {
-        return 2.5f; // Very fast firing
+        return 1.5f; // Slower fire rate (nerfed from 3.0)
     }
     
     /**
      * Get evolved weapon damage multiplier.
      */
     public static float getEvolvedDamageMultiplier() {
-        return 2.5f; // +150% damage (2.5x)
+        return 3.0f; // +200% damage (3.0x) - devastating!!
     }
     
     /**
@@ -170,6 +217,14 @@ public class WeaponUpgrade {
      */
     public static int getEvolvedPierceCount() {
         return -1; // Infinite pierce
+    }
+    
+    /**
+     * Get evolved weapon lifesteal percentage.
+     * @return Lifesteal as decimal (0.10 = 10%)
+     */
+    public static float getEvolvedLifestealPercent() {
+        return 0.10f; // 10% lifesteal
     }
     
     /**
