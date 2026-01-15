@@ -268,7 +268,7 @@ public class CreditsScreen extends ScalableGameScreen {
         
         // Special Thanks - Contributors
         creditSections.add(new CreditSection("SPECIAL THANKS", new String[]{
-            "Noah Gooningson"
+            "Noah Nicolaas"
         }));
         
         // Legal Notice
@@ -340,6 +340,10 @@ public class CreditsScreen extends ScalableGameScreen {
         if (GameApp.isKeyJustPressed(Input.Keys.ESCAPE)) {
             if (soundManager != null) {
                 soundManager.playSound("clickbutton", 2.5f);
+            }
+            // If returning to winner screen, set flag to skip white flash
+            if (previousScreen.equals("winner")) {
+                WinnerScreen.setComingFromCredits(true);
             }
             GameApp.switchScreen(previousScreen);
             return;
@@ -539,14 +543,14 @@ public class CreditsScreen extends ScalableGameScreen {
                 // STRICT bounds check - only draw within visible area
                 if (itemY <= visibleTop && itemY >= visibleBottom) {
                     if (name.equals("SAXION_LOGO")) {
-                        // Draw "UNIVERSITY" title ABOVE the logo first
-                        GameApp.drawTextCentered("creditsSectionTitle", "UNIVERSITY", centerX, itemY + 70f, "yellow-300");
+                        // Draw "UNIVERSITY" title ABOVE the logo first (moved down to avoid overlap with Teacher)
+                        GameApp.drawTextCentered("creditsSectionTitle", "UNIVERSITY", centerX, itemY - 50f, "yellow-300");
                         
                         // Draw Saxion logo BELOW the title
                         if (GameApp.hasTexture("saxion_logo")) {
                             float logoHeight = 100f;  // Slightly smaller to fit with title
                             float logoWidth = 180f;  // 16:9 aspect ratio
-                            GameApp.drawTexture("saxion_logo", centerX - logoWidth/2, itemY - logoHeight/2, logoWidth, logoHeight);
+                            GameApp.drawTexture("saxion_logo", centerX - logoWidth/2, itemY - 100f, logoWidth, logoHeight);
                         }
                         currentY -= 160f; // More space for title + logo
                     } else {
@@ -638,7 +642,13 @@ public class CreditsScreen extends ScalableGameScreen {
                     pressedButton = button;
                     button.setPressed(true);
 
-                    pendingAction = () -> GameApp.switchScreen(previousScreen);
+                    pendingAction = () -> {
+                        // If returning to winner screen, set flag to skip white flash
+                        if (previousScreen.equals("winner")) {
+                            WinnerScreen.setComingFromCredits(true);
+                        }
+                        GameApp.switchScreen(previousScreen);
+                    };
 
                     pressTimer = 0f;
                     break;

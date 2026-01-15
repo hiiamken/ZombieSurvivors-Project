@@ -24,7 +24,7 @@ public class Boss {
     // Hit animation system
     private boolean isHit = false;
     private float hitTimer = 0f;
-    private static final float HIT_DURATION = 0.15f; // Duration of hit animation
+    private static final float HIT_DURATION = 0.35f; // Duration of hit animation (longer for visibility)
     
     // Death animation tracking
     private float deathAnimTimer = 0f;

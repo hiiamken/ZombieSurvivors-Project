@@ -136,7 +136,8 @@ public class CollisionHandler {
                     }
 
                     if (e.isDead()) {
-                        onEnemyKilled.accept(10); // Score for killing enemy
+                        int randomScore = (int) GameApp.random(5, 15); // Random score 5-15 per zombie
+                        onEnemyKilled.accept(randomScore);
                         if (onEnemyKilledForOrbs != null) {
                             onEnemyKilledForOrbs.accept(e); // Spawn orbs at enemy position
                         }
@@ -214,7 +215,8 @@ public class CollisionHandler {
                     // Boss killed
                     if (!boss.isAlive()) {
                         if (onBossKilled != null) {
-                            onBossKilled.accept(200);
+                            int randomBossScore = (int) GameApp.random(150, 250); // Random score 150-250 per boss
+                            onBossKilled.accept(randomBossScore);
                         }
                         if (onBossKilledForOrbs != null) {
                             onBossKilledForOrbs.accept(boss);

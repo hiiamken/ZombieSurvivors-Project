@@ -1178,18 +1178,18 @@ public class GachaSystem {
         float textWidth = GameApp.getTextWidth(fontKey, pointsText);
         
         // Draw score text and star icon centered together (matching HUD style)
-        float iconSize = 50f; // Same size as HUD star icon
-        float iconGap = 1f;
+        float iconSize = 55f; // 2x larger icon size for gacha display
+        float iconGap = 4f; // Small gap between text and icon
         float totalWidth = textWidth + iconGap + iconSize;
         float startX = displayX - totalWidth / 2f;
         
         // Draw points text
-        GameApp.drawText(fontKey, pointsText, startX, displayY, "yellow-500");
+        GameApp.drawText(fontKey, pointsText, startX + 8f, displayY, "yellow-500");
         
-        // Draw star icon to the right of points (same as HUD alignment)
+        // Draw star icon to the right of points (closer to text)
         if (GameApp.hasTexture("star_icon")) {
-            float iconX = startX + textWidth + iconGap + 5f;
-            float iconY = displayY - 20f; // Same alignment as HUD
+            float iconX = startX + textWidth;
+            float iconY = displayY - 20f; // Better vertical alignment
             GameApp.drawTexture("star_icon", iconX, iconY, iconSize, iconSize);
         }
         

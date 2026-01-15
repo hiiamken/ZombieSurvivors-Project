@@ -30,6 +30,7 @@ public class HUD {
         renderItemIcons();
         
         // Then draw all text with sprite rendering
+        renderKillCount(status);
         renderScore(status);
         renderXPText(status);
         renderSurvivalTime(gameTime);
@@ -118,6 +119,49 @@ public class HUD {
         GameApp.drawText(fontName, levelText, textX, textY, "white");
     }
 
+    /**
+     * Render kill count with skull icon (left of score, right side of screen).
+     * Format: "xxxx <SkullIcon>"
+     */
+    private void renderKillCount(PlayerStatus status) {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float barHeight = 18f;
+        float barY = screenHeight - barHeight;
+
+        float killY = barY - 22f; // Same line as score
+        String killText = String.valueOf(status.killCount);
+
+        String fontName = GameApp.hasFont("scoreFont") ? "scoreFont" : "default";
+        float textWidth = GameApp.getTextWidth(fontName, killText);
+        
+        // Skull icon size and position (same style as star icon)
+        float iconSize = 20f; // 2x larger to match star icon
+        float iconGap = 4f;
+        
+        // Calculate score total width to position kill count to its left
+        String scoreText = formatScore(status.score);
+        float scoreTextWidth = GameApp.getTextWidth(fontName, scoreText);
+        float starIconSize = 45f; // Match the 2x larger star icon
+        float starIconGap = 4f;
+        float scoreTotalWidth = scoreTextWidth + starIconGap + starIconSize + 10f; // 10f is edge padding
+        
+        // Position kill count to the left of score with some spacing
+        float spacing = 25f; // Space between kill count and score
+        float killTotalWidth = textWidth + iconGap + iconSize;
+        float killX = screenWidth - scoreTotalWidth - spacing - killTotalWidth;
+
+        // Draw kill count text
+        GameApp.drawText(fontName, killText, killX, killY, "white");
+        
+        // Draw skull icon to the right of kill count
+        if (GameApp.hasTexture("skull_icon")) {
+            float iconX = killX + textWidth + iconGap;
+            float iconY = killY - 3f; // Same vertical alignment as star icon
+            GameApp.drawTexture("skull_icon", iconX, iconY, iconSize, iconSize);
+        }
+    }
+
     private void renderScore(PlayerStatus status) {
         float screenWidth = GameApp.getWorldWidth();
         float screenHeight = GameApp.getWorldHeight();
@@ -130,20 +174,20 @@ public class HUD {
         String fontName = GameApp.hasFont("scoreFont") ? "scoreFont" : "default";
         float textWidth = GameApp.getTextWidth(fontName, scoreText);
         
-        // Star icon size and position (larger and better aligned with text)
-        float iconSize = 50f; // Icon size to match text height
-        float iconGap = 1f; // Gap between text and icon
+        // Star icon size and position (2x larger for better visibility)
+        float iconSize = 44f; // 2x larger icon size
+        float iconGap = 4f; // Small gap between text and icon
         float totalWidth = textWidth + iconGap + iconSize;
         
-        float scoreX = screenWidth - totalWidth - 10f; // More padding from edge
+        float scoreX = screenWidth - totalWidth; // More padding from edge
 
         // Draw score text
         GameApp.drawText(fontName, scoreText, scoreX, scoreY, "white");
         
         // Draw star icon to the right of score (aligned with text baseline)
         if (GameApp.hasTexture("star_icon")) {
-            float iconX = scoreX + textWidth + iconGap + 5f;
-            float iconY = scoreY - 20f; // Align with text (same level)
+            float iconX = scoreX + textWidth;
+            float iconY = scoreY - 18f; // Better vertical alignment with text
             GameApp.drawTexture("star_icon", iconX, iconY, iconSize, iconSize);
         }
     }

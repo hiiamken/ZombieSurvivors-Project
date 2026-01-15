@@ -16,6 +16,11 @@ public class PlayerStatus {
     public final int score;
 
     // =====================
+    // KILL COUNT
+    // =====================
+    public final int killCount;
+
+    // =====================
     // XP / LEVEL
     // =====================
     public final int level;
@@ -28,17 +33,19 @@ public class PlayerStatus {
                 health,
                 maxHealth,
                 score,
+                0,
                 1,
                 0,
                 100
         );
     }
 
-    // ✅ NEW constructor (used by XP system)
+    // ✅ Constructor with killCount (used by XP system)
     public PlayerStatus(
             int health,
             int maxHealth,
             int score,
+            int killCount,
             int level,
             int currentXP,
             int xpToNext
@@ -46,6 +53,7 @@ public class PlayerStatus {
         this.maxHealth = Math.max(1, maxHealth);
         this.health = (int) GameApp.clamp(health, 0, this.maxHealth);
         this.score = (int) GameApp.clamp(score, 0, Integer.MAX_VALUE);
+        this.killCount = Math.max(0, killCount);
 
         this.level = Math.max(1, level);
         this.currentXP = Math.max(0, currentXP);
