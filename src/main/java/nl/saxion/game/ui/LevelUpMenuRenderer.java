@@ -222,12 +222,16 @@ public class LevelUpMenuRenderer {
      * Ensure all fonts for the upgrade menu are loaded
      */
     private void ensureFontsLoaded() {
-        if (fontsLoaded) return;
+        // Force reload fonts for testing
+        if (fontsLoaded) {
+            fontsLoaded = false;
+        }
         
         try {
             // Title font - large and bold for "LEVEL UP!"
+            // NOTE: Size should match PlayScreen (28) to prevent font size inconsistencies
             if (!GameApp.hasFont("levelUpTitleFont")) {
-                GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 24,
+                GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 28,
                     "yellow-400", 2.5f, "black", 3, 3, "orange-800", true);
             }
             
@@ -239,7 +243,7 @@ public class LevelUpMenuRenderer {
             
             // Description font - readable size for descriptions
             if (!GameApp.hasFont("upgradeDescFont")) {
-                GameApp.addStyledFont("upgradeDescFont", "fonts/VT323-Regular.ttf", 16,
+                GameApp.addStyledFont("upgradeDescFont", "fonts/VT323-Regular.ttf", 28,
                     "gray-200", 1.5f, "black", 1, 1, "gray-900", true);
             }
             

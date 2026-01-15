@@ -460,12 +460,10 @@ public class Player {
             // Start death sequence
             isDying = true;
             GameApp.resetAnimation("player_death");
-            System.out.println("Player died! Starting death animation...");
         } else {
             // Trigger hit animation and reset to first frame
             hitAnimationTimer = HIT_ANIMATION_DURATION;
             GameApp.resetAnimation("player_hit");
-            System.out.println("Player took " + finalDamage + " damage (reduced from " + amount + "). HP: " + health + "/" + maxHealth);
         }
     }
 
@@ -483,7 +481,6 @@ public class Player {
             bloodParticles.add(new BloodParticle(centerX, centerY));
         }
         
-        GameApp.log("Blood particles spawned: " + particleCount + " at (" + centerX + ", " + centerY + ")");
     }
     
     // Update blood particles
@@ -537,7 +534,6 @@ public class Player {
             healthTextCallback.onHeal(actualHeal, centerX, centerY);
         }
         
-        System.out.println("Player healed " + actualHeal + ". HP: " + health + "/" + maxHealth);
     }
     
     // Set callback for health text

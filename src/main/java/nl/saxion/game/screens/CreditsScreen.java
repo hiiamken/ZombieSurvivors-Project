@@ -22,6 +22,16 @@ public class CreditsScreen extends ScalableGameScreen {
 
     // Sound manager
     private SoundManager soundManager;
+    
+    // Track where we came from (to return to correct screen)
+    private static String previousScreen = "menu";
+    
+    /**
+     * Set the screen to return to when back is pressed
+     */
+    public static void setPreviousScreen(String screen) {
+        previousScreen = screen;
+    }
 
     // Cursor management
     private Cursor cursorPointer;
@@ -41,7 +51,7 @@ public class CreditsScreen extends ScalableGameScreen {
 
     // Scrolling animation
     private float scrollY = 0f;
-    private float scrollSpeed = 25f; // pixels per second
+    private float scrollSpeed = 45f; // pixels per second
     private boolean autoScroll = true;
     private float totalCreditsHeight = 0f;
     
@@ -246,14 +256,19 @@ public class CreditsScreen extends ScalableGameScreen {
             "Craig Bradley"
         }));
         
-        // Saxion University
-        creditSections.add(new CreditSection("UNIVERSITY", new String[]{
-            "SAXION_LOGO" // Special marker for logo
+        // Saxion University - Title shown ABOVE the logo
+        creditSections.add(new CreditSection("", new String[]{
+            "SAXION_LOGO" // Special marker for logo (title drawn separately above)
         }));
         
         // Game Inspiration
         creditSections.add(new CreditSection("INSPIRED BY", new String[]{
             "Vampire Survivors"
+        }));
+        
+        // Special Thanks - Contributors
+        creditSections.add(new CreditSection("SPECIAL THANKS", new String[]{
+            "Noah Gooningson"
         }));
         
         // Legal Notice
@@ -326,7 +341,7 @@ public class CreditsScreen extends ScalableGameScreen {
             if (soundManager != null) {
                 soundManager.playSound("clickbutton", 2.5f);
             }
-            GameApp.switchScreen("menu");
+            GameApp.switchScreen(previousScreen);
             return;
         }
 
@@ -381,9 +396,6 @@ public class CreditsScreen extends ScalableGameScreen {
             button.render();
         }
         drawButtonText();
-        
-        // Draw scroll hint
-        drawScrollHint();
     }
 
     private void handleScrollInput(float delta) {
@@ -527,13 +539,16 @@ public class CreditsScreen extends ScalableGameScreen {
                 // STRICT bounds check - only draw within visible area
                 if (itemY <= visibleTop && itemY >= visibleBottom) {
                     if (name.equals("SAXION_LOGO")) {
-                        // Draw Saxion logo with 16:9 aspect ratio and proper spacing
+                        // Draw "UNIVERSITY" title ABOVE the logo first
+                        GameApp.drawTextCentered("creditsSectionTitle", "UNIVERSITY", centerX, itemY + 70f, "yellow-300");
+                        
+                        // Draw Saxion logo BELOW the title
                         if (GameApp.hasTexture("saxion_logo")) {
-                            float logoHeight = 120f;  // Increased height
-                            float logoWidth = 200f;  // 16:9 aspect ratio
+                            float logoHeight = 100f;  // Slightly smaller to fit with title
+                            float logoWidth = 180f;  // 16:9 aspect ratio
                             GameApp.drawTexture("saxion_logo", centerX - logoWidth/2, itemY - logoHeight/2, logoWidth, logoHeight);
                         }
-                        currentY -= 140f; // More space like text line spacing
+                        currentY -= 160f; // More space for title + logo
                     } else {
                         // Special styling for legal notice
                         if (section.title.equals("LEGAL NOTICE")) {
@@ -546,7 +561,7 @@ public class CreditsScreen extends ScalableGameScreen {
                 } else {
                     // Still need to advance position even if not drawing
                     if (name.equals("SAXION_LOGO")) {
-                        currentY -= 140f;
+                        currentY -= 160f; // Match the drawing spacing
                     } else {
                         currentY -= 35f;
                     }
@@ -572,23 +587,6 @@ public class CreditsScreen extends ScalableGameScreen {
             GameApp.drawTextCentered("buttonFont", "BACK", buttonCenterX, adjustedY, "button_red_text");
         }
 
-        GameApp.endSpriteRendering();
-    }
-
-    private void drawScrollHint() {
-        float screenWidth = GameApp.getWorldWidth();
-        
-        GameApp.startSpriteRendering();
-        
-        String hint;
-        if (autoScroll) {
-            hint = "SPACE to pause  |  DOWN to speed up  |  UP to go back";
-        } else {
-            hint = "SPACE to resume  |  UP/DOWN to scroll";
-        }
-        
-        GameApp.drawTextCentered("creditsSmall", hint, screenWidth / 2, 75f, "gray-500");
-        
         GameApp.endSpriteRendering();
     }
 
@@ -640,7 +638,7 @@ public class CreditsScreen extends ScalableGameScreen {
                     pressedButton = button;
                     button.setPressed(true);
 
-                    pendingAction = () -> GameApp.switchScreen("menu");
+                    pendingAction = () -> GameApp.switchScreen(previousScreen);
 
                     pressTimer = 0f;
                     break;

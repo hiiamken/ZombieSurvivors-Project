@@ -89,6 +89,19 @@ public class PlayScreen extends ScalableGameScreen {
     // Track bosses that already spawned chests to prevent duplicates
     private java.util.Set<Boss> bossesThatSpawnedChest = new java.util.HashSet<>();
     
+    // Track late wave bosses (minute 7+) - these only spawn red orbs, no chests
+    private java.util.Set<Boss> lateWaveBosses = new java.util.HashSet<>();
+    
+    // Victory transition state (smooth transition to winner screen)
+    private boolean isVictoryTransition = false;
+    private float victoryTransitionTimer = 0f;
+    private static final float VICTORY_TRANSITION_DURATION = 2.0f; // 2 seconds for transition
+    private float victoryFadeAlpha = 0f; // For fade effect
+    
+    // Late wave miniboss spawn timer
+    private float lateWaveBossSpawnTimer = 0f;
+    private static final float LATE_WAVE_BOSS_SPAWN_INTERVAL = 1.2f; // Spawn boss faster (was 2.0s)
+    
     // Gacha system - triggers when chest is opened
     private GachaSystem gachaSystem;
     private boolean isGachaActive = false;
@@ -182,6 +195,8 @@ public class PlayScreen extends ScalableGameScreen {
     // Cursor management
     private Cursor cursorPointer; // For click/default state
     private Cursor cursorHover;   // For hover state
+    private Cursor cursorInvisible; // Invisible cursor for gameplay
+    private boolean isCursorHidden = false; // Track cursor visibility
 
     private Player player;
     private Weapon weapon;
@@ -213,6 +228,9 @@ public class PlayScreen extends ScalableGameScreen {
     // Level up menu
     private boolean isLevelUpActive = false;
     private List<LevelUpOption> levelUpOptions = new ArrayList<>();
+    
+    // Post-evolution bonus selection (null = not yet selected, after selection auto-applies on level up)
+    private LevelUpOption.Type selectedPostEvolutionBonus = null;
 
     private static final boolean USE_LEVELUP_MENU_V2 = true;
 
@@ -477,25 +495,33 @@ public class PlayScreen extends ScalableGameScreen {
 
         // Button font for PlayScreen (640x360 world, half-size buttons)
         // Size 18 for better readability
-        GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
-                "white", 0f, "black", 1, 1, "gray-700", true);
+        if (!GameApp.hasFont("buttonFontSmall")) {
+            GameApp.addStyledFont("buttonFontSmall", "fonts/upheavtt.ttf", 20,
+                    "white", 0f, "black", 1, 1, "gray-700", true);
+        }
 
         // Load level up menu fonts - improved readability and scaling
-        // Title: Large, clear font for "LEVEL UP!"
-        GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 28,
-            "yellow-400", 2.5f, "black", 3, 3, "orange-800", true);
-        // Item name: Medium size, very readable
-        GameApp.addStyledFont("levelUpItemFont", "fonts/PressStart2P-Regular.ttf", 16,
-            "white", 2.0f, "black", 2, 2, "gray-800", true);
-        // "New!" label: Attention-grabbing but not too large
-        GameApp.addStyledFont("levelUpNewFont", "fonts/PressStart2P-Regular.ttf", 12,
-            "orange-400", 1.5f, "black", 2, 2, "orange-900", true);
-        // Level display: Larger, more visible for "Lv.1" and "MAX"
-        GameApp.addStyledFont("levelUpLevelFont", "fonts/PressStart2P-Regular.ttf", 18,
-            "cyan-300", 2.0f, "black", 2, 2, "blue-900", true);
-        // Description: Clean, readable font without heavy borders
-        GameApp.addStyledFont("levelUpDescFont", "fonts/PressStart2P-Regular.ttf", 6,
-            "gray-300", 0.8f, "black", 1, 1, "gray-800", false);
+        // IMPORTANT: Only load if not already loaded to prevent font size changes on screen transitions
+        if (!GameApp.hasFont("levelUpTitleFont")) {
+            GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 28,
+                "yellow-400", 2.5f, "black", 3, 3, "orange-800", true);
+        }
+        if (!GameApp.hasFont("levelUpItemFont")) {
+            GameApp.addStyledFont("levelUpItemFont", "fonts/PressStart2P-Regular.ttf", 16,
+                "white", 2.0f, "black", 2, 2, "gray-800", true);
+        }
+        if (!GameApp.hasFont("levelUpNewFont")) {
+            GameApp.addStyledFont("levelUpNewFont", "fonts/PressStart2P-Regular.ttf", 12,
+                "orange-400", 1.5f, "black", 2, 2, "orange-900", true);
+        }
+        if (!GameApp.hasFont("levelUpLevelFont")) {
+            GameApp.addStyledFont("levelUpLevelFont", "fonts/PressStart2P-Regular.ttf", 18,
+                "cyan-300", 2.0f, "black", 2, 2, "blue-900", true);
+        }
+        if (!GameApp.hasFont("levelUpDescFont")) {
+            GameApp.addStyledFont("levelUpDescFont", "fonts/PressStart2P-Regular.ttf", 6,
+                "gray-300", 0.8f, "black", 1, 1, "gray-800", false);
+        }
 
         // Load game over background image
         if (!GameApp.hasTexture("gameover_bg")) {
@@ -583,36 +609,16 @@ public class PlayScreen extends ScalableGameScreen {
             GameApp.addTexture("arrow", "assets/ui/arrow.png");
         }
         
-        // Load level up menu fonts - improved readability and scaling
-        // Title: Large, clear font for "LEVEL UP!"
-        try {
-            GameApp.addStyledFont("levelUpTitleFont", "fonts/PressStart2P-Regular.ttf", 28,
-                "yellow-400", 2.5f, "black", 3, 3, "orange-800", true);
-        } catch (Exception e) { GameApp.log("levelUpTitleFont already loaded or error: " + e.getMessage()); }
+        // Load post-evolution bonus textures
+        if (!GameApp.hasTexture("star")) {
+            GameApp.addTexture("star", "assets/ui/star.png");
+        }
+        if (!GameApp.hasTexture("chicken")) {
+            GameApp.addTexture("chicken", "assets/ui/chicken.png");
+        }
         
-        // Item name: Medium size, very readable
-        try {
-            GameApp.addStyledFont("levelUpItemFont", "fonts/PressStart2P-Regular.ttf", 16,
-                "white", 2.0f, "black", 2, 2, "gray-800", true);
-        } catch (Exception e) { GameApp.log("levelUpItemFont already loaded or error: " + e.getMessage()); }
-        
-        // "New!" label: Attention-grabbing but not too large
-        try {
-            GameApp.addStyledFont("levelUpNewFont", "fonts/PressStart2P-Regular.ttf", 12,
-                "orange-400", 1.5f, "black", 2, 2, "orange-900", true);
-        } catch (Exception e) { GameApp.log("levelUpNewFont already loaded or error: " + e.getMessage()); }
-        
-        // Level display: Larger, more visible for "Lv.1" and "MAX"
-        try {
-            GameApp.addStyledFont("levelUpLevelFont", "fonts/PressStart2P-Regular.ttf", 18,
-                "cyan-300", 2.0f, "black", 2, 2, "blue-900", true);
-        } catch (Exception e) { GameApp.log("levelUpLevelFont already loaded or error: " + e.getMessage()); }
-        
-        // Description: Clean, readable font without heavy borders
-        try {
-            GameApp.addStyledFont("levelUpDescFont", "fonts/PressStart2P-Regular.ttf", 12,
-                "gray-300", 0.8f, "black", 1, 1, "gray-800", false);
-        } catch (Exception e) { GameApp.log("levelUpDescFont already loaded or error: " + e.getMessage()); }
+        // Level up menu fonts already loaded in constructor - no need to reload here
+        // This prevents font size changes when transitioning between screens
 
         // Unified button colors for all menus
         if (!GameApp.hasColor("button_green_text")) {
@@ -686,15 +692,19 @@ public class PlayScreen extends ScalableGameScreen {
             cursorPixmap.dispose();
             cursorSource.dispose();
 
+            // Create invisible cursor (1x1 transparent pixel)
+            Pixmap invisiblePixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+            invisiblePixmap.setColor(0, 0, 0, 0); // Fully transparent
+            invisiblePixmap.fill();
+            cursorInvisible = Gdx.graphics.newCursor(invisiblePixmap, 0, 0);
+            invisiblePixmap.dispose();
+
             // Set default to pointer
             if (cursorPointer != null) {
                 Gdx.graphics.setCursor(cursorPointer);
-            } else {
-                GameApp.showCursor();
             }
         } catch (Exception e) {
             GameApp.log("Could not load cursors: " + e.getMessage());
-            GameApp.showCursor(); // Fallback to default
         }
     }
 
@@ -742,6 +752,10 @@ public class PlayScreen extends ScalableGameScreen {
             cursorHover.dispose();
             cursorHover = null;
         }
+        if (cursorInvisible != null) {
+            cursorInvisible.dispose();
+            cursorInvisible = null;
+        }
 
         // Stop ingame music when leaving gameplay
         if (soundManager != null) {
@@ -778,6 +792,9 @@ public class PlayScreen extends ScalableGameScreen {
 
         // ----- GAMEPLAY STATE -----
 
+        // Update cursor visibility (hide during gameplay, show on interactive screens)
+        updateCursorVisibility();
+        
         // Handle ingame music delay (start music after delay to allow click sound)
         if (!ingameMusicStarted && soundManager != null && !isPaused) {
             ingameMusicDelayTimer += delta;
@@ -910,24 +927,50 @@ public class PlayScreen extends ScalableGameScreen {
         if (!isGameOver && gameTime > 0) {
             gameTime -= delta;
 
-            // Check if time ran out
+            // Check if time ran out - PLAYER WINS!
             if (gameTime <= 0) {
                 gameTime = 0;
-                // Trigger game over when time runs out
-                if (!player.isDying()) {
-                    GameApp.log("Time ran out - showing game over overlay");
+                // Trigger victory transition when player survives 10 minutes!
+                if (!player.isDying() && !isVictoryTransition) {
+                    GameApp.log("Player survived 10 minutes - Starting victory transition!");
+                    isVictoryTransition = true;
+                    victoryTransitionTimer = 0f;
+                    victoryFadeAlpha = 0f;
+                    
+                    // Stop ingame music immediately
                     if (soundManager != null) {
                         soundManager.stopIngameMusic();
-                        soundManager.playSound("gameover");
                     }
-                    isGameOver = true;
-                    gameOverFadeTimer = 0f;
-                    initializeGameOverButtons();
-
-                    // Save score to leaderboard
-                    saveScoreToLeaderboard();
                 }
             }
+        }
+        
+        // Handle victory transition (smooth transition with zombie disappear effect)
+        if (isVictoryTransition) {
+            victoryTransitionTimer += delta;
+            
+            // Fade effect progress (0 to 1 over transition duration)
+            victoryFadeAlpha = Math.min(1f, victoryTransitionTimer / VICTORY_TRANSITION_DURATION);
+            
+            // Make all enemies and bosses fade out and disappear
+            // (they will be rendered with decreasing alpha)
+            
+            // Transition complete - switch to winner screen
+            if (victoryTransitionTimer >= VICTORY_TRANSITION_DURATION) {
+                // Save score to leaderboard before switching
+                saveScoreToLeaderboard();
+                
+                // Set winner screen data and switch to it
+                WinnerScreen.setScore(score);
+                String playerName = PlayerData.hasCurrentPlayer() ? PlayerData.getCurrentPlayer().getUsername() : "SURVIVOR";
+                WinnerScreen.setPlayerName(playerName);
+                WinnerScreen.setSurvivalTime(600f); // Full 10 minutes survived
+                GameApp.switchScreen("winner");
+                return;
+            }
+            
+            // During transition, skip normal game updates but still render
+            return;
         }
 
         // ============================================
@@ -1004,7 +1047,7 @@ public class PlayScreen extends ScalableGameScreen {
             e.update(delta, player.getX(), player.getY(), collisionChecker, enemies);
         }
         for (Boss boss : bosses) {
-            boss.update(delta, player.getX(), player.getY());
+            boss.update(delta, player.getX(), player.getY(), bosses); // Pass bosses list for separation collision
         }
 
 
@@ -1111,9 +1154,14 @@ public class PlayScreen extends ScalableGameScreen {
         }
         
         enemySpawner.update(delta, elapsedTime, playerWorldX, playerWorldY, playerMoveDirX, playerMoveDirY, enemies);
+        
+        // Late wave miniboss spawning (minute 7+)
+        updateLateWaveSpawning(delta, playerWorldX, playerWorldY);
 
         // Collision detection
         collisionHandler.update(delta);
+        // Set elapsed time for exponential damage scaling
+        collisionHandler.setGameElapsedTime(elapsedTime);
         // Pass wall collision checker to prevent bullets hitting enemies through walls
         CollisionChecker wallChecker = mapRenderer::checkWallCollision;
         collisionHandler.handleBulletEnemyCollisions(bullets, enemies,
@@ -1263,6 +1311,40 @@ public class PlayScreen extends ScalableGameScreen {
         // Render game over overlay if game over
         if (isGameOver) {
             renderGameOverOverlay();
+        }
+        
+        // Render victory transition overlay (white fade with zombie disappear effect)
+        if (isVictoryTransition) {
+            renderVictoryTransitionOverlay();
+        }
+    }
+    
+    /**
+     * Render victory transition overlay - white fade effect with "VICTORY!" text
+     */
+    private void renderVictoryTransitionOverlay() {
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        
+        // White fade overlay (increasing alpha)
+        int alpha = (int)(victoryFadeAlpha * 255);
+        
+        GameApp.enableTransparency();
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(255, 255, 255, alpha);
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+        
+        // Show "VICTORY!" text when fade is past 50%
+        if (victoryFadeAlpha > 0.3f) {
+            GameApp.startSpriteRendering();
+            float textAlpha = Math.min(1f, (victoryFadeAlpha - 0.3f) * 2f);
+            // Use styled font for victory text
+            String fontKey = GameApp.hasFont("winnerTitle") ? "winnerTitle" : "default";
+            float centerX = screenWidth / 2f;
+            float centerY = screenHeight / 2f;
+            GameApp.drawTextCentered(fontKey, "VICTORY!", centerX, centerY, "yellow-400");
+            GameApp.endSpriteRendering();
         }
     }
 
@@ -2194,8 +2276,6 @@ public class PlayScreen extends ScalableGameScreen {
             int healAmount = 25;
             HealingItem chicken = new HealingItem(centerX, centerY, healAmount);
             healingItems.add(chicken);
-            GameApp.log("Breakable object destroyed! Spawned healing chicken (" + healAmount + " HP) at (" 
-                    + centerX + ", " + centerY + ")");
         } else {
             // Spawn 2-4 BLUE XP orbs at the object's position (only BLUE, not GREEN)
             int orbCount = GameApp.randomInt(2, 5);
@@ -2205,8 +2285,6 @@ public class PlayScreen extends ScalableGameScreen {
                 XPOrb orb = new XPOrb(centerX + offsetX, centerY + offsetY, OrbType.BLUE);
                 xpOrbs.add(orb);
             }
-            GameApp.log("Breakable object destroyed! Spawned " + orbCount + " BLUE XP orbs at (" 
-                    + centerX + ", " + centerY + ")");
         }
     }
 
@@ -2307,25 +2385,37 @@ public class PlayScreen extends ScalableGameScreen {
     // =========================
 
     // Show level up menu with 3 random options
-    // Now supports: Weapon upgrades, Passive items, Stat upgrades, and Evolution
+    // Now supports: Weapon upgrades, Passive items, Stat upgrades, Evolution, and Post-Evolution bonuses
     private void showLevelUpMenu() {
-        isLevelUpActive = true;
         levelUpOptions.clear();
 
-        levelUpMenuOpening = true;
-        levelUpMenuAnimTimer = 0f;
-        levelUpSelectedIndex = 0;
-        lastLevelUpSelectedIndex = -1;
-        levelUpSelectAnim = 0f;
-
-        // Play level up sound
-        if (soundManager != null) {
-            soundManager.playSound("levelup", 1.0f);
+        // ============================================
+        // POST-EVOLUTION: AUTO-APPLY BONUS (no menu)
+        // ============================================
+        // If player already selected a post-evolution bonus, auto-apply it
+        if (weapon.isEvolved() && selectedPostEvolutionBonus != null) {
+            if (selectedPostEvolutionBonus == LevelUpOption.Type.BONUS_POINTS) {
+                int bonusPoints = 50 + GameApp.randomInt(0, 151); // 50-200 points
+                score += bonusPoints;
+                GameApp.log("Auto-applied BONUS_POINTS: +" + bonusPoints + " points");
+            } else if (selectedPostEvolutionBonus == LevelUpOption.Type.BONUS_HEALTH) {
+                player.heal(25);
+                GameApp.log("Auto-applied BONUS_HEALTH: +25 HP");
+            }
+            player.levelUp();
+            // No menu shown - bonus auto-applied
+            return;
         }
-
-        // Reduce ingame music volume to 30% when level up menu is open
-        if (soundManager != null) {
-            soundManager.setIngameMusicVolumeTemporary(0.3f);
+        
+        // ============================================
+        // POST-EVOLUTION: SHOW BONUS SELECTION (first time only)
+        // ============================================
+        // If weapon is evolved but no bonus selected yet, show the 2 options
+        if (weapon.isEvolved()) {
+            levelUpOptions.add(LevelUpOption.createBonusPointsOption());
+            levelUpOptions.add(LevelUpOption.createBonusHealthOption());
+            activateLevelUpMenuWithSound();
+            return;
         }
 
         // ============================================
@@ -2334,7 +2424,8 @@ public class PlayScreen extends ScalableGameScreen {
         // If weapon is at max level AND all passive items are maxed, show evolution option
         if (weapon.canEvolve(player.areAllPassiveItemsMaxed())) {
             levelUpOptions.add(LevelUpOption.createEvolutionOption());
-            // Evolution is special - only show this option
+            // Evolution available - activate menu with sound
+            activateLevelUpMenuWithSound();
             return;
         }
 
@@ -2359,14 +2450,10 @@ public class PlayScreen extends ScalableGameScreen {
         
         // NOTE: StatUpgradeType removed - only 7 passive items + weapon upgrades now
 
-        // If no upgrades available (all maxed), skip menu and just level up
+        // If no upgrades available (all maxed), skip menu silently - NO SOUND
         if (availableOptions.isEmpty()) {
             player.levelUp();
-            isLevelUpActive = false;
-            // Restore music volume
-            if (soundManager != null) {
-                soundManager.restoreIngameMusicVolume();
-            }
+            // Don't play sound, don't show menu - all upgrades are maxed
             return;
         }
 
@@ -2412,6 +2499,32 @@ public class PlayScreen extends ScalableGameScreen {
             levelUpOptions.add(availableOptions.get(selectedIndex));
             availableOptions.remove(selectedIndex);
         }
+        
+        // Upgrades available - activate menu with sound
+        activateLevelUpMenuWithSound();
+    }
+    
+    /**
+     * Helper method to activate level up menu with sound and animations.
+     * Only called when there are actual upgrades available.
+     */
+    private void activateLevelUpMenuWithSound() {
+        isLevelUpActive = true;
+        levelUpMenuOpening = true;
+        levelUpMenuAnimTimer = 0f;
+        levelUpSelectedIndex = 0;
+        lastLevelUpSelectedIndex = -1;
+        levelUpSelectAnim = 0f;
+
+        // Play level up sound - ONLY when menu actually opens
+        if (soundManager != null) {
+            soundManager.playSound("levelup", 1.0f);
+        }
+
+        // Reduce ingame music volume to 30% when level up menu is open
+        if (soundManager != null) {
+            soundManager.setIngameMusicVolumeTemporary(0.3f);
+        }
     }
 
     // Render level up menu - always use new professional design
@@ -2435,6 +2548,21 @@ public class PlayScreen extends ScalableGameScreen {
                 applyLevelUpOption(levelUpSelectedIndex);
                 return;
             }
+            
+            // Mouse click support for selecting upgrades
+            if (GameApp.isButtonJustPressed(0)) { // 0 = left mouse button
+                int clickedIndex = getLevelUpCardIndexAtMouse();
+                if (clickedIndex >= 0 && clickedIndex < levelUpOptions.size()) {
+                    applyLevelUpOption(clickedIndex);
+                    return;
+                }
+            }
+            
+            // Mouse hover to highlight card
+            int hoverIndex = getLevelUpCardIndexAtMouse();
+            if (hoverIndex >= 0 && hoverIndex < levelUpOptions.size()) {
+                levelUpSelectedIndex = hoverIndex;
+            }
         }
 
         // Check for number key presses (1, 2, 3)
@@ -2445,6 +2573,61 @@ public class PlayScreen extends ScalableGameScreen {
         } else if (GameApp.isKeyJustPressed(Input.Keys.NUM_3) && levelUpOptions.size() > 2) {
             applyLevelUpOption(2);
         }
+    }
+    
+    /**
+     * Get the index of the level-up card at the current mouse position.
+     * Returns -1 if mouse is not over any card.
+     */
+    private int getLevelUpCardIndexAtMouse() {
+        if (levelUpOptions == null || levelUpOptions.isEmpty()) return -1;
+        
+        // Get mouse position in world coordinates
+        float mouseX = GameApp.getMousePositionInWindowX();
+        float mouseY = GameApp.getMousePositionInWindowY();
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        float windowWidth = GameApp.getWindowWidth();
+        float windowHeight = GameApp.getWindowHeight();
+        float scaleX = screenWidth / windowWidth;
+        float scaleY = screenHeight / windowHeight;
+        float worldMouseX = mouseX * scaleX;
+        float worldMouseY = (windowHeight - mouseY) * scaleY;
+        
+        // Menu dimensions (same as in renderLevelUpMenuV2)
+        int count = levelUpOptions.size();
+        float menuW = screenWidth * 0.58f;
+        float cardH = 70f;
+        float gap = 6f;
+        float headerH = 70f;
+        float footerH = 10f;
+        float borderPadding = 8f;
+        
+        float cardsH = (count * cardH) + ((count - 1) * gap);
+        float totalH = headerH + cardsH + footerH + borderPadding * 2;
+        
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+        float menuX = centerX - menuW / 2f;
+        float topY = centerY + totalH / 2f;
+        
+        float cardsTopY = topY - headerH;
+        float cardInnerX = menuX + borderPadding;
+        float cardInnerW = menuW - borderPadding * 2;
+        
+        // Check each card
+        for (int i = 0; i < count; i++) {
+            float cardTop = cardsTopY - i * (cardH + gap);
+            float cardY = cardTop - cardH;
+            
+            // Check if mouse is within this card's bounds
+            if (worldMouseX >= cardInnerX && worldMouseX <= cardInnerX + cardInnerW &&
+                worldMouseY >= cardY && worldMouseY <= cardTop) {
+                return i;
+            }
+        }
+        
+        return -1;
     }
 
     // Apply selected level up option
@@ -2484,6 +2667,21 @@ public class PlayScreen extends ScalableGameScreen {
                     soundManager.playSound("levelup", 0.8f);
                 }
                 break;
+                
+            case BONUS_POINTS:
+                // Post-evolution: Player selected random points per level
+                selectedPostEvolutionBonus = LevelUpOption.Type.BONUS_POINTS;
+                int bonusPoints = 50 + GameApp.randomInt(0, 151); // 50-200 points
+                score += bonusPoints;
+                GameApp.log("Selected BONUS_POINTS! +" + bonusPoints + " points this level up");
+                break;
+                
+            case BONUS_HEALTH:
+                // Post-evolution: Player selected +25 HP per level
+                selectedPostEvolutionBonus = LevelUpOption.Type.BONUS_HEALTH;
+                player.heal(25);
+                GameApp.log("Selected BONUS_HEALTH! +25 HP this level up");
+                break;
         }
         
         // Level up player
@@ -2504,6 +2702,33 @@ public class PlayScreen extends ScalableGameScreen {
     private void handleLevelUpCursor(float worldMouseX, float worldMouseY) {
         if (cursorPointer != null) {
             Gdx.graphics.setCursor(cursorPointer);
+        }
+    }
+    
+    /**
+     * Update cursor visibility based on game state.
+     * Hide cursor during active gameplay, show during interactive screens.
+     */
+    private void updateCursorVisibility() {
+        // Determine if we should show cursor (interactive screens)
+        boolean shouldShowCursor = isPaused || isGameOver || isLevelUpActive || isGachaActive || isVictoryTransition;
+        
+        if (shouldShowCursor && isCursorHidden) {
+            // Show cursor for interactive screens
+            if (cursorPointer != null) {
+                Gdx.graphics.setCursor(cursorPointer);
+            } else {
+                Gdx.input.setCursorCatched(false);
+            }
+            isCursorHidden = false;
+        } else if (!shouldShowCursor && !isCursorHidden) {
+            // Hide cursor during gameplay using invisible cursor
+            if (cursorInvisible != null) {
+                Gdx.graphics.setCursor(cursorInvisible);
+            } else {
+                Gdx.input.setCursorCatched(true);
+            }
+            isCursorHidden = true;
         }
     }
 
@@ -2908,6 +3133,7 @@ public class PlayScreen extends ScalableGameScreen {
                 yield nextLevel >= maxLevel ? "MAX" : "Lv." + nextLevel;
             }
             case EVOLUTION -> "MAX";
+            case BONUS_POINTS, BONUS_HEALTH -> ""; // No level display for bonus options
         };
     }
 
@@ -3017,8 +3243,6 @@ public class PlayScreen extends ScalableGameScreen {
         LeaderboardManager.addEntry(currentPlayer, score, survivalTime);
         scoreSaved = true;
 
-        GameApp.log(String.format("Score saved: %s - %d points, survived %.1f seconds",
-            currentPlayer.getUsername(), score, survivalTime));
     }
 
     // =========================
@@ -3093,6 +3317,7 @@ public class PlayScreen extends ScalableGameScreen {
         gachaCooldown = 0f; // Reset gacha cooldown
         currentRound = 0;
         levelUpOptions.clear();
+        selectedPostEvolutionBonus = null; // Reset post-evolution bonus selection
         
         // Initialize gacha system
         gachaSystem = new GachaSystem();
@@ -4025,13 +4250,30 @@ public class PlayScreen extends ScalableGameScreen {
             by = playerY + (float) Math.sin(angle) * distance;
         }
 
-        // HP scales EXPONENTIALLY with round - later spawns are MUCH tankier!
-        // Round 1: ~600 HP, Round 5: ~2000 HP, Round 10: ~6000 HP
-        // This makes late-game MiniBosses a real threat
-        int baseHP = 400;
-        // Exponential scaling: baseHP * (1.5 ^ round)
-        float hpMultiplier = (float) Math.pow(1.5f, round);
-        int hp = (int)(baseHP * hpMultiplier) + (int) (Math.random() * 101); // +0-100 random
+        // HP scaled based on elapsed time - EASIER early game
+        float elapsedMinutes = (GAME_DURATION - gameTime) / 60f;
+        int baseHP;
+        float hpMultiplier;
+        
+        if (elapsedMinutes < 1f) {
+            // First minute: very easy boss (50% HP)
+            baseHP = 800;
+            hpMultiplier = 1f;
+        } else if (elapsedMinutes < 2f) {
+            // Second minute: easy boss (60% HP)
+            baseHP = 1000;
+            hpMultiplier = 1f;
+        } else if (elapsedMinutes < 3f) {
+            // Third minute: moderate boss (75% HP)
+            baseHP = 1400;
+            hpMultiplier = 1f;
+        } else {
+            // After minute 3: normal scaling
+            baseHP = 2000;
+            hpMultiplier = (float) Math.pow(1.15f, round - 3); // 15% per round after round 3
+            hpMultiplier = Math.min(hpMultiplier, 4f); // Cap at 4x
+        }
+        int hp = (int)(baseHP * hpMultiplier) + (int) (Math.random() * 301); // +0-300 random
 
         // Boss now uses random zombie type (handled in Boss constructor)
         Boss boss = new Boss(bx, by, hp);
@@ -4044,30 +4286,114 @@ public class PlayScreen extends ScalableGameScreen {
 
         GameApp.log("MiniBoss (Round " + round + ") spawned at (" + bx + ", " + by + ") with HP " + hp);
     }
+    
+    /**
+     * Spawn late wave miniboss (minute 7+) - these only drop red orbs, no chests
+     */
+    private void spawnLateWaveMiniBoss(float playerX, float playerY) {
+        float distance = 350f + (float) (Math.random() * 150f);
+        double angle = Math.random() * Math.PI * 2.0;
+        float bx = playerX + (float) Math.cos(angle) * distance;
+        float by = playerY + (float) Math.sin(angle) * distance;
+        
+        // Late wave bosses have less HP but spawn frequently
+        float elapsedTime = GAME_DURATION - gameTime;
+        int baseHP = 1200; // Lower HP for frequent late wave bosses
+        float hpMultiplier = 1f + (elapsedTime / 60f) * 0.15f; // 15% more HP per minute
+        int hp = (int)(baseHP * hpMultiplier) + (int) (Math.random() * 300);
+        
+        Boss boss = new Boss(bx, by, hp);
+        if (bosses != null) {
+            bosses.add(boss);
+            lateWaveBosses.add(boss); // Mark as late wave boss (no chest drop)
+        }
+    }
+    
+    /**
+     * Update late wave miniboss spawning (minute 7+)
+     * 7:00-8:00: 50% normal zombies, 50% miniboss
+     * 8:00-9:00: 30% normal zombies, 70% miniboss  
+     * 9:00-9:30: 10% normal zombies, 90% miniboss
+     * 9:30-10:00: 100% miniboss
+     */
+    private void updateLateWaveSpawning(float delta, float playerX, float playerY) {
+        float elapsedTime = GAME_DURATION - gameTime; // Time played (0 to 600)
+        
+        // Only active from minute 7 (420s) onwards
+        if (elapsedTime < 420f) return;
+        
+        lateWaveBossSpawnTimer += delta;
+        if (lateWaveBossSpawnTimer < LATE_WAVE_BOSS_SPAWN_INTERVAL) return;
+        lateWaveBossSpawnTimer = 0f;
+        
+        // Calculate miniboss spawn chance based on time - INCREASED for more difficulty
+        float minibossChance;
+        int bossCount;
+        if (elapsedTime >= 570f) {
+            // 9:30-10:00 (last 30 seconds): 100% miniboss, spawn 4-5 at once
+            minibossChance = 1.0f;
+            bossCount = 4 + (int)(Math.random() * 2);
+        } else if (elapsedTime >= 540f) {
+            // 9:00-9:30: 100% miniboss, spawn 3-4 at once
+            minibossChance = 1.0f;
+            bossCount = 3 + (int)(Math.random() * 2);
+        } else if (elapsedTime >= 480f) {
+            // 8:00-9:00: 90% miniboss, spawn 2-3 at once
+            minibossChance = 0.9f;
+            bossCount = 2 + (int)(Math.random() * 2);
+        } else {
+            // 7:00-8:00: 75% miniboss, spawn 1-2 at once
+            minibossChance = 0.75f;
+            bossCount = 1 + (int)(Math.random() * 2);
+        }
+        
+        // Roll for miniboss spawn
+        if (Math.random() < minibossChance) {
+            for (int i = 0; i < bossCount; i++) {
+                spawnLateWaveMiniBoss(playerX, playerY);
+            }
+        }
+    }
 
     /**
      * Spawn treasure chest when MiniBoss is killed
      * CRITICAL: Only spawn once per boss to prevent duplicates
+     * Late wave bosses (minute 7+) only spawn red orbs, no chests
+     * If player has maxed all upgrades, only spawn red orbs
      */
     private void spawnTreasureChestAtBoss(Boss boss) {
         if (boss == null || treasureChests == null) return;
         
         // CRITICAL: Check if this boss already spawned a chest (prevent duplicates)
         if (bossesThatSpawnedChest.contains(boss)) {
-            GameApp.log("WARNING: Boss already spawned chest, skipping duplicate spawn");
             return;
         }
         
-        // Mark this boss as having spawned a chest
+        // Mark this boss as having spawned rewards
         bossesThatSpawnedChest.add(boss);
         
-        // Also spawn RED XP orbs (high value) around the chest
+        // Always spawn RED XP orbs (high value) around the boss
         int orbCount = GameApp.randomInt(5, 10);
         for (int i = 0; i < orbCount; i++) {
             float offsetX = GameApp.random(-30f, 30f);
             float offsetY = GameApp.random(-30f, 30f);
             XPOrb orb = new XPOrb(boss.getX() + offsetX, boss.getY() + offsetY, OrbType.RED);
             xpOrbs.add(orb);
+        }
+        
+        // Check if this is a late wave boss (no chest)
+        if (lateWaveBosses.contains(boss)) {
+            GameApp.log("Late wave boss killed - only red orbs spawned (no chest)");
+            lateWaveBosses.remove(boss);
+            return;
+        }
+        
+        // Check if player has maxed all upgrades (weapon max + all passives max)
+        boolean allUpgradesMaxed = weapon != null && weapon.isMaxLevel() && 
+                                   player != null && player.areAllPassiveItemsMaxed();
+        if (allUpgradesMaxed) {
+            GameApp.log("All upgrades maxed - only red orbs spawned (no chest)");
+            return;
         }
         
         // Spawn treasure chest at boss position
@@ -4185,6 +4511,12 @@ public class PlayScreen extends ScalableGameScreen {
      */
     private void handleGachaInput() {
         if (gachaSystem == null || !gachaSystem.isActive()) return;
+        
+        // SPACE to skip animation (jump to final result)
+        if (!gachaSystem.isCompleted() && GameApp.isKeyJustPressed(Input.Keys.SPACE)) {
+            gachaSystem.requestSkip();
+            return;
+        }
         
         // Only accept input when gacha is completed
         if (gachaSystem.isCompleted()) {

@@ -35,6 +35,10 @@ public class Boss {
     private float knockbackY = 0f;
     private static final float KNOCKBACK_STRENGTH = 30f;  // Less than regular zombies (80)
     private static final float KNOCKBACK_DECAY = 10f;     // Faster decay for boss
+    
+    // Separation constants (to prevent bosses from overlapping)
+    private static final float SEPARATION_RADIUS = 60f;   // Larger than zombies since boss is bigger
+    private static final float SEPARATION_FORCE = 150f;   // Stronger push force for bosses
 
     public Boss(float startX, float startY, int hp) {
         x = startX;
@@ -59,7 +63,7 @@ public class Boss {
         return facingRight;
     }
 
-    public void update(float delta, float playerX, float playerY) {
+    public void update(float delta, float playerX, float playerY, java.util.List<Boss> allBosses) {
         // Handle death state
         if (!isAlive || isDying) {
             state = BossState.DEATH;
@@ -141,6 +145,52 @@ public class Boss {
             x += nx * speed * delta;
             y += ny * speed * delta;
         }
+        
+        // ===== SEPARATION: Push bosses apart to prevent overlapping =====
+        if (allBosses != null) {
+            float separationX = 0f;
+            float separationY = 0f;
+            
+            for (Boss other : allBosses) {
+                // Skip self, dead, or dying bosses
+                if (other == this || other.isDying || !other.isAlive) {
+                    continue;
+                }
+                
+                // Calculate center positions
+                float myCenterX = x + SPRITE_SIZE / 2f;
+                float myCenterY = y + SPRITE_SIZE / 2f;
+                float otherCenterX = other.x + SPRITE_SIZE / 2f;
+                float otherCenterY = other.y + SPRITE_SIZE / 2f;
+                
+                // Distance between centers
+                float distX = myCenterX - otherCenterX;
+                float distY = myCenterY - otherCenterY;
+                float dist = (float) Math.sqrt(distX * distX + distY * distY);
+                
+                // If too close, push apart
+                if (dist < SEPARATION_RADIUS && dist > 0.001f) {
+                    float normX = distX / dist;
+                    float normY = distY / dist;
+                    
+                    // Push strength inversely proportional to distance
+                    float pushStrength = (SEPARATION_RADIUS - dist) / SEPARATION_RADIUS;
+                    separationX += normX * pushStrength * SEPARATION_FORCE * delta;
+                    separationY += normY * pushStrength * SEPARATION_FORCE * delta;
+                }
+            }
+            
+            // Apply separation force
+            x += separationX;
+            y += separationY;
+        }
+    }
+    
+    /**
+     * Legacy update method for backwards compatibility
+     */
+    public void update(float delta, float playerX, float playerY) {
+        update(delta, playerX, playerY, null);
     }
 
     public void takeDamage(int damage) {
