@@ -21,10 +21,28 @@ public class WinnerScreen extends ScalableGameScreen {
     private static int storedScore = 0;
     private static String storedPlayerName = "SURVIVOR";
     private static float storedSurvivalTime = 600f;
+    private static boolean comingFromGame = false; // Track if coming from game (show white flash) or credits (no flash)
+    private static boolean comingFromCredits = false; // Track if returning from credits
+    private static boolean goingToCredits = false; // Track if going to credits (don't stop music)
     
     public static void setScore(int score) { storedScore = score; }
     public static void setPlayerName(String name) { storedPlayerName = name != null ? name : "SURVIVOR"; }
     public static void setSurvivalTime(float time) { storedSurvivalTime = time; }
+    public static void setComingFromGame(boolean value) { comingFromGame = value; }
+    public static void setComingFromCredits(boolean value) { comingFromCredits = value; }
+    
+    /**
+     * Reset all static state - MUST be called when starting a new game
+     * to prevent winner screen from showing for previous game's win.
+     */
+    public static void resetState() {
+        storedScore = 0;
+        storedPlayerName = "SURVIVOR";
+        storedSurvivalTime = 600f;
+        comingFromGame = false;
+        comingFromCredits = false;
+        goingToCredits = false;
+    }
     
     private int score = 0;
     private String playerName = "SURVIVOR";
@@ -99,13 +117,25 @@ public class WinnerScreen extends ScalableGameScreen {
         loadCursors();
         initializeCelebrationStars();
         
-        fadeTimer = 0f;
+        // If returning from credits, skip fade animation (no white flash)
+        if (comingFromCredits) {
+            fadeTimer = FADE_DURATION; // Skip to end of fade
+            comingFromCredits = false; // Reset flag
+        } else {
+            fadeTimer = 0f;
+        }
         celebrationTimer = 0f;
         
         if (soundManager != null) {
-            soundManager.playSound("levelup", 1.5f);
-            // Play winner music (loops)
-            soundManager.playWinnerMusic(true);
+            // Only play sounds/music if coming from game, not from credits
+            if (comingFromGame) {
+                soundManager.playSound("levelup", 1.5f);
+                soundManager.playWinnerMusic(true);
+                comingFromGame = false; // Reset flag
+            } else {
+                // Returning from credits - just ensure winner music is playing
+                soundManager.playWinnerMusic(true);
+            }
         }
     }
     
@@ -212,7 +242,11 @@ public class WinnerScreen extends ScalableGameScreen {
     
     @Override
     public void hide() {
-        if (soundManager != null) soundManager.stopMusic();
+        // Only stop winner music if NOT going to credits
+        if (soundManager != null && !goingToCredits) {
+            soundManager.stopWinnerMusic();
+        }
+        goingToCredits = false; // Reset flag
         if (cursorPointer != null) { cursorPointer.dispose(); cursorPointer = null; }
         if (cursorHover != null) { cursorHover.dispose(); cursorHover = null; }
     }
@@ -255,6 +289,17 @@ public class WinnerScreen extends ScalableGameScreen {
         drawBackground(screenWidth, screenHeight);
         drawCelebrationOverlay(screenWidth, screenHeight, fadeAlpha);
         drawCelebrationStars();
+        
+        // Draw white fade-out overlay to match PlayScreen's white fade transition
+        // This creates a smooth transition from white (PlayScreen end) to WinnerScreen
+        if (fadeAlpha < 1.0f) {
+            int whiteFadeAlpha = (int)((1.0f - fadeAlpha) * 255);
+            GameApp.enableTransparency();
+            GameApp.startShapeRenderingFilled();
+            GameApp.setColor(255, 255, 255, whiteFadeAlpha);
+            GameApp.drawRect(0, 0, screenWidth, screenHeight);
+            GameApp.endShapeRendering();
+        }
         
         for (Button button : winnerButtons) button.render();
         
@@ -433,6 +478,7 @@ public class WinnerScreen extends ScalableGameScreen {
                             case 0: GameApp.switchScreen("play"); break;
                             case 1: 
                                 CreditsScreen.setPreviousScreen("winner"); // Return to winner screen
+                                goingToCredits = true; // Don't stop winner music
                                 GameApp.switchScreen("credits"); 
                                 break;
                             case 2: GameApp.switchScreen("menu"); break;

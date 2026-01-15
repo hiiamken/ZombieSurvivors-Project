@@ -222,6 +222,7 @@ public class PlayScreen extends ScalableGameScreen {
     private static final float GAME_DURATION = 600f; // 10 minutes countdown (600 seconds)
     private float gameTime = GAME_DURATION;
     private int score = 0;
+    private int killCount = 0; // Track number of monsters killed
     private float playerWorldX;
     private float playerWorldY;
 
@@ -613,6 +614,9 @@ public class PlayScreen extends ScalableGameScreen {
         if (!GameApp.hasTexture("star")) {
             GameApp.addTexture("star", "assets/ui/star.png");
         }
+        if (!GameApp.hasTexture("skull_icon")) {
+            GameApp.addTexture("skull_icon", "assets/ui/skull.png");
+        }
         if (!GameApp.hasTexture("chicken")) {
             GameApp.addTexture("chicken", "assets/ui/chicken.png");
         }
@@ -965,6 +969,7 @@ public class PlayScreen extends ScalableGameScreen {
                 String playerName = PlayerData.hasCurrentPlayer() ? PlayerData.getCurrentPlayer().getUsername() : "SURVIVOR";
                 WinnerScreen.setPlayerName(playerName);
                 WinnerScreen.setSurvivalTime(600f); // Full 10 minutes survived
+                WinnerScreen.setComingFromGame(true); // Mark as coming from game for white flash transition
                 GameApp.switchScreen("winner");
                 return;
             }
@@ -1165,7 +1170,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Pass wall collision checker to prevent bullets hitting enemies through walls
         CollisionChecker wallChecker = mapRenderer::checkWallCollision;
         collisionHandler.handleBulletEnemyCollisions(bullets, enemies,
-                (score) -> addScore(score),
+                (score) -> { addScore(score); addKill(); },
                 (enemy) -> spawnXPOrbsAtEnemy(enemy),
                 wallChecker);
         collisionHandler.handleEnemyPlayerCollisions(player, enemies);
@@ -1176,7 +1181,7 @@ public class PlayScreen extends ScalableGameScreen {
         collisionHandler.handleBulletBossCollisions(
                 bullets,
                 bosses,
-                (Integer s) -> addScore(s),
+                (Integer s) -> { addScore(s); addKill(); },
                 (Boss boss) -> spawnTreasureChestAtBoss(boss), // Spawn chest instead of XP orbs
                 wallChecker
         );
@@ -1358,12 +1363,19 @@ public class PlayScreen extends ScalableGameScreen {
         int level = player.getCurrentLevel();
         int currentXP = player.getCurrentXP();
         int xpToNext = player.getXPToNextLevel();
-        return new PlayerStatus(health, maxHealth, score, level, currentXP, xpToNext);
+        return new PlayerStatus(health, maxHealth, score, killCount, level, currentXP, xpToNext);
     }
 
     public void addScore(int amount) {
         score += amount;
         score = (int) GameApp.clamp(score, 0, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Increment kill count when an enemy is killed.
+     */
+    public void addKill() {
+        killCount++;
     }
 
     /**
@@ -1647,7 +1659,9 @@ public class PlayScreen extends ScalableGameScreen {
                     
                     // Spawn XP orb if killed
                     if (sz.isDead) {
-                        addScore(5);
+                        int randomScore = (int) GameApp.random(3, 8); // Random score 3-8 for stampede zombie
+                        addScore(randomScore);
+                        addKill(); // Increment kill count for stampede zombie
                         // Small chance to drop blue orb
                         if (Math.random() < 0.5) {
                             XPOrb orb = new XPOrb(sz.x, sz.y, OrbType.BLUE);
@@ -3253,6 +3267,9 @@ public class PlayScreen extends ScalableGameScreen {
         // Reset game state to PLAYING (important for Play Again button)
         gameStateManager.setCurrentState(GameState.PLAYING);
 
+        // CRITICAL: Reset WinnerScreen state to prevent showing old win data
+        WinnerScreen.resetState();
+
         // Reset score saved flag for new game
         scoreSaved = false;
 
@@ -3368,6 +3385,7 @@ public class PlayScreen extends ScalableGameScreen {
         // Reset game state
         gameTime = config.showcaseMode ? 60f : GAME_DURATION;
         score = 0;
+        killCount = 0; // Reset kill count for new game
         enemySpawner.reset();
         collisionHandler.reset();
         damageTextSystem.reset();

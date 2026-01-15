@@ -51,6 +51,20 @@ public class EnemySpawner {
     private static final float STAMPEDE_MAX_COOLDOWN = 20f; // Maximum 20 seconds between stampedes
     private float nextStampedeTime = 0f; // When next stampede can occur
     
+    // === SPECIAL SPAWN PATTERNS (mid-game to end-game) ===
+    private float nextSpecialPatternTime = 0f;
+    private static final float SPECIAL_PATTERN_MIN_COOLDOWN = 15f;
+    private static final float SPECIAL_PATTERN_MAX_COOLDOWN = 30f;
+    
+    // Pattern types
+    private enum SpawnPattern {
+        CIRCLE,      // Zombies spawn in circle around player
+        WAVE,        // Zombies spawn in rows/waves
+        SPIRAL,      // Zombies spawn in spiral pattern  
+        AMBUSH,      // Sudden spawn very close to player
+        BOSS_ESCORT  // Boss with zombie escorts
+    }
+    
     // === SPAWN AREA (rectangular around player) ===
     private static final float SPAWN_DISTANCE_MIN = 450f; // Just outside screen
     private static final float SPAWN_DISTANCE_MAX = 700f; // Up to 1.5x screen distance
@@ -144,6 +158,11 @@ public class EnemySpawner {
         // === TRY SPAWN STAMPEDE (from minute 2+) ===
         if (gameTime >= 120f) { // After 2 minutes
             trySpawnStampede(gameTime, playerWorldX, playerWorldY);
+        }
+        
+        // === TRY SPAWN SPECIAL PATTERNS (from minute 4+ to end game) ===
+        if (gameTime >= 240f) { // After 4 minutes (mid-game)
+            trySpawnSpecialPattern(gameTime, playerWorldX, playerWorldY, enemies);
         }
         
         // === SPAWN NORMAL ENEMIES ===
@@ -524,6 +543,214 @@ public class EnemySpawner {
         return stampedeZombies;
     }
     
+    // ==========================================
+    // SPECIAL SPAWN PATTERNS
+    // ==========================================
+    
+    private void trySpawnSpecialPattern(float gameTime, float playerX, float playerY, List<Enemy> enemies) {
+        // Check cooldown
+        if (gameTime < nextSpecialPatternTime) {
+            return;
+        }
+        
+        // Random chance to spawn (30% per check)
+        if (Math.random() > 0.3) {
+            return;
+        }
+        
+        // Don't spawn if too many enemies already
+        if (enemies.size() > HARD_MAX_ENEMIES - 50) {
+            return;
+        }
+        
+        // Set next pattern time
+        float cooldown = GameApp.random(SPECIAL_PATTERN_MIN_COOLDOWN, SPECIAL_PATTERN_MAX_COOLDOWN);
+        nextSpecialPatternTime = gameTime + cooldown;
+        
+        // Pick random pattern based on game time
+        // Earlier = simpler patterns, Later = more complex
+        SpawnPattern pattern;
+        float minutes = gameTime / 60f;
+        
+        if (minutes < 6) {
+            // Minutes 4-6: Circle, Wave only
+            pattern = Math.random() < 0.5 ? SpawnPattern.CIRCLE : SpawnPattern.WAVE;
+        } else if (minutes < 8) {
+            // Minutes 6-8: Add Spiral
+            int r = (int)(Math.random() * 3);
+            pattern = switch(r) {
+                case 0 -> SpawnPattern.CIRCLE;
+                case 1 -> SpawnPattern.WAVE;
+                default -> SpawnPattern.SPIRAL;
+            };
+        } else {
+            // Minutes 8+: All patterns including Ambush and Boss Escort
+            int r = (int)(Math.random() * 5);
+            pattern = SpawnPattern.values()[r];
+        }
+        
+        GameApp.log("=== SPECIAL PATTERN: " + pattern.name() + " ===");
+        
+        switch (pattern) {
+            case CIRCLE -> spawnCirclePattern(playerX, playerY, gameTime, enemies);
+            case WAVE -> spawnWavePattern(playerX, playerY, gameTime, enemies);
+            case SPIRAL -> spawnSpiralPattern(playerX, playerY, gameTime, enemies);
+            case AMBUSH -> spawnAmbushPattern(playerX, playerY, gameTime, enemies);
+            case BOSS_ESCORT -> spawnBossEscortPattern(playerX, playerY, gameTime, enemies);
+        }
+    }
+    
+    /**
+     * CIRCLE SPAWN - Zombies spawn in a circle around player, then close in
+     */
+    private void spawnCirclePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
+        int zombieCount = 20 + (int)(Math.random() * 15); // 20-35 zombies
+        float radius = 400f; // Spawn distance from player
+        
+        float minutes = gameTime / 60f;
+        float healthMult = (float) Math.pow(1.05f, minutes);
+        int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
+        float speed = enemyBaseSpeed * 1.2f; // Slightly faster
+        
+        for (int i = 0; i < zombieCount; i++) {
+            float angle = (float)(i * 2 * Math.PI / zombieCount);
+            float spawnX = playerX + (float)Math.cos(angle) * radius;
+            float spawnY = playerY + (float)Math.sin(angle) * radius;
+            
+            int zombieType = 1 + (int)(Math.random() * 3); // Type 1-3
+            Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+            enemies.add(enemy);
+        }
+        GameApp.log("Circle pattern spawned " + zombieCount + " zombies");
+    }
+    
+    /**
+     * WAVE SPAWN - Zombies spawn in rows, wave after wave
+     */
+    private void spawnWavePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
+        int waveCount = 3; // 3 rows
+        int zombiesPerWave = 10 + (int)(Math.random() * 8); // 10-18 per row
+        
+        float minutes = gameTime / 60f;
+        float healthMult = (float) Math.pow(1.05f, minutes);
+        int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
+        float speed = enemyBaseSpeed * 1.3f;
+        
+        // Pick random direction
+        float angle = (float)(Math.random() * Math.PI * 2);
+        float dirX = (float)Math.cos(angle);
+        float dirY = (float)Math.sin(angle);
+        
+        // Perpendicular for wave spread
+        float perpX = -dirY;
+        float perpY = dirX;
+        
+        for (int wave = 0; wave < waveCount; wave++) {
+            float baseDistance = 450f + wave * 80f; // Each wave further out
+            
+            for (int i = 0; i < zombiesPerWave; i++) {
+                float spread = (i - zombiesPerWave / 2f) * 35f;
+                float spawnX = playerX + dirX * baseDistance + perpX * spread;
+                float spawnY = playerY + dirY * baseDistance + perpY * spread;
+                
+                int zombieType = 1 + (int)(Math.random() * 3);
+                Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+                enemies.add(enemy);
+            }
+        }
+        GameApp.log("Wave pattern spawned " + (waveCount * zombiesPerWave) + " zombies in " + waveCount + " waves");
+    }
+    
+    /**
+     * SPIRAL SPAWN - Zombies spawn in spiral pattern around player
+     */
+    private void spawnSpiralPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
+        int zombieCount = 30 + (int)(Math.random() * 20); // 30-50 zombies
+        
+        float minutes = gameTime / 60f;
+        float healthMult = (float) Math.pow(1.05f, minutes);
+        int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
+        float speed = enemyBaseSpeed * 1.1f;
+        
+        float startAngle = (float)(Math.random() * Math.PI * 2);
+        float spiralTurns = 2f; // 2 full rotations
+        
+        for (int i = 0; i < zombieCount; i++) {
+            float t = (float)i / zombieCount;
+            float angle = startAngle + t * spiralTurns * 2 * (float)Math.PI;
+            float radius = 200f + t * 400f; // Spiral outward 200-600
+            
+            float spawnX = playerX + (float)Math.cos(angle) * radius;
+            float spawnY = playerY + (float)Math.sin(angle) * radius;
+            
+            int zombieType = 1 + (int)(Math.random() * 3);
+            Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+            enemies.add(enemy);
+        }
+        GameApp.log("Spiral pattern spawned " + zombieCount + " zombies");
+    }
+    
+    /**
+     * AMBUSH SPAWN - Sudden spawn very close to player (dangerous!)
+     */
+    private void spawnAmbushPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
+        int zombieCount = 8 + (int)(Math.random() * 6); // 8-14 zombies (smaller but dangerous)
+        
+        float minutes = gameTime / 60f;
+        float healthMult = (float) Math.pow(1.05f, minutes);
+        int health = (int)((enemyBaseHealth * 0.7f + minutes * 2f) * healthMult); // Weaker but close
+        float speed = enemyBaseSpeed * 1.5f; // Fast!
+        
+        // Spawn CLOSE to player (just outside immediate area)
+        float minRadius = 150f;
+        float maxRadius = 250f;
+        
+        for (int i = 0; i < zombieCount; i++) {
+            float angle = (float)(Math.random() * Math.PI * 2);
+            float radius = minRadius + (float)(Math.random() * (maxRadius - minRadius));
+            
+            float spawnX = playerX + (float)Math.cos(angle) * radius;
+            float spawnY = playerY + (float)Math.sin(angle) * radius;
+            
+            int zombieType = 4; // Type 4 for ambush (if available)
+            Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+            enemies.add(enemy);
+        }
+        GameApp.log("AMBUSH! Spawned " + zombieCount + " zombies close to player!");
+    }
+    
+    /**
+     * BOSS ESCORT - Boss spawns with zombie escorts
+     * Note: This spawns regular enemies as escorts, boss is spawned separately in PlayScreen
+     */
+    private void spawnBossEscortPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
+        int escortCount = 15 + (int)(Math.random() * 10); // 15-25 escort zombies
+        
+        float minutes = gameTime / 60f;
+        float healthMult = (float) Math.pow(1.05f, minutes);
+        int health = (int)((enemyBaseHealth * 1.5f + minutes * 4f) * healthMult); // Tankier escorts
+        float speed = enemyBaseSpeed * 0.8f; // Slower, more menacing
+        
+        // Pick spawn direction
+        float angle = (float)(Math.random() * Math.PI * 2);
+        float baseX = playerX + (float)Math.cos(angle) * 500f;
+        float baseY = playerY + (float)Math.sin(angle) * 500f;
+        
+        // Spawn escorts in formation around boss spawn point
+        for (int i = 0; i < escortCount; i++) {
+            float offsetAngle = (float)(Math.random() * Math.PI * 2);
+            float offsetDist = 50f + (float)(Math.random() * 100f);
+            
+            float spawnX = baseX + (float)Math.cos(offsetAngle) * offsetDist;
+            float spawnY = baseY + (float)Math.sin(offsetAngle) * offsetDist;
+            
+            int zombieType = 1 + (int)(Math.random() * 3);
+            Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+            enemies.add(enemy);
+        }
+        GameApp.log("Boss Escort pattern spawned " + escortCount + " escort zombies");
+    }
+    
     public void reset() {
         enemySpawnTimer = 0f;
         currentSpawnInterval = baseSpawnInterval;
@@ -532,6 +759,7 @@ public class EnemySpawner {
         waveMaximum = 400;
         stampedeZombies.clear();
         nextStampedeTime = 0f;
+        nextSpecialPatternTime = 0f;
     }
 
     public float getEnemyBaseSpeed() {

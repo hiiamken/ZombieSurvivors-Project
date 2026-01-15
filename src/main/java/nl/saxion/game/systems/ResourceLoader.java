@@ -50,7 +50,7 @@ public class ResourceLoader {
 
         // Load zombie sprite sheets - Type 1 (original)
         GameApp.addSpriteSheet("zombie_idle_sheet", "assets/enemy/Zombie_Idle.png", 32, 32);
-        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_Run.png", 32,32);
+        GameApp.addSpriteSheet("zombie_run_sheet", "assets/enemy/Zombie_run.png", 32,32);
         GameApp.addSpriteSheet("zombie_hit_sheet", "assets/enemy/Zombie_Hit.png", 32,32);
         GameApp.addSpriteSheet("zombie_death1_sheet", "assets/enemy/Zombie_Death_1.png", 32,32);
         GameApp.addSpriteSheet("zombie_death2_sheet", "assets/enemy/Zombie_Death_2.png", 32,32);
@@ -215,7 +215,19 @@ public class ResourceLoader {
         try { GameApp.addTexture("star_icon", "assets/ui/star.png"); } 
         catch (Exception e) { GameApp.log("Warning: Could not load star.png"); }
         
-        GameApp.log("Loaded passive item icons, weapon icon, arrow icon and star icon");
+        // Load skull icon for kill count display
+        try { GameApp.addTexture("skull_icon", "assets/ui/skull.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load skull.png"); }
+        
+        // Load star texture for level up bonus and celebration effects
+        try { GameApp.addTexture("star", "assets/ui/star.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load star.png for bonus"); }
+        
+        // Load chicken texture for level up health bonus
+        try { GameApp.addTexture("chicken", "assets/ui/chicken.png"); } 
+        catch (Exception e) { GameApp.log("Warning: Could not load chicken.png for bonus"); }
+        
+        GameApp.log("Loaded passive item icons, weapon icon, arrow icon, star icon, skull icon, and bonus icons");
 
         // Load 16 individual map textures with NEAREST filter for sharp pixel rendering
         // Note: Game uses room_00.png to room_15.png, NOT map1.png

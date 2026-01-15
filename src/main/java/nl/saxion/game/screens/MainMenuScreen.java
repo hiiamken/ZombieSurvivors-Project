@@ -706,6 +706,7 @@ public class MainMenuScreen extends ScalableGameScreen {
                         case 3: // CREDITS
                             pendingAction = () -> {
                                 DebugLogger.log("CREDITS button action executing after delay");
+                                CreditsScreen.setPreviousScreen("menu"); // Return to menu, not winner
                                 GameApp.switchScreen("credits");
                             };
                             break;
