@@ -39,7 +39,14 @@ public class MainMenuScreen extends ScalableGameScreen {
     
     // Track if fullscreen has been applied on first show
     private static boolean fullscreenApplied = false;
-
+    
+    // Hint popup state
+    private boolean showHintPopup = false;
+    private float hintIconX, hintIconY, hintIconSize;
+    private float hintPopupOpenCooldown = 0f; // Prevent immediate close after opening
+    
+    // Version info
+    private static final String GAME_VERSION = "v1.0.0";
 
     public MainMenuScreen() {
         super(1280, 720); // 16:9 aspect ratio
@@ -253,6 +260,18 @@ public class MainMenuScreen extends ScalableGameScreen {
             } else {
                 DebugLogger.log("mainmenu_bg already loaded");
             }
+            
+            // Load hint icon for upcoming features
+            if (!GameApp.hasTexture("hint_icon")) {
+                GameApp.addTexture("hint_icon", "assets/ui/hint.png");
+                DebugLogger.log("Loaded hint_icon: %s", GameApp.hasTexture("hint_icon") ? "SUCCESS" : "FAILED");
+            }
+            
+            // Load version font (smaller, subtle)
+            if (!GameApp.hasFont("versionFont")) {
+                GameApp.addStyledFont("versionFont", "fonts/PixelOperator.ttf", 16,
+                        "white", 0f, "black", 1, 1, "gray-700", true);
+            }
 
             resourcesLoaded = true;
             DebugLogger.log("Resources loaded");
@@ -421,6 +440,17 @@ public class MainMenuScreen extends ScalableGameScreen {
 
         // Draw button text labels
         drawButtonText();
+        
+        // Draw version display (bottom right)
+        drawVersionDisplay();
+        
+        // Draw hint icon (bottom left) and handle click
+        drawHintIcon(worldMouseX, worldMouseY);
+        
+        // Draw hint popup if active
+        if (showHintPopup) {
+            drawHintPopup(delta);
+        }
     }
 
     // Draw text labels on buttons
@@ -729,6 +759,155 @@ public class MainMenuScreen extends ScalableGameScreen {
             Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
         } else {
             Gdx.graphics.setWindowedMode(1280, 720);
+        }
+    }
+    
+    // Draw version display in bottom right corner
+    private void drawVersionDisplay() {
+        float screenWidth = GameApp.getWorldWidth();
+        float padding = 15f;
+        
+        GameApp.startSpriteRendering();
+        
+        // Draw version text with subtle styling
+        String versionText = GAME_VERSION;
+        float textWidth = GameApp.getTextWidth("versionFont", versionText);
+        float textX = screenWidth - textWidth - padding;
+        float textY = padding + 10f;
+        
+        // Draw with semi-transparent white
+        GameApp.setColor(200, 200, 200, 180);
+        GameApp.drawText("versionFont", versionText, textX, textY, "gray-400");
+        
+        GameApp.endSpriteRendering();
+    }
+    
+    // Draw hint icon in bottom left corner and handle click
+    private void drawHintIcon(float mouseX, float mouseY) {
+        float padding = 15f;
+        hintIconSize = 48f;
+        hintIconX = padding;
+        hintIconY = padding;
+        
+        // Don't process hint icon clicks if popup is showing
+        if (showHintPopup) {
+            // Just draw the icon without interaction
+            if (GameApp.hasTexture("hint_icon")) {
+                GameApp.startSpriteRendering();
+                GameApp.drawTexture("hint_icon", hintIconX, hintIconY, hintIconSize, hintIconSize);
+                GameApp.endSpriteRendering();
+            }
+            return;
+        }
+        
+        // Check if mouse is over hint icon
+        boolean isHoveringHint = mouseX >= hintIconX && mouseX <= hintIconX + hintIconSize &&
+                                  mouseY >= hintIconY && mouseY <= hintIconY + hintIconSize;
+        
+        // Handle click on hint icon to OPEN popup
+        if (isHoveringHint && GameApp.isButtonJustPressed(0) && pendingAction == null) {
+            showHintPopup = true;
+            hintPopupOpenCooldown = 0.3f; // Cooldown to prevent immediate close
+            if (soundManager != null) {
+                soundManager.playSound("clickbutton", 1.5f);
+            }
+        }
+        
+        // Draw hint icon
+        if (GameApp.hasTexture("hint_icon")) {
+            GameApp.startSpriteRendering();
+            
+            // Scale up slightly when hovering
+            float drawSize = isHoveringHint ? hintIconSize * 1.1f : hintIconSize;
+            float drawX = hintIconX - (drawSize - hintIconSize) / 2f;
+            float drawY = hintIconY - (drawSize - hintIconSize) / 2f;
+            
+            GameApp.drawTexture("hint_icon", drawX, drawY, drawSize, drawSize);
+            GameApp.endSpriteRendering();
+        }
+    }
+    
+    // Draw hint popup with upcoming features
+    private void drawHintPopup(float delta) {
+        // Update cooldown timer
+        if (hintPopupOpenCooldown > 0f) {
+            hintPopupOpenCooldown -= delta;
+        }
+        
+        float screenWidth = GameApp.getWorldWidth();
+        float screenHeight = GameApp.getWorldHeight();
+        
+        // Popup dimensions - LARGER, nearly full screen
+        float popupWidth = screenWidth * 0.85f;  // 85% of screen width
+        float popupHeight = screenHeight * 0.80f; // 80% of screen height
+        float popupX = (screenWidth - popupWidth) / 2f;
+        float popupY = (screenHeight - popupHeight) / 2f;
+        
+        // Draw semi-transparent overlay (lighter to show background through)
+        GameApp.startShapeRenderingFilled();
+        GameApp.setColor(0, 0, 0, 120); // Lighter overlay to show mainmenu background
+        GameApp.drawRect(0, 0, screenWidth, screenHeight);
+        GameApp.endShapeRendering();
+        
+        // Draw popup background
+        GameApp.startShapeRenderingFilled();
+        // Dark purple-blue background with slight transparency
+        GameApp.setColor(25, 20, 45, 230);
+        GameApp.drawRect(popupX, popupY, popupWidth, popupHeight);
+        // Thick border
+        float borderWidth = 5f;
+        GameApp.setColor(120, 90, 180, 255);
+        GameApp.drawRect(popupX, popupY, popupWidth, borderWidth); // Bottom
+        GameApp.drawRect(popupX, popupY + popupHeight - borderWidth, popupWidth, borderWidth); // Top
+        GameApp.drawRect(popupX, popupY, borderWidth, popupHeight); // Left
+        GameApp.drawRect(popupX + popupWidth - borderWidth, popupY, borderWidth, popupHeight); // Right
+        GameApp.endShapeRendering();
+        
+        // Draw text content - LARGER sizes
+        GameApp.startSpriteRendering();
+        
+        float centerX = popupX + popupWidth / 2f;
+        float textY = popupY + popupHeight - 80f;
+        float lineHeight = 65f; // Larger line spacing
+        
+        // Title - BIGGER (use buttonFont which is larger)
+        String title = "COMING SOON!";
+        float titleWidth = GameApp.getTextWidth("buttonFont", title);
+        GameApp.drawText("buttonFont", title, centerX - titleWidth/2, textY, "yellow-400");
+        textY -= lineHeight + 30f;
+        
+        // Upcoming features list - use buttonFont for larger text
+        String[] features = {
+            "New Weapons (Katana, Molotov...)",
+            "New Characters",
+            "New Zombie Types",
+            "New Maps",
+            "Achievement System"
+        };
+        
+        float textX = popupX + 80f;
+        for (String feature : features) {
+            // Draw bullet point
+            GameApp.drawText("buttonFont", "*", textX, textY, "yellow-400");
+            // Draw feature text
+            GameApp.drawText("buttonFont", feature, textX + 40f, textY, "white");
+            textY -= lineHeight;
+        }
+        
+        // Close hint text at bottom
+        textY = popupY + 50f;
+        String closeText = "Click anywhere to close";
+        float closeWidth = GameApp.getTextWidth("buttonFont", closeText);
+        GameApp.drawText("buttonFont", closeText, centerX - closeWidth/2, textY, "gray-500");
+        
+        GameApp.endSpriteRendering();
+        
+        // Close popup when clicking anywhere AFTER cooldown expires
+        if (hintPopupOpenCooldown <= 0f && GameApp.isButtonJustPressed(0)) {
+            showHintPopup = false;
+            if (soundManager != null) {
+                soundManager.playSound("clickbutton", 1.0f);
+            }
         }
     }
 }

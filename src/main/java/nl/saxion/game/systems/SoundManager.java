@@ -17,11 +17,12 @@ public class SoundManager {
     
     // Music keys
     private static final String MENU_MUSIC_KEY = "bgm";  // Background music for menus
+    private static final String WINNER_MUSIC_KEY = "winner_music";  // Victory music for winner screen
     
-    // Ingame music tracks (3-track cycling system)
+    // Ingame music tracks (random selection per game, looped)
     private static final String[] INGAME_MUSIC_KEYS = {"ingame_music_1", "ingame_music_2", "ingame_music_3"};
-    private static final String[] INGAME_MUSIC_FILES = {"audio/ingame.mp3", "audio/ingame2.mp3", "audio/ingame3.mp3"};
-    private int currentTrackIndex = 0;  // Current track playing (0, 1, or 2)
+    private static final String[] INGAME_MUSIC_FILES = {"audio/ingame.mp3", "audio/ingame2.mp3", "audio/ingame3.wav"};
+    private int currentTrackIndex = 0;  // Randomly selected track for this game session
     
     // Volume settings
     private float masterVolume = 1.0f;
@@ -31,6 +32,7 @@ public class SoundManager {
     // Track if music is currently playing
     private boolean isMenuMusicPlaying = false;
     private boolean isIngameMusicPlaying = false;
+    private boolean isWinnerMusicPlaying = false;
     
     public SoundManager() {
         soundKeys = new HashMap<>();
@@ -64,6 +66,18 @@ public class SoundManager {
             }
         } else {
             GameApp.log("Menu background music already loaded, skipping reload");
+        }
+        
+        // Load winner music (victory screen)
+        if (!GameApp.hasMusic(WINNER_MUSIC_KEY)) {
+            try {
+                GameApp.addMusic(WINNER_MUSIC_KEY, "audio/winner.mp3");
+                if (GameApp.hasMusic(WINNER_MUSIC_KEY)) {
+                    GameApp.log("Winner music loaded successfully");
+                }
+            } catch (Exception e) {
+                GameApp.log("Warning: Could not load winner music: " + e.getMessage());
+            }
         }
         
         // Load all 3 ingame background music tracks for cycling
@@ -262,56 +276,66 @@ public class SoundManager {
             }
         }
         
-        // Start playing from first track
-        currentTrackIndex = 0;
-        playCurrentTrack();
+        // Randomly select one of 3 tracks for this game session
+        currentTrackIndex = (int)(Math.random() * INGAME_MUSIC_KEYS.length);
+        GameApp.log("=== RANDOMLY SELECTED TRACK: " + (currentTrackIndex + 1) + "/3: " + INGAME_MUSIC_FILES[currentTrackIndex] + " ===");
+        playSelectedTrack();
     }
     
     /**
-     * Play the current track in the cycling playlist.
+     * Play the randomly selected track with looping.
      */
-    private void playCurrentTrack() {
+    private void playSelectedTrack() {
         String key = INGAME_MUSIC_KEYS[currentTrackIndex];
         
         if (!GameApp.hasMusic(key)) {
             GameApp.log("Track " + (currentTrackIndex + 1) + " not loaded: " + key);
-            return;
+            // Try to load it now
+            String file = INGAME_MUSIC_FILES[currentTrackIndex];
+            try {
+                GameApp.addMusic(key, file);
+                GameApp.log("Late-loaded track: " + file);
+            } catch (Exception e) {
+                GameApp.log("Failed to late-load track: " + e.getMessage());
+                // Try another track
+                currentTrackIndex = (currentTrackIndex + 1) % INGAME_MUSIC_KEYS.length;
+                return;
+            }
         }
         
         try {
+            // Stop any currently playing track first
+            for (String trackKey : INGAME_MUSIC_KEYS) {
+                if (GameApp.hasMusic(trackKey)) {
+                    try {
+                        Music m = GameApp.getMusic(trackKey);
+                        if (m != null && m.isPlaying()) {
+                            m.stop();
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+            
             float finalVolume = masterVolume * musicVolume * 0.1f;
             finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
             
-            // Play WITHOUT loop - we'll manually advance to next track when this one ends
-            GameApp.playMusic(key, false, finalVolume);
+            // Play WITH loop - single random track loops for entire game
+            GameApp.playMusic(key, true, finalVolume);
             isIngameMusicPlaying = true;
-            GameApp.log("Playing ingame track " + (currentTrackIndex + 1) + "/3: " + INGAME_MUSIC_FILES[currentTrackIndex]);
+            GameApp.log(">>> NOW PLAYING (LOOPED): Track " + (currentTrackIndex + 1) + "/3: " + INGAME_MUSIC_FILES[currentTrackIndex]);
         } catch (Exception e) {
             GameApp.log("Error playing track " + key + ": " + e.getMessage());
         }
     }
     
     /**
-     * Update music system - call this every frame to handle track cycling.
-     * When current track ends, automatically plays the next one.
+     * Update music system - no longer needed for cycling, but kept for compatibility.
+     * The selected track now loops automatically.
      * @param delta Time since last frame
      */
     public void updateIngameMusic(float delta) {
-        if (!isIngameMusicPlaying) return;
-        
-        // Check if current track has finished
-        String currentKey = INGAME_MUSIC_KEYS[currentTrackIndex];
-        try {
-            Music music = GameApp.getMusic(currentKey);
-            if (music != null && !music.isPlaying()) {
-                // Current track finished - advance to next track
-                currentTrackIndex = (currentTrackIndex + 1) % INGAME_MUSIC_KEYS.length;
-                GameApp.log("Track ended, cycling to track " + (currentTrackIndex + 1) + "/3");
-                playCurrentTrack();
-            }
-        } catch (Exception e) {
-            // Ignore errors
-        }
+        // No action needed - track loops automatically
+        // This method is kept for compatibility with existing code
     }
     
     /**
@@ -353,6 +377,55 @@ public class SoundManager {
         }
         isIngameMusicPlaying = false;
         currentTrackIndex = 0;
+    }
+    
+    /**
+     * Play winner music (victory screen).
+     * @param loop Whether to loop the music
+     */
+    public void playWinnerMusic(boolean loop) {
+        if (!GameApp.hasMusic(WINNER_MUSIC_KEY)) {
+            GameApp.log("Winner music not loaded, cannot play");
+            return;
+        }
+        
+        // Stop any other music first
+        stopMenuMusic();
+        stopIngameMusic();
+        
+        try {
+            float finalVolume = masterVolume * musicVolume * 0.5f; // 50% volume for winner music
+            finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
+            
+            GameApp.playMusic(WINNER_MUSIC_KEY, loop, finalVolume);
+            isWinnerMusicPlaying = true;
+            GameApp.log("Winner music started");
+        } catch (Exception e) {
+            GameApp.log("Error playing winner music: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Stop winner music.
+     */
+    public void stopWinnerMusic() {
+        if (!GameApp.hasMusic(WINNER_MUSIC_KEY)) {
+            return;
+        }
+        
+        try {
+            GameApp.stopMusic(WINNER_MUSIC_KEY);
+            isWinnerMusicPlaying = false;
+        } catch (Exception e) {
+            GameApp.log("Error stopping winner music: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Check if winner music is playing.
+     */
+    public boolean isWinnerMusicPlaying() {
+        return isWinnerMusicPlaying;
     }
     
     /**

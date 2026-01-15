@@ -7,6 +7,7 @@ import nl.saxion.game.screens.RanksScreen;
 import nl.saxion.game.screens.SettingsScreen;
 import nl.saxion.game.screens.CreditsScreen;
 import nl.saxion.game.screens.HowToPlayScreen;
+import nl.saxion.game.screens.WinnerScreen;
 import nl.saxion.gameapp.GameApp;
 import nl.saxion.game.config.GameConfig;
 import nl.saxion.game.config.ConfigManager;
@@ -26,6 +27,7 @@ public class MainGame {
         GameApp.addScreen("ranks", new RanksScreen());
         GameApp.addScreen("settings", new SettingsScreen());
         GameApp.addScreen("credits", new CreditsScreen());
+        GameApp.addScreen("winner", new WinnerScreen());
         // GameOverScreen is no longer needed - game over is now an overlay on PlayScreen
 
 

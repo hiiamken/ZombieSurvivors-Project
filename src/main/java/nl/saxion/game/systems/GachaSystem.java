@@ -93,16 +93,24 @@ public class GachaSystem {
     // Random
     private Random random = new Random();
     
+    // Skip animation flag
+    private boolean skipRequested = false;
+    
+    // Snake ray effect (white rays circling the beam)
+    private List<SnakeRay> snakeRays = new ArrayList<>();
+    private static final int NUM_SNAKE_RAYS = 6;
+    
     // Coin particle class (for casino effect - gold and silver)
+    // Coins shoot UP then fall down in parabolic arc like a fountain
     private class CoinParticle {
         float x, y, vx, vy;
         float rotation, rotationSpeed;
         float life, maxLife;
         float size;
         float alpha;
-        boolean isGold; // true = gold, false = silver
+        int coinType; // 0 = drawn gold, 1 = drawn silver, 2 = gold.png, 3 = silver.png
         
-        CoinParticle(float x, float y, float vx, float vy, float life, float size, boolean isGold) {
+        CoinParticle(float x, float y, float vx, float vy, float life, float size, int coinType) {
             this.x = x; this.y = y;
             this.vx = vx; this.vy = vy;
             this.rotation = 0f;
@@ -110,14 +118,14 @@ public class GachaSystem {
             this.life = life; this.maxLife = life;
             this.size = size;
             this.alpha = 1f;
-            this.isGold = isGold;
+            this.coinType = coinType;
         }
         
         void update(float delta) {
             x += vx * delta;
             y += vy * delta;
-            vy -= 600 * delta; // Stronger gravity for better parabolic arc
-            vx *= 0.995f; // Slight air resistance
+            vy -= 450f * delta; // Gravity pulls coins down after they shoot up
+            vx *= 0.99f; // Slight air resistance
             rotation += rotationSpeed * delta;
             life -= delta;
             
@@ -129,7 +137,33 @@ public class GachaSystem {
             }
         }
         
-        boolean isDead() { return life <= 0 || y < -50f; }
+        boolean isDead() { return life <= 0 || y < -100f; }
+    }
+    
+    // Snake ray class - white rays that circle the beam in snake-like motion
+    private class SnakeRay {
+        float angle; // Current angle around the beam
+        float yOffset; // Vertical offset (snake-like undulation)
+        float speed; // Angular speed
+        float amplitude; // How far from center
+        float phase; // Phase offset for snake motion
+        float length; // Ray length
+        
+        SnakeRay(float startAngle, float speed, float amplitude) {
+            this.angle = startAngle;
+            this.yOffset = 0f;
+            this.speed = speed;
+            this.amplitude = amplitude;
+            this.phase = random.nextFloat() * (float)Math.PI * 2f;
+            this.length = 30f + random.nextFloat() * 20f;
+        }
+        
+        void update(float delta, float time) {
+            angle += speed * delta;
+            if (angle > 360f) angle -= 360f;
+            // Snake-like vertical undulation
+            yOffset = (float)Math.sin(time * 3f + phase) * 50f;
+        }
     }
     
     // Particle class
@@ -372,7 +406,29 @@ public class GachaSystem {
         targetScrollOffset = scrollStartY - beamCenterY + (selectedItemIndex * itemSpacing);
         targetScrollOffset += scrollItems.size() * itemSpacing * 4; // Multiple cycles
         
-        GameApp.log("Gacha started! Selected: " + selectedItem.name + " | Points: " + randomPoints);
+        // Initialize snake rays for beam effect
+        initializeSnakeRays();
+    }
+    
+    /**
+     * Initialize snake rays that circle around the beam
+     */
+    private void initializeSnakeRays() {
+        snakeRays.clear();
+        for (int i = 0; i < NUM_SNAKE_RAYS; i++) {
+            float startAngle = (360f / NUM_SNAKE_RAYS) * i;
+            float speed = 120f + random.nextFloat() * 60f; // 120-180 degrees per second
+            float amplitude = 40f + random.nextFloat() * 30f; // 40-70 pixels from center
+            snakeRays.add(new SnakeRay(startAngle, speed, amplitude));
+        }
+    }
+    
+    /**
+     * Skip animation when SPACE is pressed - jump to final result
+     */
+    public void requestSkip() {
+        if (state == GachaState.INACTIVE || state == GachaState.COMPLETED) return;
+        skipRequested = true;
     }
     
     /**
@@ -381,7 +437,25 @@ public class GachaSystem {
     public void update(float delta) {
         if (state == GachaState.INACTIVE) return;
         
+        // Handle skip request - jump directly to completed state
+        if (skipRequested && state != GachaState.COMPLETED) {
+            skipRequested = false;
+            state = GachaState.COMPLETED;
+            stateTimer = 0f;
+            scrollOffset = targetScrollOffset;
+            finalPoints = randomPoints;
+            coinParticles.clear(); // Clear coin effects
+            GameApp.stopAllSounds(); // Stop gacha sounds when skipping
+            GameApp.log("Gacha animation skipped - showing final result");
+            return;
+        }
+        
         stateTimer += delta;
+        
+        // Update snake rays
+        for (SnakeRay ray : snakeRays) {
+            ray.update(delta, stateTimer);
+        }
         
         // Update particles
         particles.removeIf(Particle::isDead);
@@ -513,38 +587,64 @@ public class GachaSystem {
     }
     
     /**
-     * Spawn coin burst from chest - FOUNTAIN STYLE parabolic spray!
-     * Coins burst upward like a water fountain and fall down with gravity
+     * Spawn coin burst from chest - FOUNTAIN STYLE!
+     * Coins shoot UP and spread to ALL directions, then fall down in parabolic arcs
+     * Coins have rotation and fall to multiple points across the screen
      */
     private void spawnCoinBurst() {
-        // Spawn coins in FOUNTAIN pattern - burst upward and spread outward
+        // Spawn coins in multiple directions for better visual effect
         for (int i = 0; i < COINS_PER_BURST; i++) {
-            // Fountain spray: mostly upward (-60 to -120 degrees) with spread
-            float baseAngle = -90f; // Straight up
-            float spread = (random.nextFloat() - 0.5f) * 70f; // ±35 degree spread
-            float angle = baseAngle + spread;
+            // Varied angles - mostly upward but some go to sides for wider spread
+            float angle;
+            float speedMultiplier;
             
-            // High initial velocity for fountain effect
-            float speed = 320f + random.nextFloat() * 200f; // Fast upward burst
+            if (i % 5 == 0) {
+                // Every 5th coin goes to left side
+                angle = -135f + (random.nextFloat() - 0.5f) * 30f;
+                speedMultiplier = 0.8f;
+            } else if (i % 5 == 1) {
+                // Every 5th+1 coin goes to right side
+                angle = -45f + (random.nextFloat() - 0.5f) * 30f;
+                speedMultiplier = 0.8f;
+            } else if (i % 5 == 2) {
+                // Some coins go straight up high
+                angle = -90f + (random.nextFloat() - 0.5f) * 20f;
+                speedMultiplier = 1.2f;
+            } else {
+                // Rest spread in wide upward arc
+                angle = -90f + (random.nextFloat() - 0.5f) * 120f; // ±60 degree spread
+                speedMultiplier = 1.0f;
+            }
             
-            // Calculate velocity - mostly upward with spread
+            // Varied initial velocity for natural fountain look
+            float baseSpeed = 350f + random.nextFloat() * 300f;
+            float speed = baseSpeed * speedMultiplier;
+            
+            // Calculate velocity
             float vx = (float)Math.cos(Math.toRadians(angle)) * speed;
-            float vy = (float)Math.sin(Math.toRadians(angle)) * speed * 1.3f; // Extra upward
+            float vy = Math.abs((float)Math.sin(Math.toRadians(angle)) * speed);
+            vy += 150f + random.nextFloat() * 100f; // Varied upward boost
             
-            // Add horizontal spread for fountain look
-            vx += (random.nextFloat() - 0.5f) * 150f;
+            // Extra horizontal variance for more spread
+            vx += (random.nextFloat() - 0.5f) * 300f;
             
-            // Random coin type (mostly gold, some silver)
-            boolean isGold = random.nextFloat() < 0.7f; // 70% gold, 30% silver
+            // Prefer texture coins (gold.png and silver.png) for better visuals
+            // 0 = drawn gold, 1 = drawn silver, 2 = gold.png, 3 = silver.png
+            int coinType;
+            float typeRoll = random.nextFloat();
+            if (typeRoll < 0.15f) coinType = 0; // 15% drawn gold
+            else if (typeRoll < 0.25f) coinType = 1; // 10% drawn silver
+            else if (typeRoll < 0.65f) coinType = 2; // 40% gold.png texture
+            else coinType = 3; // 35% silver.png texture
             
-            float life = 2.2f + random.nextFloat() * 1.0f; // Longer life for full arc
-            float size = 6f + random.nextFloat() * 6f; // 6-12 pixels
+            float life = 2.8f + random.nextFloat() * 1.5f; // Long life for full arc
+            float size = 10f + random.nextFloat() * 14f; // 10-24 pixels (bigger coins)
             
-            // Spawn from chest opening (slightly above center)
-            float spawnX = chestX + (random.nextFloat() - 0.5f) * 15f;
-            float spawnY = chestY + 15f + random.nextFloat() * 5f; // Above chest
+            // Spawn from chest with wider spread
+            float spawnX = chestX + (random.nextFloat() - 0.5f) * 40f;
+            float spawnY = chestY + 15f + random.nextFloat() * 15f; // Varied height
             
-            coinParticles.add(new CoinParticle(spawnX, spawnY, vx, vy, life, size, isGold));
+            coinParticles.add(new CoinParticle(spawnX, spawnY, vx, vy, life, size, coinType));
         }
     }
     
@@ -624,6 +724,8 @@ public class GachaSystem {
         // 4. Render coin particles (casino effect - render first so they appear behind frame)
         renderCoinParticles();
         
+        // 4.5. Snake rays removed - design looked bad
+        
         // 5. Render particles
         renderParticles();
         
@@ -654,25 +756,92 @@ public class GachaSystem {
     private void renderCoinParticles() {
         if (coinParticles.isEmpty()) return;
         
+        // Load gold and silver textures if not loaded
+        if (!GameApp.hasTexture("gold_coin")) {
+            try { GameApp.addTexture("gold_coin", "assets/ui/gold.png"); } catch (Exception e) {}
+        }
+        if (!GameApp.hasTexture("silver_coin")) {
+            try { GameApp.addTexture("silver_coin", "assets/ui/silver.png"); } catch (Exception e) {}
+        }
+        
+        // First pass: Draw shape-based coins (types 0 and 1)
         GameApp.startShapeRenderingFilled();
         for (CoinParticle coin : coinParticles) {
+            if (coin.coinType > 1) continue; // Skip texture coins
+            
             int alpha = (int)(255 * coin.alpha);
             
-            // Gold or silver coin color
-            if (coin.isGold) {
+            // Gold or silver coin color based on coinType
+            if (coin.coinType == 0) {
                 // Gold coin (bright yellow)
                 GameApp.setColor(255, 215, 0, alpha);
             } else {
                 // Silver coin (muted gray, lighter)
-                GameApp.setColor(192, 192, 200, (int)(alpha * 0.7f)); // Muted, 70% opacity
+                GameApp.setColor(192, 192, 200, (int)(alpha * 0.7f));
             }
             
-            // Draw coin as rotated rectangle (simple circle approximation)
+            // Draw coin as overlapping rectangles (simple coin shape)
             float halfSize = coin.size / 2f;
-            // Simple circle using 4 overlapping rectangles (cheap rotation effect)
             GameApp.drawRect(coin.x - halfSize, coin.y - halfSize/2, coin.size, halfSize);
             GameApp.drawRect(coin.x - halfSize/2, coin.y - halfSize, halfSize, coin.size);
         }
+        GameApp.endShapeRendering();
+        
+        // Second pass: Draw texture-based coins (types 2 and 3) WITH ROTATION
+        GameApp.startSpriteRendering();
+        for (CoinParticle coin : coinParticles) {
+            if (coin.coinType < 2) continue; // Skip shape coins
+            
+            String textureKey = (coin.coinType == 2) ? "gold_coin" : "silver_coin";
+            if (GameApp.hasTexture(textureKey)) {
+                float halfSize = coin.size / 2f;
+                // Draw with rotation for spinning coin effect
+                GameApp.drawTexture(textureKey, coin.x - halfSize, coin.y - halfSize, 
+                    coin.size, coin.size, coin.rotation, false, false);
+            }
+        }
+        GameApp.endSpriteRendering();
+    }
+    
+    /**
+     * Render snake rays - white rays that circle around the beam in semicircle pattern
+     * Like snakes undulating around the blue pillar
+     */
+    private void renderSnakeRays() {
+        if (snakeRays.isEmpty()) return;
+        
+        float beamCenterX = chestX;
+        float beamTop = innerFrameY + innerFrameHeight;
+        float beamHeight = beamTop - chestY;
+        float beamCenterY = chestY + beamHeight / 2f;
+        
+        GameApp.startShapeRenderingFilled();
+        
+        for (SnakeRay ray : snakeRays) {
+            // Calculate position on semicircle around beam
+            float angleRad = (float) Math.toRadians(ray.angle);
+            
+            // Snake undulation - rays move up and down while circling
+            float snakeY = beamCenterY + ray.yOffset;
+            
+            // Position on circle around beam center
+            float rayX = beamCenterX + (float) Math.cos(angleRad) * ray.amplitude;
+            float rayY = snakeY + (float) Math.sin(angleRad * 2f) * 30f; // Extra vertical undulation
+            
+            // Draw white ray (glow effect with multiple sizes)
+            // Outer glow
+            GameApp.setColor(255, 255, 255, 60);
+            GameApp.drawRect(rayX - ray.length/2, rayY - 4f, ray.length, 8f);
+            
+            // Inner bright
+            GameApp.setColor(255, 255, 255, 180);
+            GameApp.drawRect(rayX - ray.length/2 + 5f, rayY - 2f, ray.length - 10f, 4f);
+            
+            // Core white
+            GameApp.setColor(255, 255, 255, 255);
+            GameApp.drawRect(rayX - ray.length/2 + 10f, rayY - 1f, ray.length - 20f, 2f);
+        }
+        
         GameApp.endShapeRendering();
     }
     
@@ -1070,8 +1239,6 @@ public class GachaSystem {
         if (soundManager != null && wasMusicPlaying) {
             soundManager.playIngameMusic(true);
         }
-        
-        GameApp.log("Gacha closed");
     }
     
     public boolean isActive() {

@@ -187,29 +187,31 @@ public class WeaponUpgrade {
     // ============================================
     
     public static final String EVOLUTION_NAME = "Death Spiral";
-    public static final String EVOLUTION_DESCRIPTION = "8 rotating bullets, infinite pierce, 10% lifesteal";
+    public static final String EVOLUTION_DESCRIPTION = "16 rotating bullets, infinite pierce, 10% lifesteal";
     public static final String EVOLUTION_ICON = "💀";
     
     /**
      * Get evolved weapon bullet count.
+     * BUFFED: 16 bullets (was 8) to match full upgrade multi-shot power
      */
     public static int getEvolvedBulletCount() {
-        return 8;
+        return 16; // More bullets for devastating damage (was 8)
     }
     
     /**
      * Get evolved weapon fire rate multiplier.
-     * NERFED: Slower than before (was 3.0f, now 1.5f)
+     * BUFFED: Faster fire rate to compete with full upgrade
      */
     public static float getEvolvedFireRateMultiplier() {
-        return 1.5f; // Slower fire rate (nerfed from 3.0)
+        return 2.0f; // Faster fire rate (was 1.5f)
     }
     
     /**
      * Get evolved weapon damage multiplier.
+     * BUFFED: Higher damage per bullet to shred minibosses
      */
     public static float getEvolvedDamageMultiplier() {
-        return 3.0f; // +200% damage (3.0x) - devastating!!
+        return 4.5f; // +350% damage (4.5x) - much more devastating!
     }
     
     /**

@@ -12,10 +12,12 @@ package nl.saxion.game.entities;
 public class LevelUpOption {
 
     public enum Type { 
-        STAT,      // Basic stat upgrade
-        WEAPON,    // Weapon level upgrade
-        PASSIVE,   // Passive item upgrade/acquisition
-        EVOLUTION  // Weapon evolution
+        STAT,           // Basic stat upgrade
+        WEAPON,         // Weapon level upgrade
+        PASSIVE,        // Passive item upgrade/acquisition
+        EVOLUTION,      // Weapon evolution
+        BONUS_POINTS,   // Post-evolution: random points per level
+        BONUS_HEALTH    // Post-evolution: +25 HP per level
     }
 
     public final Type type;
@@ -126,28 +128,70 @@ public class LevelUpOption {
      * Constructor for EVOLUTION option.
      */
     public static LevelUpOption createEvolutionOption() {
-        return new LevelUpOption(true); // Use private constructor
+        return new LevelUpOption(Type.EVOLUTION);
     }
     
-    // Private constructor for evolution
-    private LevelUpOption(boolean isEvolution) {
-        this.type = Type.EVOLUTION;
-        this.title = WeaponUpgrade.EVOLUTION_NAME;
-        this.description = "Ultimate form!";
-        this.previewText = "EVOLVE YOUR WEAPON!";
-        this.icon = "pistonevo"; // Use evolved piston texture
-        this.themeRGB = new int[]{148, 0, 211}; // Purple
-        this.themeTextColor = "purple-500";
+    /**
+     * Create BONUS_POINTS option (post-evolution: random points per level).
+     */
+    public static LevelUpOption createBonusPointsOption() {
+        return new LevelUpOption(Type.BONUS_POINTS);
+    }
+    
+    /**
+     * Create BONUS_HEALTH option (post-evolution: +25 HP per level).
+     */
+    public static LevelUpOption createBonusHealthOption() {
+        return new LevelUpOption(Type.BONUS_HEALTH);
+    }
+    
+    // Private constructor for special types (evolution, bonus)
+    private LevelUpOption(Type specialType) {
+        this.type = specialType;
         
-        // Not used for EVOLUTION
+        switch (specialType) {
+            case EVOLUTION:
+                this.title = WeaponUpgrade.EVOLUTION_NAME;
+                this.description = "Ultimate form!";
+                this.previewText = "EVOLVE YOUR WEAPON!";
+                this.icon = "pistonevo"; // Use evolved piston texture
+                this.themeRGB = new int[]{148, 0, 211}; // Purple
+                this.themeTextColor = "purple-500";
+                break;
+            case BONUS_POINTS:
+                this.title = "Random Points";
+                this.description = "Get random points each level up";
+                this.previewText = "+50-200 points per level!";
+                this.icon = "star"; // Use star.png
+                this.themeRGB = new int[]{255, 215, 0}; // Gold
+                this.themeTextColor = "yellow-500";
+                break;
+            case BONUS_HEALTH:
+                this.title = "+25 Health";
+                this.description = "Gain 25 HP each level up";
+                this.previewText = "+25 HP per level!";
+                this.icon = "chicken"; // Use chicken.png
+                this.themeRGB = new int[]{255, 99, 71}; // Tomato/Red
+                this.themeTextColor = "red-400";
+                break;
+            default:
+                this.title = "Unknown";
+                this.description = "";
+                this.previewText = "";
+                this.icon = "";
+                this.themeRGB = new int[]{255, 255, 255};
+                this.themeTextColor = "white";
+        }
+        
+        // Not used for special types
         this.stat = null;
         this.currentLevel = 0;
         this.nextLevel = 0;
         this.passiveItem = null;
         this.passiveCurrentLevel = 0;
         this.passiveNextLevel = 0;
-        this.weaponCurrentLevel = WeaponUpgrade.WEAPON_MAX_LEVEL;
-        this.weaponNextLevel = WeaponUpgrade.WEAPON_MAX_LEVEL;
+        this.weaponCurrentLevel = (specialType == Type.EVOLUTION) ? WeaponUpgrade.WEAPON_MAX_LEVEL : 0;
+        this.weaponNextLevel = (specialType == Type.EVOLUTION) ? WeaponUpgrade.WEAPON_MAX_LEVEL : 0;
     }
 
     // ============================================

@@ -32,17 +32,17 @@ public class EnemySpawner {
     private static final float WAVE_DURATION = 60f; // 1 wave = 1 minute
     
     // Wave minimum/maximum (scales per wave)
-    private int waveMinimum = 50;  // If below this, spawn faster (increased)
-    private int waveMaximum = 300; // Soft cap for this wave (increased for massive hordes)
+    private int waveMinimum = 15;  // Start with fewer zombies (was 80)
+    private int waveMaximum = 400; // Soft cap for this wave
     
     // === SPAWN TIMERS ===
     private float enemySpawnTimer = 0f;
-    private float baseSpawnInterval = 0.6f;
-    private float currentSpawnInterval = 0.6f;
+    private float baseSpawnInterval = 0.5f; // Slower base spawn rate for easier start (was 0.15f)
+    private float currentSpawnInterval = 0.5f;
     
-    // === BASE STATS ===
-    private float enemyBaseSpeed = 30f; // Reduced from 35 for easier gameplay
-    private int enemyBaseHealth = 12;
+    // === BASE STATS (balanced for quick kills) ===
+    private float enemyBaseSpeed = 35f; // Slightly faster zombies
+    private int enemyBaseHealth = 25; // Balanced: dies in ~1-2 seconds with basic weapon
     
     // === STAMPEDE SYSTEM ===
     private List<StampedeZombie> stampedeZombies = new ArrayList<>();
@@ -152,15 +152,18 @@ public class EnemySpawner {
     }
     
     private void onNewWave(int wave) {
-        // Update wave minimum/maximum based on wave number
-        // Wave 1: min 30, max 150
-        // Wave 5: min 80, max 250
-        // Wave 10: min 150, max 350
-        waveMinimum = 30 + (wave * 12);
-        waveMaximum = 150 + (wave * 25);
+        // Update wave minimum/maximum based on wave number - EXPONENTIAL SCALING
+        // Wave 1: min 80, max 200
+        // Wave 5: min 200, max 400
+        // Wave 10: min 400, max 500
+        // Using exponential formula: base * (1.25 ^ wave)
+        float expMultiplier = (float) Math.pow(1.25f, wave);
+        waveMinimum = (int)(80 * expMultiplier);
+        waveMaximum = (int)(200 * expMultiplier);
+        waveMinimum = Math.min(waveMinimum, HARD_MAX_ENEMIES - 100);
         waveMaximum = Math.min(waveMaximum, HARD_MAX_ENEMIES);
         
-        GameApp.log("Wave " + wave + " started! Min: " + waveMinimum + ", Max: " + waveMaximum);
+        GameApp.log("Wave " + wave + " started! Min: " + waveMinimum + ", Max: " + waveMaximum + " (exp: " + expMultiplier + "x)");
     }
     
     private void spawnNormalEnemies(float delta, float gameTime, float playerWorldX, float playerWorldY,
@@ -172,35 +175,55 @@ public class EnemySpawner {
             return;
         }
         
-        // EXPONENTIAL SCALING from minute 4 onwards (240 seconds)
-        // This creates MASSIVE hordes for 20k-100k kills per game
+        // === GRADUAL DIFFICULTY SCALING ===
+        // Minutes 0-1: Very easy (few zombies)
+        // Minutes 1-2: Easy (gradual increase)
+        // Minutes 2+: Normal scaling with exponential growth
+        
+        float minutes = gameTime / 60f;
+        float earlyGameMultiplier = 1.0f;
         float exponentialMultiplier = 1.0f;
-        if (gameTime >= 240f) { // After minute 4
-            float minutesPast4 = (gameTime - 240f) / 60f;
-            // Exponential growth: 1.5^minutes past minute 4
-            exponentialMultiplier = (float) Math.pow(1.8f, minutesPast4);
-            exponentialMultiplier = Math.min(exponentialMultiplier, 15f); // Cap at 15x
+        
+        if (gameTime < 60f) {
+            // First minute: Very slow start (20% to 50% spawn rate)
+            earlyGameMultiplier = 0.2f + (gameTime / 60f) * 0.3f; // 0.2 -> 0.5
+        } else if (gameTime < 120f) {
+            // Second minute: Gradual ramp up (50% to 100%)
+            earlyGameMultiplier = 0.5f + ((gameTime - 60f) / 60f) * 0.5f; // 0.5 -> 1.0
+        } else if (gameTime < 300f) {
+            // Minutes 2-5: Normal exponential growth
+            float minutesPast2 = (gameTime - 120f) / 60f;
+            exponentialMultiplier = (float) Math.pow(1.8f, minutesPast2);
+            exponentialMultiplier = Math.min(exponentialMultiplier, 20f);
+        } else {
+            // After minute 5: AGGRESSIVE spawning for higher difficulty
+            float minutesPast2 = (gameTime - 120f) / 60f;
+            exponentialMultiplier = (float) Math.pow(2.2f, minutesPast2); // Much faster growth
+            exponentialMultiplier = Math.min(exponentialMultiplier, 35f); // Higher cap
         }
         
-        // Dynamic wave minimum based on time
-        int dynamicWaveMinimum = (int)(waveMinimum * exponentialMultiplier);
-        dynamicWaveMinimum = Math.min(dynamicWaveMinimum, 400);
+        // Dynamic wave minimum based on time and multipliers
+        int dynamicWaveMinimum = (int)(waveMinimum * earlyGameMultiplier * exponentialMultiplier);
+        dynamicWaveMinimum = Math.max(dynamicWaveMinimum, 5); // At least 5 zombies
+        dynamicWaveMinimum = Math.min(dynamicWaveMinimum, 350);
         
         // Calculate spawn interval based on enemy count vs minimum
         if (currentEnemyCount < dynamicWaveMinimum) {
-            // Below minimum - spawn MUCH faster to fill quota
-            float deficit = (float)(dynamicWaveMinimum - currentEnemyCount) / dynamicWaveMinimum;
-            currentSpawnInterval = baseSpawnInterval * (0.1f + (1f - deficit) * 0.4f);
-            currentSpawnInterval = Math.max(currentSpawnInterval, 0.05f); // Minimum 0.05s (very fast!)
+            // Below minimum - spawn faster to fill quota
+            float deficit = (float)(dynamicWaveMinimum - currentEnemyCount) / Math.max(1, dynamicWaveMinimum);
+            currentSpawnInterval = baseSpawnInterval * (0.3f + (1f - deficit) * 0.5f) / earlyGameMultiplier;
+            currentSpawnInterval = Math.max(currentSpawnInterval, 0.1f); // Not too fast early game
         } else {
-            // Above minimum - faster spawn rate over time
-            currentSpawnInterval = baseSpawnInterval - (gameTime * 0.001f);
-            currentSpawnInterval = Math.max(currentSpawnInterval, 0.1f);
+            // Above minimum - slower spawn rate
+            currentSpawnInterval = baseSpawnInterval / earlyGameMultiplier;
+            currentSpawnInterval = Math.max(currentSpawnInterval, 0.15f);
         }
         
-        // Apply exponential multiplier to spawn rate
-        currentSpawnInterval = currentSpawnInterval / Math.max(1f, exponentialMultiplier * 0.3f);
-        currentSpawnInterval = Math.max(currentSpawnInterval, 0.03f); // Absolute minimum
+        // Apply exponential multiplier to spawn rate (only after minute 2)
+        if (gameTime >= 120f) {
+            currentSpawnInterval = currentSpawnInterval / Math.max(1f, exponentialMultiplier * 0.4f);
+            currentSpawnInterval = Math.max(currentSpawnInterval, 0.05f); // Faster spawn late game
+        }
         
         // Spawn timer
         enemySpawnTimer += delta;
@@ -209,16 +232,29 @@ public class EnemySpawner {
         }
         enemySpawnTimer = 0f;
         
-        // Calculate how many to spawn - MUCH more after minute 4
+        // Calculate how many to spawn - gradual increase
         int enemiesToSpawn;
         if (currentEnemyCount < dynamicWaveMinimum) {
-            // Below minimum - spawn more at once
+            // Below minimum - spawn to fill quota
             int deficit = dynamicWaveMinimum - currentEnemyCount;
-            enemiesToSpawn = Math.min(deficit / 3 + 5, 25); // Spawn 5-25 based on deficit
+            if (gameTime < 60f) {
+                // First minute: spawn 1-3 at a time
+                enemiesToSpawn = Math.min(deficit / 3 + 1, 3);
+            } else if (gameTime < 120f) {
+                // Second minute: spawn 2-8 at a time
+                enemiesToSpawn = Math.min(deficit / 2 + 2, 8);
+            } else {
+                // After minute 2: spawn more aggressively
+                enemiesToSpawn = Math.min(deficit / 2 + 10, 50);
+            }
         } else {
-            // Normal spawning based on wave + exponential
-            enemiesToSpawn = (int)((3 + currentWave) * Math.max(1f, exponentialMultiplier * 0.5f));
-            enemiesToSpawn = Math.min(enemiesToSpawn, 30);
+            // Normal spawning - scales with wave and time
+            if (gameTime < 120f) {
+                enemiesToSpawn = 1 + (int)(minutes); // 1-2 zombies at a time early
+            } else {
+                enemiesToSpawn = (int)((5 + currentWave * 2) * Math.max(1f, exponentialMultiplier * 0.5f));
+                enemiesToSpawn = Math.min(enemiesToSpawn, 60);
+            }
         }
         
         for (int i = 0; i < enemiesToSpawn; i++) {
@@ -234,14 +270,37 @@ public class EnemySpawner {
             float spawnX = spawnPos[0];
             float spawnY = spawnPos[1];
             
-            // Stats scaling
-            float healthMult = 1f + (gameTime * 0.002f);
-            float speedMult = 1f + (gameTime * 0.001f);
-            healthMult = GameApp.clamp(healthMult, 1f, 2.5f);
-            speedMult = GameApp.clamp(speedMult, 1f, 1.6f);
+            // Stats scaling - EASY early game, ramps up after minute 3
+            // First 3 minutes: reduced health for easy leveling
+            // After minute 3: exponential health scaling kicks in
+            float healthMult;
+            float speedMult;
+            
+            if (minutes < 1f) {
+                // First minute: 50% health, normal speed
+                healthMult = 0.5f;
+                speedMult = 1f;
+            } else if (minutes < 2f) {
+                // Second minute: 60% health, normal speed
+                healthMult = 0.6f;
+                speedMult = 1f;
+            } else if (minutes < 3f) {
+                // Third minute: 75% health, slight speed increase
+                healthMult = 0.75f;
+                speedMult = 1.05f;
+            } else {
+                // After minute 3: exponential scaling kicks in
+                float minutesPast3 = minutes - 3f;
+                healthMult = (float) Math.pow(1.1f, minutesPast3); // 10% per minute after minute 3
+                healthMult = Math.min(healthMult, 6f); // Cap at 6x
+                // Speed increases 5% per minute for more challenge (was 3%)
+                speedMult = 1f + (minutesPast3 * 0.05f); // 5% per minute after minute 3
+                speedMult = Math.min(speedMult, 1.8f); // Cap at 1.8x speed (was 1.4x)
+            }
             
             float speed = enemyBaseSpeed * speedMult;
             int health = (int)(enemyBaseHealth * healthMult);
+            health = Math.max(health, 10); // Minimum 10 HP
             
             enemies.add(new Enemy(spawnX, spawnY, speed, health));
         }
@@ -344,8 +403,9 @@ public class EnemySpawner {
             return;
         }
         
-        // Don't spawn too many stampede zombies
-        if (stampedeZombies.size() > 30) {
+        // Don't spawn too many stampede zombies (higher limit after minute 5)
+        int maxStampedeZombies = (gameTime >= 300f) ? 150 : 50;
+        if (stampedeZombies.size() > maxStampedeZombies) {
             return;
         }
         
@@ -353,10 +413,17 @@ public class EnemySpawner {
         float cooldown = GameApp.random(STAMPEDE_MIN_COOLDOWN, STAMPEDE_MAX_COOLDOWN);
         nextStampedeTime = gameTime + cooldown;
         
-        // Spawn stampede horde
-        spawnStampedeHorde(playerX, playerY, gameTime);
+        // After minute 5 (300s): spawn multiple stampedes at once (2-5 hordes)
+        int numHordes = 1;
+        if (gameTime >= 300f) {
+            numHordes = 2 + (int)(Math.random() * 4); // 2-5 hordes
+            GameApp.log("=== MULTI-STAMPEDE! Spawning " + numHordes + " hordes ===");
+        }
         
-        GameApp.log("STAMPEDE spawned at " + gameTime + "s! Next possible at " + nextStampedeTime + "s");
+        for (int h = 0; h < numHordes; h++) {
+            spawnStampedeHorde(playerX, playerY, gameTime);
+        }
+        
     }
     
     private void spawnStampedeHorde(float playerX, float playerY, float gameTime) {
@@ -415,9 +482,12 @@ public class EnemySpawner {
                 break;
         }
         
-        // Speed: 3x faster than normal zombies - VERY FAST!
-        float speed = enemyBaseSpeed * 3.0f; // Triple speed - extremely fast!
-        int health = (int)(6 + gameTime * 0.01f); // Lower health than normal
+        // Speed: 5x faster than normal zombies - EXTREMELY FAST! (was 2.5x, now 2x faster = 5x)
+        float speed = enemyBaseSpeed * 5f; // Very fast stampede zombies
+        // Stampede health - lower than normal zombies (they're fast obstacles)
+        float minutes = gameTime / 60f;
+        float healthExpMult = (float) Math.pow(1.05f, minutes); // 5% per minute (gentle)
+        int health = (int)((15 + minutes * 2f) * healthExpMult); // Base 15 HP, scales slowly
         
         // Spawn horde in TIGHT ellipse formation - compact and dense
         // Smaller ellipse = tighter pack of zombies rushing together
@@ -458,8 +528,8 @@ public class EnemySpawner {
         enemySpawnTimer = 0f;
         currentSpawnInterval = baseSpawnInterval;
         currentWave = 0;
-        waveMinimum = 30;
-        waveMaximum = 150;
+        waveMinimum = 80;
+        waveMaximum = 400;
         stampedeZombies.clear();
         nextStampedeTime = 0f;
     }

@@ -233,8 +233,10 @@ public class SettingsScreen extends ScalableGameScreen {
                     "yellow-400", 0f, "black", 3, 3, "gray-700", true);
         }
         
-        // Load smaller font for tab labels - force reload with larger size
-        GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 24);
+        // Load smaller font for tab labels - only if not already loaded
+        if (!GameApp.hasFont(SETTINGS_FONT_SMALL)) {
+            GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 24);
+        }
         
         // Load toggle button textures
         if (!GameApp.hasTexture("green_toggle")) {

@@ -72,8 +72,6 @@ public class LeaderboardManager {
         
         // Save to file
         saveLeaderboard();
-        
-        GameApp.log("Leaderboard entry added: " + entry.toString());
     }
     
     /**
@@ -171,11 +169,9 @@ public class LeaderboardManager {
             // Sort entries after loading
             Collections.sort(entries);
             
-            GameApp.log("Leaderboard loaded: " + entries.size() + " entries");
             loaded = true;
             
         } catch (Exception e) {
-            GameApp.log("Error loading leaderboard: " + e.getMessage());
             loaded = true;
         }
     }
@@ -220,7 +216,6 @@ public class LeaderboardManager {
             }
             
         } catch (Exception e) {
-            GameApp.log("Error parsing leaderboard JSON: " + e.getMessage());
         }
     }
     
@@ -315,8 +310,6 @@ public class LeaderboardManager {
             bw.flush();
             bw.close();
             fw.close();
-            
-            GameApp.log("Leaderboard saved: " + entries.size() + " entries");
             
         } catch (IOException e) {
             GameApp.log("Error saving leaderboard: " + e.getMessage());
