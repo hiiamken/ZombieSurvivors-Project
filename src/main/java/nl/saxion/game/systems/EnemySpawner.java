@@ -449,12 +449,12 @@ public class EnemySpawner {
     }
     
     private void spawnStampedeHorde(float playerX, float playerY, float gameTime) {
-        // Horde size: 250-400 zombies (10x increase) with exponential scaling
+        // Balanced horde size for performance
         float minutes = gameTime / 60f;
-        float expScale = (float) Math.pow(1.3f, Math.max(0, minutes - 2f)); // Exponential after minute 2
-        int baseSize = 250 + (int)(Math.random() * 151); // 250-400 base
+        float expScale = (float) Math.pow(1.2f, Math.max(0, minutes - 2f)); // Gentle exponential
+        int baseSize = 120 + (int)(Math.random() * 81); // 120-200 base (balanced)
         int hordeSize = (int)(baseSize * expScale);
-        hordeSize = Math.min(hordeSize, 800); // Cap at 800
+        hordeSize = Math.min(hordeSize, 400); // Cap at 400 for performance
         
         // Pick random direction toward player (8 directions: N, S, E, W, NE, NW, SE, SW)
         int dirType = (int)(Math.random() * 8);
@@ -635,18 +635,18 @@ public class EnemySpawner {
     private void spawnCirclePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // MASSIVE zombie count for spectacular visual effect
-        float expScale = (float) Math.pow(2.0f, Math.max(0, minutes - 4f)); // Very strong exponential
-        int baseCount = 500 + (int)(Math.random() * 300); // 500-800 base (much higher)
+        // Balanced zombie count for visual impact WITHOUT TPS drops
+        float expScale = (float) Math.pow(1.5f, Math.max(0, minutes - 4f)); // Moderate exponential
+        int baseCount = 200 + (int)(Math.random() * 150); // 200-350 base (balanced)
         
         // Additional multiplier for late game (after minute 6)
         if (minutes >= 6f) {
-            float lateGameBonus = 1f + (minutes - 6f) * 0.7f; // +70% per minute after 6
+            float lateGameBonus = 1f + (minutes - 6f) * 0.4f; // +40% per minute after 6
             baseCount = (int)(baseCount * lateGameBonus);
         }
         
         int zombieCount = (int)(baseCount * expScale);
-        zombieCount = Math.min(zombieCount, 2000); // Cap at 2000 (much higher for visual impact)
+        zombieCount = Math.min(zombieCount, 800); // Cap at 800 for performance
         
         // Multiple concentric circles for spectacular visual
         int circleCount = 3; // 3 circles at different radii
@@ -696,11 +696,11 @@ public class EnemySpawner {
     private void spawnWavePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // Much larger waves with exponential scaling
-        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
-        int waveCount = (int)(5 * Math.min(4f, expScale)); // 5 to 20 rows (increased)
-        int zombiesPerWave = (int)((200 + (int)(Math.random() * 150)) * expScale); // 200-350 per row (doubled)
-        zombiesPerWave = Math.min(zombiesPerWave, 500); // Cap per wave (increased)
+        // Balanced waves for performance
+        float expScale = (float) Math.pow(1.5f, Math.max(0, minutes - 4f)); // Moderate exponential
+        int waveCount = (int)(5 * Math.min(3f, expScale)); // 5 to 15 rows (balanced)
+        int zombiesPerWave = (int)((120 + (int)(Math.random() * 80)) * expScale); // 120-200 per row (balanced)
+        zombiesPerWave = Math.min(zombiesPerWave, 300); // Cap per wave (balanced)
         
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
@@ -745,10 +745,10 @@ public class EnemySpawner {
     private void spawnSpiralPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // Much denser spiral with exponential scaling
-        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
-        int zombieCount = (int)((500 + (int)(Math.random() * 300)) * expScale); // 500-800 base (increased)
-        zombieCount = Math.min(zombieCount, 1500); // Cap at 1500 (increased)
+        // Balanced spiral for performance
+        float expScale = (float) Math.pow(1.5f, Math.max(0, minutes - 4f)); // Moderate exponential
+        int zombieCount = (int)((300 + (int)(Math.random() * 150)) * expScale); // 300-450 base (balanced)
+        zombieCount = Math.min(zombieCount, 900); // Cap at 900 (balanced)
         
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
@@ -786,10 +786,10 @@ public class EnemySpawner {
     private void spawnAmbushPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // Much larger ambush with exponential scaling
-        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
-        int zombieCount = (int)((200 + (int)(Math.random() * 150)) * expScale); // 200-350 base (increased)
-        zombieCount = Math.min(zombieCount, 800); // Cap at 800 (doubled)
+        // Balanced ambush for performance
+        float expScale = (float) Math.pow(1.5f, Math.max(0, minutes - 4f)); // Moderate exponential
+        int zombieCount = (int)((120 + (int)(Math.random() * 80)) * expScale); // 120-200 base (balanced)
+        zombieCount = Math.min(zombieCount, 500); // Cap at 500 (balanced)
         
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth * 0.7f + minutes * 2f) * healthMult); // Weaker but close
@@ -827,10 +827,10 @@ public class EnemySpawner {
     private void spawnBossEscortPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // Much larger escort with exponential scaling
-        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
-        int escortCount = (int)((300 + (int)(Math.random() * 200)) * expScale); // 300-500 base (doubled)
-        escortCount = Math.min(escortCount, 1000); // Cap at 1000 (increased)
+        // Balanced escort for performance
+        float expScale = (float) Math.pow(1.5f, Math.max(0, minutes - 4f)); // Moderate exponential
+        int escortCount = (int)((180 + (int)(Math.random() * 120)) * expScale); // 180-300 base (balanced)
+        escortCount = Math.min(escortCount, 600); // Cap at 600 (balanced)
         
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth * 1.5f + minutes * 4f) * healthMult); // Tankier escorts
