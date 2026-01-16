@@ -8,9 +8,9 @@ package nl.saxion.game.entities;
  * - RED: Special, spawns only when killing miniboss - highest XP
  */
 public enum OrbType {
-    BLUE("orb_blue", 5),      // Common orb, 5 XP (lowest)
-    GREEN("orb_green", 15),   // Rare orb, 15 XP (medium)
-    RED("orb_red", 50);       // Miniboss orb, 50 XP (highest)
+    BLUE("orb_blue", 3),      // Common orb, 3 XP (lowest) - reduced from 5
+    GREEN("orb_green", 10),   // Rare orb, 10 XP (medium) - reduced from 15
+    RED("orb_red", 35);       // Miniboss orb, 35 XP (highest) - reduced from 50
     
     private final String textureName;
     private final int xpValue;

@@ -187,7 +187,7 @@ public class WeaponUpgrade {
     // ============================================
     
     public static final String EVOLUTION_NAME = "Death Spiral";
-    public static final String EVOLUTION_DESCRIPTION = "16 rotating bullets, infinite pierce, 10% lifesteal";
+    public static final String EVOLUTION_DESCRIPTION = "16 bullets, infinite pierce, lifesteal";
     public static final String EVOLUTION_ICON = "💀";
     
     /**

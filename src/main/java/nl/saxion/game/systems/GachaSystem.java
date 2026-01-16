@@ -325,22 +325,22 @@ public class GachaSystem {
     }
     
     /**
-     * Calculate random points based on item rarity (balanced)
+     * Calculate random points based on item rarity (1000-9999 range)
      */
     private int calculateRandomPoints(GachaItem item) {
-        int basePoints = 50;
+        int basePoints = 1000;
         
         switch (item.rarity) {
             case COMMON:
-                return basePoints + random.nextInt(50); // 50-100
+                return basePoints + random.nextInt(1000); // 1000-2000
             case UNCOMMON:
-                return basePoints * 2 + random.nextInt(100); // 100-200
+                return basePoints + 1000 + random.nextInt(1500); // 2000-3500
             case RARE:
-                return basePoints * 3 + random.nextInt(150); // 150-300
+                return basePoints + 2500 + random.nextInt(2000); // 3500-5500
             case EPIC:
-                return basePoints * 5 + random.nextInt(250); // 250-500
+                return basePoints + 4500 + random.nextInt(2500); // 5500-8000
             case LEGENDARY:
-                return basePoints * 10 + random.nextInt(500); // 500-1000
+                return basePoints + 7000 + random.nextInt(2000); // 8000-10000 (capped at 9999)
             default:
                 return basePoints;
         }
@@ -385,6 +385,8 @@ public class GachaSystem {
         // Pre-select result
         selectedItem = selectRandomItem();
         randomPoints = calculateRandomPoints(selectedItem);
+        // Cap at 9999
+        if (randomPoints > 9999) randomPoints = 9999;
         finalPoints = randomPoints; // Store final points
         
         // Find selected item index
@@ -566,22 +568,30 @@ public class GachaSystem {
     }
     
     private void createBeamParticles() {
-        for (int i = 0; i < 40; i++) {
-            float angle = -90f + (random.nextFloat() - 0.5f) * 30f;
-            float speed = 200f + random.nextFloat() * 300f;
+            // Create more particles for denser, more beautiful beam effect
+        for (int i = 0; i < 60; i++) {
+            float angle = -90f + (random.nextFloat() - 0.5f) * 25f;
+            float speed = 250f + random.nextFloat() * 350f;
             float vx = (float)Math.cos(Math.toRadians(angle)) * speed;
-            float vy = (float)Math.sin(Math.toRadians(angle)) * speed + 300f;
+            float vy = (float)Math.sin(Math.toRadians(angle)) * speed + 400f; // Faster upward
             
-            int[][] colors = {{100, 150, 255}, {150, 200, 255}, {200, 230, 255}}; // Blue tones
+            // More varied cyan/blue tones for depth
+            int[][] colors = {
+                {80, 180, 255},   // Deep cyan
+                {120, 200, 255},  // Bright cyan
+                {160, 220, 255},  // Light cyan
+                {200, 240, 255},  // Very light cyan
+                {100, 150, 255}   // Blue-cyan
+            };
             int[] c = colors[random.nextInt(colors.length)];
             
             particles.add(new Particle(
-                chestX + (random.nextFloat() - 0.5f) * 20f,
+                chestX + (random.nextFloat() - 0.5f) * 30f,
                 chestY + 15f,
                 vx, vy,
-                1f + random.nextFloat() * 1.5f,
+                1.2f + random.nextFloat() * 1.8f, // Longer life
                 c[0], c[1], c[2],
-                4f + random.nextFloat() * 5f
+                3f + random.nextFloat() * 6f // Varied sizes
             ));
         }
     }
@@ -917,29 +927,41 @@ public class GachaSystem {
     private void renderBeamRise() {
         GameApp.startShapeRenderingFilled();
         
-        // Blue beam shooting up from chest
+        // Cyan beam shooting up from chest with smooth easing
         float beamProgress = stateTimer / BEAM_DURATION;
-        float beamWidth = 45f;
-        float beamHeight = (innerFrameHeight * 0.6f) * beamProgress; // Up to 60% of frame height
+        float easedProgress = easeOutCubic(beamProgress); // Smooth acceleration
+        float beamWidth = 50f;
+        float beamHeight = (innerFrameHeight * 0.65f) * easedProgress;
         float beamY = chestY;
         
-        // Beam gradient (lighter at top)
-        GameApp.setColor(100, 150, 255, 200); // Bright blue
+        // Multi-layer beam for depth and glow
+        // Outer glow layer (widest, most transparent)
+        GameApp.setColor(80, 180, 255, 80);
+        GameApp.drawRect(chestX - beamWidth * 0.7f, beamY, beamWidth * 1.4f, beamHeight);
+        
+        // Middle layer (bright cyan)
+        GameApp.setColor(100, 200, 255, 160);
         GameApp.drawRect(chestX - beamWidth/2, beamY, beamWidth, beamHeight);
         
-        GameApp.setColor(150, 200, 255, 150); // Lighter blue center
-        GameApp.drawRect(chestX - beamWidth/4, beamY, beamWidth/2, beamHeight);
+        // Inner bright layer
+        GameApp.setColor(140, 220, 255, 200);
+        GameApp.drawRect(chestX - beamWidth/3, beamY, beamWidth * 0.66f, beamHeight);
         
-        // Bright center at chest
-        GameApp.setColor(200, 230, 255, 180);
-        float centerSize = 30f + 10f * beamProgress;
+        // Core white-cyan center (brightest)
+        GameApp.setColor(200, 240, 255, 220);
+        GameApp.drawRect(chestX - beamWidth/6, beamY, beamWidth/3, beamHeight);
+        
+        // Pulsing bright center at chest origin
+        float pulse = (float)Math.sin(stateTimer * 8f) * 0.3f + 0.7f; // Pulse effect
+        GameApp.setColor(220, 250, 255, (int)(200 * pulse));
+        float centerSize = 35f + 15f * easedProgress;
         GameApp.drawRect(chestX - centerSize/2, chestY - centerSize/2, centerSize, centerSize);
         
         GameApp.endShapeRendering();
         
         // Opened chest
         GameApp.startSpriteRendering();
-        float chestSize = 72f; // Larger chest
+        float chestSize = 72f;
         if (GameApp.hasTexture("chest_open_2")) {
             GameApp.drawTexture("chest_open_2", chestX - chestSize/2, chestY - chestSize/2, chestSize, chestSize);
         }
@@ -948,17 +970,33 @@ public class GachaSystem {
     
     private void renderItemsScroll() {
         float itemSpacing = 80f;
-        float iconSize = 36f; // Smaller icons to fit beam better
+        float iconSize = 36f;
         float scrollStartY = chestY + 80f;
-        float beamWidth = 45f;
+        float beamWidth = 50f;
         
-        // Draw blue beam (full height to top of frame)
+        // Draw enhanced cyan beam with pulsing celebration effect (sync with Final Result)
         GameApp.startShapeRenderingFilled();
-        float beamHeight = innerFrameY + innerFrameHeight - chestY; // Full height to top
-        GameApp.setColor(100, 150, 255, 180); // Blue beam
+        float beamHeight = innerFrameY + innerFrameHeight - chestY;
+        
+        // Pulsing effect for celebration (same as Final Result)
+        float pulse = (float)Math.sin(stateTimer * 4f) * 0.2f + 0.8f;
+        
+        // Outer glow (widest, pulsing)
+        GameApp.setColor(80, 180, 255, (int)(70 * pulse));
+        GameApp.drawRect(chestX - beamWidth * 0.7f, chestY, beamWidth * 1.4f, beamHeight);
+        
+        // Main beam layer (pulsing)
+        GameApp.setColor(100, 200, 255, (int)(150 * pulse));
         GameApp.drawRect(chestX - beamWidth/2, chestY, beamWidth, beamHeight);
-        GameApp.setColor(150, 200, 255, 120); // Lighter center
-        GameApp.drawRect(chestX - beamWidth/4, chestY, beamWidth/2, beamHeight);
+        
+        // Inner bright layer (pulsing)
+        GameApp.setColor(140, 220, 255, (int)(180 * pulse));
+        GameApp.drawRect(chestX - beamWidth/3, chestY, beamWidth * 0.66f, beamHeight);
+        
+        // Core bright center (pulsing)
+        GameApp.setColor(200, 240, 255, (int)(200 * pulse));
+        GameApp.drawRect(chestX - beamWidth/6, chestY, beamWidth/3, beamHeight);
+        
         GameApp.endShapeRendering();
         
         // Calculate beam center (middle of beam height)
@@ -1017,17 +1055,32 @@ public class GachaSystem {
         if (selectedItem == null) return;
         
         float centerX = innerFrameX + innerFrameWidth / 2f;
-        float beamWidth = 45f;
-        // Beam from chest to top of inner frame
+        float beamWidth = 50f;
         float beamTop = innerFrameY + innerFrameHeight;
-        float beamHeight = beamTop - chestY; // Full height from chest to top
+        float beamHeight = beamTop - chestY;
         
-        // Draw blue beam (keep it visible)
+        // Draw enhanced cyan beam with celebration glow
         GameApp.startShapeRenderingFilled();
-        GameApp.setColor(100, 150, 255, 180); // Blue beam
+        
+        // Pulsing effect for celebration
+        float pulse = (float)Math.sin(stateTimer * 4f) * 0.2f + 0.8f;
+        
+        // Outer glow (pulsing)
+        GameApp.setColor(80, 180, 255, (int)(90 * pulse));
+        GameApp.drawRect(chestX - beamWidth * 0.7f, chestY, beamWidth * 1.4f, beamHeight);
+        
+        // Main beam
+        GameApp.setColor(100, 200, 255, (int)(160 * pulse));
         GameApp.drawRect(chestX - beamWidth/2, chestY, beamWidth, beamHeight);
-        GameApp.setColor(150, 200, 255, 120); // Lighter center
-        GameApp.drawRect(chestX - beamWidth/4, chestY, beamWidth/2, beamHeight);
+        
+        // Inner bright layer
+        GameApp.setColor(140, 220, 255, (int)(190 * pulse));
+        GameApp.drawRect(chestX - beamWidth/3, chestY, beamWidth * 0.66f, beamHeight);
+        
+        // Core bright center
+        GameApp.setColor(200, 240, 255, (int)(210 * pulse));
+        GameApp.drawRect(chestX - beamWidth/6, chestY, beamWidth/3, beamHeight);
+        
         GameApp.endShapeRendering();
         
         // Calculate center of beam (where item should be)
@@ -1152,8 +1205,7 @@ public class GachaSystem {
             // Stop animation - show final integer value (no decimals)
             pointsText = String.valueOf((int) finalPoints);
         } else {
-            // Animate from 0 to finalPoints during scroll/reveal
-            // Calculate animation progress based on total animation time
+            // Casino-style rolling number animation during scroll/reveal
             float totalAnimTime = SCROLL_DURATION + REVEAL_DURATION;
             float currentAnimTime = 0f;
             
@@ -1166,11 +1218,22 @@ public class GachaSystem {
             // Progress from 0 to 1
             float progress = Math.min(1f, currentAnimTime / totalAnimTime);
             
-            // Animate from 0 to finalPoints (easing for nice effect)
-            float easedProgress = 1f - (float) Math.pow(1f - progress, 3f); // Ease out cubic
-            int animatedPoints = (int) (finalPoints * easedProgress);
-            
-            pointsText = String.valueOf(animatedPoints);
+            if (progress < 0.95f) {
+                // Casino rolling effect - random numbers flashing rapidly
+                int randomRoll = 1000 + random.nextInt(9000); // Random 1000-9999
+                
+                // Mix random with target value as we get closer
+                float easedProgress = 1f - (float) Math.pow(1f - progress, 2f);
+                int targetInfluence = (int) (finalPoints * easedProgress);
+                int displayValue = (int) (randomRoll * (1f - easedProgress) + targetInfluence * easedProgress);
+                
+                pointsText = String.valueOf(displayValue);
+            } else {
+                // Final approach - ease to final value smoothly
+                float finalEase = (progress - 0.95f) / 0.05f; // 0 to 1 in last 5%
+                int animatedPoints = (int) (finalPoints * (0.95f + finalEase * 0.05f));
+                pointsText = String.valueOf(animatedPoints);
+            }
         }
         
         // Use styled font for points

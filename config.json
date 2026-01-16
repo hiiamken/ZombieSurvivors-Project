@@ -1,6 +1,6 @@
 {
-  "masterVolume": 0.99,
-  "musicVolume": 0.78,
+  "masterVolume": 1.0,
+  "musicVolume": 0.88,
   "sfxVolume": 0.78,
   "keyMoveUp": 51,
   "keyMoveDown": 47,
@@ -8,6 +8,6 @@
   "keyMoveRight": 32,
   "keyShoot": 62,
   "debugEnabled": false,
-  "fullscreen": false,
+  "fullscreen": true,
   "showcaseMode": false
 }
