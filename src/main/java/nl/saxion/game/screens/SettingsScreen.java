@@ -227,16 +227,19 @@ public class SettingsScreen extends ScalableGameScreen {
             GameApp.addTexture("tab_1", "assets/ui/Tab_1.png");
         }
         
-        // Load custom font for settings screen title - styled like RANKS and CREDITS
-        if (!GameApp.hasFont(SETTINGS_FONT)) {
-            GameApp.addStyledFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 42,
-                    "yellow-400", 0f, "black", 3, 3, "gray-700", true);
+        // Load custom font for settings screen title - ALWAYS reload to prevent scaling issues
+        if (GameApp.hasFont(SETTINGS_FONT)) {
+            GameApp.disposeFont(SETTINGS_FONT);
         }
+        GameApp.addStyledFont(SETTINGS_FONT, "fonts/upheavtt.ttf", 42,
+                "yellow-400", 0f, "black", 3, 3, "gray-700", true);
         
-        // Load smaller font for tab labels - only if not already loaded
-        if (!GameApp.hasFont(SETTINGS_FONT_SMALL)) {
-            GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 24);
+        // Load smaller font for tab labels - ALWAYS reload to prevent scaling issues
+        // Font may get scaled incorrectly after returning from PlayScreen
+        if (GameApp.hasFont(SETTINGS_FONT_SMALL)) {
+            GameApp.disposeFont(SETTINGS_FONT_SMALL);
         }
+        GameApp.addFont(SETTINGS_FONT_SMALL, "fonts/PixelOperatorMono-Bold.ttf", 22);
         
         // Load toggle button textures
         if (!GameApp.hasTexture("green_toggle")) {

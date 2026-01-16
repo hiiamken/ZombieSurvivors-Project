@@ -106,4 +106,15 @@ public class XPOrb {
     public float getX() { return x; }
     
     public float getY() { return y; }
+    
+    /**
+     * Reset orb for object pooling reuse.
+     */
+    public void reset(float x, float y, OrbType orbType) {
+        this.x = x;
+        this.y = y;
+        this.orbType = orbType;
+        this.xpValue = orbType.getXpValue();
+        this.collected = false;
+    }
 }

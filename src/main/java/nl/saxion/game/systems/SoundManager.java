@@ -16,8 +16,13 @@ public class SoundManager {
     private Map<String, String> soundKeys;
     
     // Music keys
-    private static final String MENU_MUSIC_KEY = "bgm";  // Background music for menus
     private static final String WINNER_MUSIC_KEY = "winner_music";  // Victory music for winner screen
+    
+    // Menu music tracks (random selection, persists across screen changes)
+    private static final String[] MENU_MUSIC_KEYS = {"bgm", "bgm2", "bgm3"};
+    private static final String[] MENU_MUSIC_FILES = {"audio/background.mp3", "audio/background2.mp3", "audio/background3.mp3"};
+    private static int currentMenuTrackIndex = -1;  // -1 means not yet selected, static to persist across SoundManager instances
+    private static boolean menuMusicInitialized = false;  // Static flag to track if menu music was ever selected
     
     // Ingame music tracks (random selection per game, looped)
     private static final String[] INGAME_MUSIC_KEYS = {"ingame_music_1", "ingame_music_2", "ingame_music_3"};
@@ -53,19 +58,22 @@ public class SoundManager {
         loadSound("jackpot", "audio/jackpot.mp3"); // Gacha jackpot sound
         loadSound("meoww", "audio/meoww.mp3"); // Cat healing easter egg sound
         
-        // Load background music for menus (if available and not already loaded)
-        // CRITICAL: Only load if not already loaded to prevent music from being reset
-        if (!GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            try {
-                GameApp.addMusic(MENU_MUSIC_KEY, "audio/background.mp3");
-                if (GameApp.hasMusic(MENU_MUSIC_KEY)) {
-                    GameApp.log("Menu background music loaded successfully");
+        // Load all 3 menu background music tracks
+        for (int i = 0; i < MENU_MUSIC_KEYS.length; i++) {
+            String key = MENU_MUSIC_KEYS[i];
+            String file = MENU_MUSIC_FILES[i];
+            if (!GameApp.hasMusic(key)) {
+                try {
+                    GameApp.addMusic(key, file);
+                    if (GameApp.hasMusic(key)) {
+                        GameApp.log("Menu music track " + (i + 1) + " loaded: " + file);
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Warning: Could not load menu music " + file + ": " + e.getMessage());
                 }
-            } catch (Exception e) {
-                GameApp.log("Warning: Could not load menu background music: " + e.getMessage());
+            } else {
+                GameApp.log("Menu music track " + (i + 1) + " already loaded");
             }
-        } else {
-            GameApp.log("Menu background music already loaded, skipping reload");
         }
         
         // Load winner music (victory screen)
@@ -170,41 +178,33 @@ public class SoundManager {
     
     /**
      * Play menu background music with looping.
+     * Uses random track selection that persists across screen changes.
+     * Only changes track when: game starts, or returning from winner screen.
      * @param loop Whether to loop the music
      */
     public void playMenuMusic(boolean loop) {
-        if (!GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            GameApp.log("Menu music not loaded, cannot play");
-            return;
-        }
-        
         // Stop ingame music if playing
         stopIngameMusic();
         
-        // CRITICAL: Check if music is already playing BEFORE doing anything else
-        // This prevents music from restarting when switching between menu screens
-        try {
-            Music music = GameApp.getMusic(MENU_MUSIC_KEY);
-            if (music != null) {
-                boolean isCurrentlyPlaying = music.isPlaying();
-                GameApp.log("Menu music check: music exists, isPlaying=" + isCurrentlyPlaying);
-                
-                if (isCurrentlyPlaying) {
-                    // Music is already playing, just update volume if needed
-                    // Menu music volume is 10% of normal music volume
-                    float finalVolume = masterVolume * musicVolume * 0.1f;
-                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                    music.setVolume(finalVolume);
-                    isMenuMusicPlaying = true;
-                    GameApp.log("Menu music already playing, skipping restart (volume updated to " + finalVolume + ")");
-                    return; // CRITICAL: Return here to prevent restart
+        // Check if ANY menu music track is already playing - don't restart if so
+        for (int i = 0; i < MENU_MUSIC_KEYS.length; i++) {
+            String key = MENU_MUSIC_KEYS[i];
+            if (GameApp.hasMusic(key)) {
+                try {
+                    Music music = GameApp.getMusic(key);
+                    if (music != null && music.isPlaying()) {
+                        // Music is already playing, just update volume
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
+                        music.setVolume(finalVolume);
+                        isMenuMusicPlaying = true;
+                        GameApp.log("Menu music track " + (i + 1) + " already playing, skipping restart");
+                        return;
+                    }
+                } catch (Exception e) {
+                    // Ignore and continue checking
                 }
-            } else {
-                GameApp.log("Menu music object is null");
             }
-        } catch (Exception e) {
-            GameApp.log("Error checking if menu music is playing: " + e.getMessage());
-            e.printStackTrace();
         }
         
         // Don't restart if this instance thinks it's playing
@@ -213,35 +213,59 @@ public class SoundManager {
             return;
         }
         
-        // Final check before playing - prevent restart if music is already playing
-        try {
-            Music music = GameApp.getMusic(MENU_MUSIC_KEY);
-            if (music != null && music.isPlaying()) {
-                GameApp.log("Final check: Menu music is playing, NOT calling GameApp.playMusic()");
-                float finalVolume = masterVolume * musicVolume * 0.1f;
-                finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                music.setVolume(finalVolume);
-                isMenuMusicPlaying = true;
-                return;
-            }
-        } catch (Exception e) {
-            GameApp.log("Error in final check: " + e.getMessage());
+        // If no track selected yet, randomly select one (first time or after reset)
+        if (currentMenuTrackIndex < 0 || !menuMusicInitialized) {
+            currentMenuTrackIndex = (int)(Math.random() * MENU_MUSIC_KEYS.length);
+            menuMusicInitialized = true;
+            GameApp.log("=== RANDOMLY SELECTED MENU TRACK: " + (currentMenuTrackIndex + 1) + "/3: " + MENU_MUSIC_FILES[currentMenuTrackIndex] + " ===");
         }
         
-        // Only play if music is NOT currently playing
+        String key = MENU_MUSIC_KEYS[currentMenuTrackIndex];
+        
+        if (!GameApp.hasMusic(key)) {
+            GameApp.log("Menu music track " + (currentMenuTrackIndex + 1) + " not loaded: " + key);
+            // Fallback to first track
+            currentMenuTrackIndex = 0;
+            key = MENU_MUSIC_KEYS[0];
+            if (!GameApp.hasMusic(key)) {
+                GameApp.log("No menu music available");
+                return;
+            }
+        }
+        
+        // Stop any currently playing menu track first
+        for (String trackKey : MENU_MUSIC_KEYS) {
+            if (GameApp.hasMusic(trackKey)) {
+                try {
+                    Music m = GameApp.getMusic(trackKey);
+                    if (m != null && m.isPlaying()) {
+                        m.stop();
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        
         try {
-            // Calculate final volume: master * music * 0.1 (10% volume for menu)
             float finalVolume = masterVolume * musicVolume * 0.1f;
             finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
             
-            GameApp.log("Menu music NOT playing, calling GameApp.playMusic()");
-            GameApp.playMusic(MENU_MUSIC_KEY, loop, finalVolume);
+            GameApp.log("Menu music NOT playing, starting track " + (currentMenuTrackIndex + 1) + ": " + MENU_MUSIC_FILES[currentMenuTrackIndex]);
+            GameApp.playMusic(key, loop, finalVolume);
             isMenuMusicPlaying = true;
-            GameApp.log("Menu background music started");
+            GameApp.log(">>> NOW PLAYING MENU: Track " + (currentMenuTrackIndex + 1) + "/3: " + MENU_MUSIC_FILES[currentMenuTrackIndex]);
         } catch (Exception e) {
             GameApp.log("Error playing menu music: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * Force a new random menu music track selection.
+     * Call this when returning from winner screen to main menu.
+     */
+    public static void randomizeMenuMusic() {
+        currentMenuTrackIndex = (int)(Math.random() * MENU_MUSIC_KEYS.length);
+        GameApp.log("=== RANDOMIZED NEW MENU TRACK: " + (currentMenuTrackIndex + 1) + "/3 ===");
     }
     
     /**
@@ -346,19 +370,19 @@ public class SoundManager {
     }
     
     /**
-     * Stop menu background music.
+     * Stop menu background music (all tracks).
      */
     public void stopMenuMusic() {
-        if (!GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            return;
+        for (String key : MENU_MUSIC_KEYS) {
+            if (GameApp.hasMusic(key)) {
+                try {
+                    GameApp.stopMusic(key);
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
         }
-        
-        try {
-            GameApp.stopMusic(MENU_MUSIC_KEY);
-            isMenuMusicPlaying = false;
-        } catch (Exception e) {
-            GameApp.log("Error stopping menu music: " + e.getMessage());
-        }
+        isMenuMusicPlaying = false;
     }
     
     /**
@@ -488,17 +512,19 @@ public class SoundManager {
         musicVolume = GameApp.clamp(volume, 0f, 1f);
         
         // Update menu music volume if playing (10% volume)
-        if (isMenuMusicPlaying && GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            try {
-                Music music = GameApp.getMusic(MENU_MUSIC_KEY);
-                if (music != null) {
-                    // Menu music volume is 10% of normal music volume
-                    float finalVolume = masterVolume * musicVolume * 0.1f;
-                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                    music.setVolume(finalVolume);
+        if (isMenuMusicPlaying && currentMenuTrackIndex >= 0) {
+            String currentKey = MENU_MUSIC_KEYS[currentMenuTrackIndex];
+            if (GameApp.hasMusic(currentKey)) {
+                try {
+                    Music music = GameApp.getMusic(currentKey);
+                    if (music != null) {
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
+                        music.setVolume(finalVolume);
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Error setting menu music volume: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                GameApp.log("Error setting menu music volume: " + e.getMessage());
             }
         }
         
@@ -527,17 +553,19 @@ public class SoundManager {
         masterVolume = GameApp.clamp(volume, 0f, 1f);
         
         // Update menu music volume if playing (10% volume)
-        if (isMenuMusicPlaying && GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            try {
-                Music music = GameApp.getMusic(MENU_MUSIC_KEY);
-                if (music != null) {
-                    // Menu music volume is 10% of normal music volume
-                    float finalVolume = masterVolume * musicVolume * 0.1f;
-                    finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
-                    music.setVolume(finalVolume);
+        if (isMenuMusicPlaying && currentMenuTrackIndex >= 0) {
+            String currentKey = MENU_MUSIC_KEYS[currentMenuTrackIndex];
+            if (GameApp.hasMusic(currentKey)) {
+                try {
+                    Music music = GameApp.getMusic(currentKey);
+                    if (music != null) {
+                        float finalVolume = masterVolume * musicVolume * 0.1f;
+                        finalVolume = GameApp.clamp(finalVolume, 0f, 1f);
+                        music.setVolume(finalVolume);
+                    }
+                } catch (Exception e) {
+                    GameApp.log("Error updating menu music master volume: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                GameApp.log("Error updating menu music master volume: " + e.getMessage());
             }
         }
         
@@ -607,12 +635,14 @@ public class SoundManager {
         stopMenuMusic();
         stopIngameMusic();
         
-        // Dispose menu music
-        if (GameApp.hasMusic(MENU_MUSIC_KEY)) {
-            try {
-                GameApp.disposeMusic(MENU_MUSIC_KEY);
-            } catch (Exception e) {
-                GameApp.log("Error disposing menu music: " + e.getMessage());
+        // Dispose all menu music tracks
+        for (String key : MENU_MUSIC_KEYS) {
+            if (GameApp.hasMusic(key)) {
+                try {
+                    GameApp.disposeMusic(key);
+                } catch (Exception e) {
+                    GameApp.log("Error disposing menu music " + key + ": " + e.getMessage());
+                }
             }
         }
         

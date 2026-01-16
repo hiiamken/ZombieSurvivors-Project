@@ -392,8 +392,15 @@ public class Enemy {
     }
 
     public void render() {
-        if (GameApp.hasAnimation(currentAnimation)) {
-            GameApp.drawAnimation(currentAnimation, x, y, SPRITE_SIZE, SPRITE_SIZE);
+        String animToRender = currentAnimation;
+        
+        // Fallback: if hit animation doesn't exist, use run animation instead
+        if (currentAnimation.endsWith("_hit") && !GameApp.hasAnimation(currentAnimation)) {
+            animToRender = getAnimationName("run");
+        }
+        
+        if (GameApp.hasAnimation(animToRender)) {
+            GameApp.drawAnimation(animToRender, x, y, SPRITE_SIZE, SPRITE_SIZE);
         } else {
             GameApp.drawTexture("enemy", x, y, SPRITE_SIZE, SPRITE_SIZE);
         }
@@ -503,4 +510,59 @@ public class Enemy {
         return zombieType;
     }
 
+    /**
+     * Check if enemy should be removed (death animation completed).
+     */
+    public boolean shouldRemove() {
+        return isDying && deathAnimationTimer >= DEATH_ANIMATION_DURATION;
+    }
+
+    /**
+     * Reset enemy for object pooling reuse.
+     */
+    public void reset(float startX, float startY, float speed, int maxHealth) {
+        reset(startX, startY, speed, maxHealth, getRandomZombieType());
+    }
+
+    /**
+     * Reset enemy with specific zombie type for object pooling reuse.
+     */
+    public void reset(float startX, float startY, float speed, int maxHealth, int zombieType) {
+        this.x = startX;
+        this.y = startY;
+        this.speed = speed;
+        this.zombieType = zombieType;
+        this.maxHealth = maxHealth;
+        this.health = maxHealth;
+        this.isActive = true;
+        this.isVisible = true;
+        this.isDying = false;
+        this.deathAnimationTimer = 0f;
+        this.hitAnimationTimer = 0f;
+        this.knockbackX = 0f;
+        this.knockbackY = 0f;
+        this.facingRight = true;
+
+        // Reset AI behavior
+        float behaviorRoll = (float) Math.random();
+        if (behaviorRoll < 0.4f) {
+            this.aiBehavior = AIBehavior.CHASE;
+        } else if (behaviorRoll < 0.7f) {
+            this.aiBehavior = AIBehavior.FLANK_LEFT;
+        } else {
+            this.aiBehavior = AIBehavior.FLANK_RIGHT;
+        }
+        this.flankAngle = (float)(Math.random() * FLANK_ANGLE_MAX);
+        this.flankTimer = (float)(Math.random() * FLANK_UPDATE_INTERVAL);
+
+        // Reset animation
+        this.currentAnimation = getAnimationName("run");
+        this.previousAnimation = this.currentAnimation;
+
+        // Update hitboxes
+        this.wallHitBox.x = (int) (x + WALL_OFFSET_X);
+        this.wallHitBox.y = (int) (y + WALL_OFFSET_Y);
+        this.damageHitBox.x = (int) (x + DAMAGE_OFFSET_X);
+        this.damageHitBox.y = (int) (y + DAMAGE_OFFSET_Y);
+    }
 }

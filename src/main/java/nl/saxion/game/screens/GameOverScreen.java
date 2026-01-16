@@ -470,6 +470,7 @@ public class GameOverScreen extends ScalableGameScreen {
                         // Back to Menu button
                         pendingAction = () -> {
                             DebugLogger.log("BACK TO MENU action executing after delay");
+                            SoundManager.randomizeMenuMusic(); // Select new random menu music
                             GameApp.switchScreen("menu");
                         };
                     }
