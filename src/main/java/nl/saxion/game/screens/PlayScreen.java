@@ -1604,25 +1604,34 @@ public class PlayScreen extends ScalableGameScreen {
     // =========================
 
     // Spawn XP orbs at enemy position when enemy dies
-    // New system: 75% blue orb, 10% green orb, 15% no orb
+    // Dynamic system: Drop rate decreases as time increases (75% -> 37.5% by end game)
     // Each enemy drops only ONE orb (or none)
     private void spawnXPOrbsAtEnemy(Enemy enemy) {
+        // Calculate elapsed time and drop rate multiplier
+        float elapsedTime = GAME_DURATION - gameTime;
+        float timeRatio = Math.min(1f, elapsedTime / GAME_DURATION); // 0 at start, 1 at end
+        float dropRateMultiplier = 1f - (timeRatio * 0.5f); // 1.0 at start, 0.5 at end
+        
+        // Base rates: 75% blue, 10% green
+        float blueChance = 75f * dropRateMultiplier;
+        float greenChance = 10f * dropRateMultiplier;
+        
         float roll = GameApp.random(0f, 100f);
         
-        if (roll < 75f) {
-            // 75% chance: spawn BLUE orb
+        if (roll < blueChance) {
+            // BLUE orb (decreases from 75% to 37.5%)
             float offsetX = GameApp.random(-5f, 5f);
             float offsetY = GameApp.random(-5f, 5f);
             XPOrb orb = new XPOrb(enemy.getX() + offsetX, enemy.getY() + offsetY, OrbType.BLUE);
             xpOrbs.add(orb);
-        } else if (roll < 85f) {
-            // 10% chance: spawn GREEN orb (only from enemies, not objects)
+        } else if (roll < blueChance + greenChance) {
+            // GREEN orb (decreases from 10% to 5%)
             float offsetX = GameApp.random(-5f, 5f);
             float offsetY = GameApp.random(-5f, 5f);
             XPOrb orb = new XPOrb(enemy.getX() + offsetX, enemy.getY() + offsetY, OrbType.GREEN);
             xpOrbs.add(orb);
         }
-        // 15% chance: no orb drops
+        // No orb drops (increases from 15% to 57.5%)
     }
     
     // Spawn RED orbs when MiniBoss is killed
