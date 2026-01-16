@@ -311,13 +311,13 @@ public class EnemySpawner {
                 healthMult = 0.75f;
                 speedMult = 1.05f;
             } else {
-                // After minute 3: exponential scaling kicks in
+                // After minute 3: exponential scaling kicks in (REDUCED for easier game)
                 float minutesPast3 = minutes - 3f;
-                healthMult = (float) Math.pow(1.1f, minutesPast3); // 10% per minute after minute 3
-                healthMult = Math.min(healthMult, 6f); // Cap at 6x
-                // Speed increases 5% per minute for more challenge (was 3%)
-                speedMult = 1f + (minutesPast3 * 0.05f); // 5% per minute after minute 3
-                speedMult = Math.min(speedMult, 1.8f); // Cap at 1.8x speed (was 1.4x)
+                healthMult = (float) Math.pow(1.08f, minutesPast3); // 8% per minute (reduced from 10%)
+                healthMult = Math.min(healthMult, 4f); // Cap at 4x (reduced from 6x)
+                // Speed increases 4% per minute (reduced from 5%)
+                speedMult = 1f + (minutesPast3 * 0.04f); // 4% per minute after minute 3
+                speedMult = Math.min(speedMult, 1.5f); // Cap at 1.5x speed (reduced from 1.8x)
             }
             
             float speed = enemyBaseSpeed * speedMult;
@@ -514,10 +514,10 @@ public class EnemySpawner {
         float healthExpMult = (float) Math.pow(1.03f, minutes); // 3% per minute (very gentle)
         int health = (int)((8 + minutes * 1f) * healthExpMult); // Base 8 HP, scales very slowly
         
-        // Spawn horde in TIGHT ellipse formation - compact and dense
-        // Smaller ellipse = tighter pack of zombies rushing together
-        float ellipseWidth = 100f;  // Perpendicular spread (tighter)
-        float ellipseDepth = 50f;   // Along movement direction (very narrow)
+        // Spawn horde in WIDE polygon formation - spread out to avoid clustering
+        // Larger ellipse = zombies spread in polygon shape instead of tight cluster
+        float ellipseWidth = 250f;  // Perpendicular spread (much wider - was 100f)
+        float ellipseDepth = 180f;   // Along movement direction (deeper - was 50f)
         
         for (int i = 0; i < hordeSize; i++) {
             // Use ellipse distribution - angle around ellipse

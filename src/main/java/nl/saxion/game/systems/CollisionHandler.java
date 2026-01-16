@@ -35,8 +35,8 @@ public class CollisionHandler {
      */
     private int getScaledEnemyDamage() {
         float minutes = gameElapsedTime / 60f;
-        float damageMultiplier = (float) Math.pow(1.1f, minutes);
-        damageMultiplier = Math.min(damageMultiplier, 10f); // Cap at 10x damage
+        float damageMultiplier = (float) Math.pow(1.08f, minutes); // 8% per minute (reduced from 10%)
+        damageMultiplier = Math.min(damageMultiplier, 6f); // Cap at 6x damage (reduced from 10x)
         float scaledDamage = ENEMY_BASE_DAMAGE * damageMultiplier;
         return Math.max(1, Math.round(scaledDamage));
     }

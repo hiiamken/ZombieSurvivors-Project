@@ -189,7 +189,7 @@ public class Boss {
         if (allEnemies != null) {
             float bossCenterX = x + SPRITE_SIZE / 2f;
             float bossCenterY = y + SPRITE_SIZE / 2f;
-            float pushRadius = 80f; // Radius to push zombies
+            float pushRadius = 40f; // Radius to push zombies (reduced from 80)
             
             for (Enemy enemy : allEnemies) {
                 // Skip dead or dying enemies
