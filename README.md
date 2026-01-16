@@ -1,311 +1,269 @@
+<div align="center">
+
 # 🧟 Zombie Survivors
 
-> A Top-Down Survival Shooter Game inspired by Vampire Survivors
+**A top-down survival shooter inspired by Vampire Survivors**
+
+Survive 10 minutes against endless waves of zombies, collect upgrades, and evolve your weapon into the legendary Death Spiral!
 
 <p align="center">
-  <img src="https://files.catbox.moe/e65vgj.png" alt="Zombie Survivors Banner" width="800">
+  <img src="https://files.catbox.moe/f3apux.png" alt="Zombie Survivors Banner" width="800">
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/Java-17+-orange?style=for-the-badge&logo=openjdk" alt="Java">
-  <img src="https://img.shields.io/badge/LibGDX-Framework-red?style=for-the-badge" alt="LibGDX">
-  <img src="https://img.shields.io/badge/Status-In%20Development-green?style=for-the-badge" alt="Status">
-</p>
+[![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://adoptium.net/)
+[![Gradle](https://img.shields.io/badge/Gradle-Build-02303A.svg)](https://gradle.org/)
+[![LibGDX](https://img.shields.io/badge/LibGDX-GameApp-red.svg)](https://libgdx.com/)
+
+</div>
 
 ---
 
 ## 📖 Table of Contents
 
-- [About The Project](#-about-the-project)
-- [Getting Started](#-getting-started)
-- [How To Play](#-how-to-play)
 - [Features](#-features)
-- [Project Architecture](#-project-architecture)
-- [Sprint Progress](#-sprint-progress)
-- [Known Issues](#-known-issues)
+- [Screenshots](#-screenshots)
+- [Getting Started](#-getting-started)
+- [How to Play](#-how-to-play)
+- [Upgrade System](#-upgrade-system)
+- [Project Structure](#-project-structure)
+- [Documentation](#-documentation)
 - [Credits](#-credits)
-
----
-
-## 🎮 About The Project
-
-**Zombie Survivors** is a top-down survival shooter game where you fight against endless waves of zombies. Survive as long as you can and become the ultimate survivor!
-
-### Built With
-
-- **Java 17** - Programming Language
-- **LibGDX** - Game Framework
-- **Saxion GameApp** - University Library
-- **Gradle** - Build System
-- **Tiled** - Map Editor
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-| Requirement | Version |
-|-------------|---------|
-| Operating System | Windows 10/11 |
-| Java Runtime | 17 or higher |
-
-> 💡 **Don't have Java?** Download from [Adoptium](https://adoptium.net/)
-
-### Installation
-
-1. **Download** the game file (`ZombieSurvivors.exe`)
-2. **Double-click** to launch
-3. **Play!** 🎮
-
-### Alternative Methods
-
-If `.exe` doesn't work:
-
-```bash
-# Method 1: Run batch file
-run.bat
-
-# Method 2: Run JAR directly
-java -jar ZombieSurvivorsClone-1.0.0.jar
-```
-
----
-
-## 🎯 How To Play
-
-### Controls
-
-| Key | Action |
-|-----|--------|
-| `W` | Move Up |
-| `A` | Move Left |
-| `S` | Move Down |
-| `D` | Move Right |
-
-> 💡 **Auto-Shoot:** Your weapon fires automatically at nearby enemies!
-
-### Tips & Tricks
-
-- 🏃 **Keep moving!** Standing still makes you an easy target
-- ↗️ **Use diagonal movement** (W+D, W+A) to dodge faster
-- ❤️ **Watch your health bar** - don't let zombies surround you
-- 🏆 **Survive as long as possible** for the highest score!
 
 ---
 
 ## ✨ Features
 
-### Core Gameplay
-- ✅ Top-down shooter perspective
-- ✅ Smooth WASD movement controls
-- ✅ Auto-shooting weapon system
-- ✅ Endless zombie waves
-
-### Player System
-- ✅ Player movement with delta-time
-- ✅ Health system with damage/healing
-- ✅ Player status interface for UI
-- ✅ Boundary collision
-
-### Enemy System
-- ✅ Zombie AI - chase player behavior
-- ✅ Multiple animations (idle, run, hit, death)
-- ✅ Enemy spawner with difficulty scaling
-- ✅ Knockback effect when hit
-
-### Weapon & Combat
-- ✅ Bullet entity system
-- ✅ Fire rate control
-- ✅ Collision detection
-- ✅ Auto-fire mechanics
-
-### Map System
-- ✅ 16 procedural map rooms
-- ✅ TMX map file parsing
-- ✅ Tile-based collision detection
-- ✅ Seamless room rendering
-
-### UI & Graphics
-- ✅ HUD interface (health bar, stats)
-- ✅ Animated sprite sheets
-- ✅ Game state management (menu, playing, game over)
+| Feature | Description |
+|---------|-------------|
+| **Wave-Based Combat** | Survive 10 waves of increasingly difficult zombies |
+| **Auto-Fire Weapon** | Focus on movement while your weapon shoots automatically |
+| **10-Level Weapon System** | Upgrade your pistol with more bullets, pierce, and spread patterns |
+| **7 Passive Items** | Collect Power Herb, Iron Shield, Swift Boots, and more |
+| **Weapon Evolution** | Evolve to Death Spiral - 16 rotating bullets with infinite pierce |
+| **MiniBoss Fights** | Defeat MiniBosses for Treasure Chests |
+| **Gacha Rewards** | Casino-style animation for chest rewards |
+| **Stampede Events** | Dodge massive zombie hordes rushing across the screen |
+| **Leaderboard** | Compete for top 10 rankings |
+| **Full Audio** | Background music and sound effects |
 
 ---
 
-## 🏗️ Project Architecture
+## � Screenshots
+
+> *Add screenshots here: Main Menu, Gameplay, Level-Up Menu, Gacha Animation, Victory Screen*
+
+---
+
+## 🚀 Getting Started
+
+### System Requirements
+
+| Requirement | Minimum |
+|-------------|---------|
+| **OS** | Windows 10/11, macOS, Linux |
+| **Java** | Version 17 or higher |
+| **RAM** | 4GB |
+| **Display** | 1280x720 |
+
+> 💡 Don't have Java? Download from [Adoptium](https://adoptium.net/)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/hiiamken/ZombieSurvivors-Project.git
+   cd ZombieSurvivors-Project
+   ```
+
+2. **Build the game**
+   ```bash
+   # Windows
+   gradlew.bat jar
+   
+   # macOS/Linux
+   ./gradlew jar
+   ```
+
+3. **Run the game**
+   ```bash
+   java -jar build/libs/ZombieSurvivorsClone-1.0.0.jar
+   ```
+
+### Quick Start (Pre-built)
+
+If a pre-built JAR exists:
+```bash
+# Windows
+run.bat
+
+# macOS/Linux
+./run.sh
+```
+
+---
+
+## 🎮 How to Play
+
+### Controls
+
+| Action | Key |
+|--------|-----|
+| **Move** | `W` `A` `S` `D` or Arrow Keys |
+| **Shoot** | Automatic |
+| **Pause** | `ESC` |
+| **Fullscreen** | `F11` |
+| **Menu Navigate** | `W`/`S` or Arrow Keys |
+| **Select** | `Enter` or Click |
+| **Quick Select** | `1` `2` `3` (during level-up) |
+
+### Objective
+
+**Survive for 10 minutes** against endless zombie waves.
+
+- Kill zombies to earn XP
+- Level up to choose upgrades
+- Defeat MiniBosses for treasure chests
+- Reach weapon evolution for ultimate power
+- Achieve the highest score on the leaderboard
+
+### Game Tips
+
+1. **Keep moving** - Standing still makes you an easy target
+2. **Prioritize weapon upgrades early** - Faster kills = faster leveling
+3. **Magnet Stone** helps collect XP safely from a distance
+4. **During stampedes**, move perpendicular to the horde direction
+5. **Aim for evolution** - Death Spiral is incredibly powerful
+
+---
+
+## ⚔️ Upgrade System
+
+### Weapon Levels (Max: 10)
+
+| Level | Upgrades |
+|-------|----------|
+| 1-2 | +1 bullet per level |
+| 3 | Front spread (3 directions), +15% fire rate |
+| 5 | Pierce 1 enemy |
+| 7 | Pierce 2 enemies |
+| 8 | Back spread (3 directions), +25% damage |
+| 10 | Maximum power (evolution ready) |
+
+### Passive Items (Max: Level 5 each)
+
+| Item | Effect per Level |
+|------|------------------|
+| **Power Herb** | +10% damage |
+| **Iron Shield** | -5% damage taken |
+| **Swift Boots** | +10% movement speed |
+| **Lucky Coin** | +5% critical chance |
+| **Magnet Stone** | +20% XP pickup range |
+| **Life Essence** | +0.2 HP/second regeneration |
+| **Vitality Core** | +20% max HP |
+
+### Weapon Evolution: Death Spiral
+
+**Requirements:** Weapon Level 10 + All 7 passives at Level 5
+
+| Stat | Value |
+|------|-------|
+| Bullets | 16 (rotating spiral) |
+| Pierce | Infinite |
+| Lifesteal | 10% |
+| Damage | +150% |
+| Coverage | 360° automatic |
+
+---
+
+## � Project Structure
 
 ```
 ZombieSurvivorsClone/
-│
-├── 📁 src/main/java/nl/saxion/game/
-│   │
-│   ├── 📄 MainGame.java              # Game entry point
-│   │
-│   ├── 📁 core/
-│   │   ├── GameState.java            # Game state enum
-│   │   └── PlayerStatus.java         # Player data interface
-│   │
-│   ├── 📁 entities/
-│   │   ├── Player.java               # Player entity
-│   │   ├── Enemy.java                # Enemy entity
-│   │   ├── Bullet.java               # Bullet entity
-│   │   └── Weapon.java               # Weapon system
-│   │
-│   ├── 📁 screens/
-│   │   └── PlayScreen.java           # Main gameplay screen
-│   │
-│   ├── 📁 systems/
-│   │   ├── InputController.java      # Input handling
-│   │   ├── EnemySpawner.java         # Enemy spawn logic
-│   │   ├── CollisionHandler.java     # Collision detection
-│   │   ├── MapRenderer.java          # Map rendering
-│   │   ├── GameRenderer.java         # Entity rendering
-│   │   ├── GameStateManager.java     # State management
-│   │   └── ResourceLoader.java       # Asset loading
-│   │
-│   ├── 📁 ui/
-│   │   └── HUD.java                  # Heads-up display
-│   │
-│   └── 📁 utils/
-│       ├── TMXParser.java            # TMX file parser
-│       ├── TMXMapData.java           # Map data structure
-│       ├── CollisionChecker.java     # Collision utilities
-│       └── CoordinateConverter.java  # Coordinate utils
-│
-└── 📁 src/main/resources/assets/
-    ├── 📁 player/                    # Player sprites
-    ├── 📁 enemy/                     # Enemy sprites
-    ├── 📁 Bullet/                    # Bullet sprites
-    ├── 📁 maps/                      # TMX maps
-    ├── 📁 tiles/                     # Tile sheets
-    └── 📁 fonts/                     # Game fonts
+├── src/main/java/nl/saxion/
+│   ├── game/
+│   │   ├── MainGame.java          # Entry point
+│   │   ├── config/                # Configuration management
+│   │   ├── entities/              # Player, Enemy, Weapon, Items
+│   │   ├── screens/               # Menu, Play, Settings, etc.
+│   │   ├── systems/               # Spawner, Renderer, Sound, Gacha
+│   │   ├── ui/                    # UI components
+│   │   └── utils/                 # Utility classes
+│   └── gameapp/                   # GameApp framework wrapper
+├── src/main/resources/
+│   ├── sprites/                   # Game sprites and animations
+│   ├── sounds/                    # Music and SFX
+│   ├── fonts/                     # Custom pixel fonts
+│   └── maps/                      # Tile-based maps
+├── build.gradle                   # Gradle build configuration
+└── README.md
+```
+
+### Key Classes
+
+| Class | Purpose |
+|-------|---------|
+| `PlayScreen` | Main gameplay loop, entity management, HUD |
+| `Player` | Health, XP, movement, passive items |
+| `Weapon` | Firing, upgrades, evolution |
+| `EnemySpawner` | Wave system, stampedes, MiniBoss spawning |
+| `GachaSystem` | Treasure chest reward animation |
+| `SoundManager` | Audio playback |
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [`MANUAL.txt`](MANUAL.txt) | Complete game manual with all mechanics |
+| [`README.txt`](README.txt) | Quick reference game guide |
+| [`TECHNICAL_STRUCTURE.txt`](TECHNICAL_STRUCTURE.txt) | Architecture and code documentation |
+| [`SPRINT1_DOCUMENTATION.txt`](SPRINT1_DOCUMENTATION.txt) | Sprint 1 development log |
+| [`SPRINT2_DOCUMENTATION.txt`](SPRINT2_DOCUMENTATION.txt) | Sprint 2 development log |
+| [`SPRINT3_DOCUMENTATION.txt`](SPRINT3_DOCUMENTATION.txt) | Sprint 3 development log |
+
+---
+
+## �️ Build Commands
+
+```bash
+# Build JAR
+gradlew.bat jar                    # Windows
+./gradlew jar                      # macOS/Linux
+
+# Build with launch scripts
+gradlew.bat dist                   # Creates run.bat and run.sh
+
+# Create Windows installer
+gradlew.bat packageExe             # Requires jpackage (JDK 14+)
+
+# Run directly
+gradlew.bat run                    # Development mode
 ```
 
 ---
 
-## 📋 Sprint Progress
+## 🎓 Credits
 
-### Sprint 1 - Core Foundation ✅
+**Saxion University of Applied Sciences**  
+Course: Project IT's in the Game  
+Academic Year: 2025-2026 | Quarter 2
 
-> **Status:** COMPLETED
+### Tech Stack
 
-| Task | Description | Status |
-|------|-------------|--------|
-| 1 | Project Setup & Core Structure | ✅ Done |
-| 2 | Input Handling (WASD) | ✅ Done |
-| 3 | Player Feature (Movement, Sprite, Health) | ✅ Done |
-| 4 | Player Data Interface for UI | ✅ Done |
-| 5 | Bullet System & Shooting | ✅ Done |
-| 6 | Weapon System & Fire Rate | ✅ Done |
-| 7 | Enemy System & AI | ✅ Done |
-| 8 | Collision Detection | ✅ Done |
+- **Language:** Java 17
+- **Framework:** [LibGDX](https://libgdx.com/) via [Saxion GameApp](https://gitlab.com/evertduipmans/saxiongameapp)
+- **Build Tool:** Gradle
+- **Inspired by:** [Vampire Survivors](https://store.steampowered.com/app/1794680/Vampire_Survivors/) by poncle
 
 ---
 
-### Sprint 2 - Systems & Polish 🔄
+<div align="center">
 
-> **Status:** IN PROGRESS
+**🎮 Good luck, Survivor! 🧟**
 
-#### Week 1 - Core Systems
+*Survive. Upgrade. Evolve. Dominate.*
 
-| Task | Description | Status |
-|------|-------------|--------|
-| - | Code Refactoring (Modular Systems) | ✅ Done |
-| - | Map System (TMX Parsing) | ✅ Done |
-| - | Enemy Spawner | ✅ Done |
-| - | Zombie Animations | ✅ Done |
-| - | HUD System | ✅ Done |
-| - | Auto-Aim System | ⬜ Not Started |
+</div>
 
-#### Week 2 - Experience System
-
-| Task | Description | Status |
-|------|-------------|--------|
-| 1 | XP & Leveling System | ⬜ Not Started |
-| 2 | Upgrade System (Stats & Weapons) | ⬜ Not Started |
-| 3 | Level-Up Menu | ⬜ Not Started |
-| 4 | Multiple Weapons | ⬜ Not Started |
-
----
-
-### Sprint 3 - Enhancements 📋
-
-> **Status:** PLANNED
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| Weapon Evolution | Combine weapons for upgrades | ⬜ Planned |
-| More Enemy Types | Fast, Tank, Boss zombies | ⬜ Planned |
-| Sound & Music | Audio effects | ⬜ Planned |
-| Visual Effects | Particles, screen shake | ⬜ Planned |
-| Save System | High scores, persistence | ⬜ Planned |
-
----
-
-## ⚠️ Known Issues
-
-### Current Bugs
-- None critical at this time
-
-### Limitations
-- 🖥️ Windows only (Mac/Linux need `run.sh`)
-- ☕ Requires Java 17+ installed
-- 🔇 No sound effects yet
-
----
-
-## 👥 Credits
-
-### Development Team
-
-**Team ZombieSurvivors**
-
-| Member | Role |
-|--------|------|
-| Thuong | Developer |
-| Daniel | Developer |
-| Arnold | Developer |
-| Mehmet | Developer |
-
-### Institution
-
-<p>
-  <strong>Saxion University of Applied Sciences</strong><br>
-  Course: Project IT's in the Game<br>
-  Academic Year: 2025-2026<br>
-  Quarter: 2
-</p>
-
-### Technologies
-
-| Tech | Purpose |
-|------|---------|
-| Java 17 | Programming Language |
-| LibGDX | Game Framework |
-| Saxion GameApp | University Library |
-| Gradle | Build System |
-| Tiled | Map Editor |
-
-### Special Thanks
-
-- Saxion Game Development Course Staff
-- LibGDX Community
-- Vampire Survivors (inspiration)
-
----
-
-## 📄 License
-
-This project is developed for educational purposes as part of the Saxion University curriculum.
-
-**© 2024 Team ZombieSurvivors - Saxion University**
-
----
-
-<p align="center">
-  <strong>🎮 Thank you for playing Zombie Survivors! 🧟</strong><br>
-  <em>Good luck surviving!</em>
-</p>
 
