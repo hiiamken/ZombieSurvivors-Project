@@ -617,7 +617,8 @@ public class EnemySpawner {
             float spawnX = playerX + (float)Math.cos(angle) * radius;
             float spawnY = playerY + (float)Math.sin(angle) * radius;
             
-            int zombieType = 1 + (int)(Math.random() * 3); // Type 1-3
+            int[] validTypes = {1, 3, 4};
+            int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
             Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
             enemies.add(enemy);
         }
@@ -653,7 +654,8 @@ public class EnemySpawner {
                 float spawnX = playerX + dirX * baseDistance + perpX * spread;
                 float spawnY = playerY + dirY * baseDistance + perpY * spread;
                 
-                int zombieType = 1 + (int)(Math.random() * 3);
+                int[] validTypes = {1, 3, 4};
+                int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
                 Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
                 enemies.add(enemy);
             }
@@ -683,7 +685,8 @@ public class EnemySpawner {
             float spawnX = playerX + (float)Math.cos(angle) * radius;
             float spawnY = playerY + (float)Math.sin(angle) * radius;
             
-            int zombieType = 1 + (int)(Math.random() * 3);
+            int[] validTypes = {1, 3, 4};
+            int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
             Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
             enemies.add(enemy);
         }
@@ -744,7 +747,8 @@ public class EnemySpawner {
             float spawnX = baseX + (float)Math.cos(offsetAngle) * offsetDist;
             float spawnY = baseY + (float)Math.sin(offsetAngle) * offsetDist;
             
-            int zombieType = 1 + (int)(Math.random() * 3);
+            int[] validTypes = {1, 3, 4};
+            int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
             Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
             enemies.add(enemy);
         }

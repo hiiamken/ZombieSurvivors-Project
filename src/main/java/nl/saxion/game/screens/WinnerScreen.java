@@ -16,7 +16,7 @@ import java.util.List;
  * Features celebratory design with gold/green victory theme.
  */
 public class WinnerScreen extends ScalableGameScreen {
-    private static final float FADE_DURATION = 1.5f;
+    private static final float FADE_DURATION = 1.0f; // Reduced for smoother transition
     
     private static int storedScore = 0;
     private static String storedPlayerName = "SURVIVOR";
@@ -53,7 +53,7 @@ public class WinnerScreen extends ScalableGameScreen {
     
     private List<Button> winnerButtons;
     private boolean buttonsInitialized = false;
-    private boolean resourcesLoaded = false;
+    private static boolean resourcesLoaded = false; // Static to prevent reloading on each screen show
     private SoundManager soundManager;
     
     private float pressDelay = 0.15f;
@@ -142,9 +142,16 @@ public class WinnerScreen extends ScalableGameScreen {
     private void loadResources() {
         if (resourcesLoaded) return;
         
-        GameApp.addStyledFont("winnerTitle", "fonts/upheavtt.ttf", 72, "yellow-400", 2f, "black", 4, 4, "yellow-700", true);
-        GameApp.addFont("winnerText", "fonts/PressStart2P-Regular.ttf", 16, true);
-        GameApp.addStyledFont("winnerSubtitle", "fonts/upheavtt.ttf", 32, "green-400", 1f, "black", 2, 2, "green-700", true);
+        // Only load fonts if not already loaded (prevents delays on screen transitions)
+        if (!GameApp.hasFont("winnerTitle")) {
+            GameApp.addStyledFont("winnerTitle", "fonts/upheavtt.ttf", 72, "yellow-400", 2f, "black", 4, 4, "yellow-700", true);
+        }
+        if (!GameApp.hasFont("winnerText")) {
+            GameApp.addFont("winnerText", "fonts/PressStart2P-Regular.ttf", 16, true);
+        }
+        if (!GameApp.hasFont("winnerSubtitle")) {
+            GameApp.addStyledFont("winnerSubtitle", "fonts/upheavtt.ttf", 32, "green-400", 1f, "black", 2, 2, "green-700", true);
+        }
         
         if (!GameApp.hasColor("button_green_text")) GameApp.addColor("button_green_text", 25, 50, 25);
         if (!GameApp.hasColor("button_red_text")) GameApp.addColor("button_red_text", 60, 15, 30);
@@ -152,7 +159,9 @@ public class WinnerScreen extends ScalableGameScreen {
         if (!GameApp.hasColor("winner_gold")) GameApp.addColor("winner_gold", 255, 215, 0);
         if (!GameApp.hasColor("winner_green")) GameApp.addColor("winner_green", 50, 205, 50);
         
-        GameApp.addStyledFont("winnerButtonFont", "fonts/upheavtt.ttf", 28, "white", 0f, "black", 2, 2, "gray-700", true);
+        if (!GameApp.hasFont("winnerButtonFont")) {
+            GameApp.addStyledFont("winnerButtonFont", "fonts/upheavtt.ttf", 28, "white", 0f, "black", 2, 2, "gray-700", true);
+        }
         
         if (!GameApp.hasTexture("green_long")) GameApp.addTexture("green_long", "assets/ui/green_long.png");
         if (!GameApp.hasTexture("green_pressed_long")) GameApp.addTexture("green_pressed_long", "assets/ui/green_pressed_long.png");
@@ -481,7 +490,10 @@ public class WinnerScreen extends ScalableGameScreen {
                                 goingToCredits = true; // Don't stop winner music
                                 GameApp.switchScreen("credits"); 
                                 break;
-                            case 2: GameApp.switchScreen("menu"); break;
+                            case 2: 
+                                SoundManager.randomizeMenuMusic(); // Select new random menu music
+                                GameApp.switchScreen("menu"); 
+                                break;
                         }
                     };
                     pressTimer = 0f;

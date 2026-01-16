@@ -217,4 +217,35 @@ public class Bullet {
     public boolean isDestroyed() {
         return destroyed;
     }
+
+    /**
+     * Reset bullet for object pooling reuse.
+     */
+    public void reset(float startX, float startY, float dirX, float dirY,
+                      int damage, float speed, float width, float height, int pierceCount) {
+        this.x = startX;
+        this.y = startY;
+        this.spawnX = startX;
+        this.spawnY = startY;
+        this.damage = damage;
+        this.speed = speed;
+        this.width = width;
+        this.height = height;
+        this.pierceCount = pierceCount;
+        this.pierceRemaining = pierceCount;
+        this.destroyed = false;
+        this.isEvolved = false;
+        this.hitEnemyIds.clear();
+
+        // Normalize direction
+        float len = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        if (len == 0) len = 1;
+        this.vx = dirX / len;
+        this.vy = dirY / len;
+
+        this.hitBox.x = (int) x;
+        this.hitBox.y = (int) y;
+        this.hitBox.width = (int) width;
+        this.hitBox.height = (int) height;
+    }
 }

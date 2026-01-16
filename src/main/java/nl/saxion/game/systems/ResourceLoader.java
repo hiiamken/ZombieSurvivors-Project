@@ -64,7 +64,8 @@ public class ResourceLoader {
         // Load zombie sprite sheets - Type 4
         GameApp.addSpriteSheet("zombie4_idle_sheet", "assets/enemy/Zombie 4_idle.png", 32, 32);
         GameApp.addSpriteSheet("zombie4_run_sheet", "assets/enemy/Zombie 4_run.png", 32, 32);
-        GameApp.addSpriteSheet("zombie4_hit_sheet", "assets/enemy/Zombie 4_hit.png", 32, 32);
+        // Note: Zombie 4 has no hit sprite, fallback to run sprite for hit animation
+        GameApp.addSpriteSheet("zombie4_hit_sheet", "assets/enemy/Zombie 4_run.png", 32, 32);
         GameApp.addSpriteSheet("zombie4_death_sheet", "assets/enemy/Zombie 4_death 4.png", 32, 32);
 
         // Load boss sprite sheets (NEW: dedicated Boss sprites)
@@ -77,26 +78,46 @@ public class ResourceLoader {
         // Create boss animations
         GameApp.addAnimationFromSpritesheet("boss_idle", "boss_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("boss_run", "boss_run_sheet", 0.1f, true);
-        GameApp.addAnimationFromSpritesheet("boss_hit", "boss_hit_sheet", 0.15f, false);
-        GameApp.addAnimationFromSpritesheet("boss_death", "boss_death_sheet", 0.2f, false);
+        // Hit animation: 96x32 sprite sheet = 3 frames (row 0, cols 0-2)
+        GameApp.addEmptyAnimation("boss_hit", 0.1f, false);
+        GameApp.addAnimationFrameFromSpritesheet("boss_hit", "boss_hit_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("boss_hit", "boss_hit_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("boss_hit", "boss_hit_sheet", 0, 2);
+        // Death animation uses same hit sheet
+        GameApp.addEmptyAnimation("boss_death", 0.15f, false);
+        GameApp.addAnimationFrameFromSpritesheet("boss_death", "boss_death_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("boss_death", "boss_death_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("boss_death", "boss_death_sheet", 0, 2);
 
 
         // Create zombie animations - Type 1 (original)
         GameApp.addAnimationFromSpritesheet("zombie_idle", "zombie_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie_run", "zombie_run_sheet", 0.1f, true);
-        GameApp.addAnimationFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0.15f, false);
+        // Hit animation: 96x32 sprite sheet = 3 frames (row 0, cols 0-2)
+        GameApp.addEmptyAnimation("zombie_hit", 0.1f, false);
+        GameApp.addAnimationFrameFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("zombie_hit", "zombie_hit_sheet", 0, 2);
         GameApp.addAnimationFromSpritesheet("zombie_death", "zombie_death1_sheet", 0.2f, false);
 
         // Create zombie animations - Type 3
         GameApp.addAnimationFromSpritesheet("zombie3_idle", "zombie3_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie3_run", "zombie3_run_sheet", 0.1f, true);
-        GameApp.addAnimationFromSpritesheet("zombie3_hit", "zombie3_hit_sheet", 0.15f, false);
+        // Hit animation: 96x32 sprite sheet = 3 frames (row 0, cols 0-2)
+        GameApp.addEmptyAnimation("zombie3_hit", 0.1f, false);
+        GameApp.addAnimationFrameFromSpritesheet("zombie3_hit", "zombie3_hit_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("zombie3_hit", "zombie3_hit_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("zombie3_hit", "zombie3_hit_sheet", 0, 2);
         GameApp.addAnimationFromSpritesheet("zombie3_death", "zombie3_death_sheet", 0.2f, false);
 
         // Create zombie animations - Type 4
         GameApp.addAnimationFromSpritesheet("zombie4_idle", "zombie4_idle_sheet", 0.2f, true);
         GameApp.addAnimationFromSpritesheet("zombie4_run", "zombie4_run_sheet", 0.1f, true);
-        GameApp.addAnimationFromSpritesheet("zombie4_hit", "zombie4_hit_sheet", 0.15f, false);
+        // Hit animation: 96x32 sprite sheet = 3 frames (row 0, cols 0-2)
+        GameApp.addEmptyAnimation("zombie4_hit", 0.1f, false);
+        GameApp.addAnimationFrameFromSpritesheet("zombie4_hit", "zombie4_hit_sheet", 0, 0);
+        GameApp.addAnimationFrameFromSpritesheet("zombie4_hit", "zombie4_hit_sheet", 0, 1);
+        GameApp.addAnimationFrameFromSpritesheet("zombie4_hit", "zombie4_hit_sheet", 0, 2);
         GameApp.addAnimationFromSpritesheet("zombie4_death", "zombie4_death_sheet", 0.2f, false);
 
         GameApp.addTexture("enemy", "assets/Bullet/Bullet.png");

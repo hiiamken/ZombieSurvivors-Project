@@ -100,6 +100,11 @@ public class GameRenderer {
             String animationKey = boss.getCurrentAnimation();
             boolean flipX = !boss.isFacingRight();
 
+            // Fallback: if hit animation doesn't exist, use run animation
+            if (animationKey.endsWith("_hit") && !GameApp.hasAnimation(animationKey)) {
+                animationKey = "boss_run";
+            }
+
             if (GameApp.hasAnimation(animationKey)) {
                 GameApp.drawAnimation(animationKey, screenX, screenY, size, size, 0, flipX, false);
             } else {

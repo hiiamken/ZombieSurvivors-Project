@@ -95,7 +95,7 @@ public class PlayScreen extends ScalableGameScreen {
     // Victory transition state (smooth transition to winner screen)
     private boolean isVictoryTransition = false;
     private float victoryTransitionTimer = 0f;
-    private static final float VICTORY_TRANSITION_DURATION = 2.0f; // 2 seconds for transition
+    private static final float VICTORY_TRANSITION_DURATION = 0.2f; // 0.8 seconds for smoother transition
     private float victoryFadeAlpha = 0f; // For fade effect
     
     // Late wave miniboss spawn timer
@@ -118,6 +118,30 @@ public class PlayScreen extends ScalableGameScreen {
      */
     public static void setWasPausedBeforeSettings(boolean value) {
         wasPausedBeforeSettings = value;
+    }
+
+    /**
+     * Clear all static saved state - call when starting a completely new game
+     * to prevent stale state from previous sessions.
+     */
+    public static void clearAllStaticState() {
+        returningFromSettings = false;
+        wasPausedBeforeSettings = false;
+        savedPlayer = null;
+        savedWeapon = null;
+        savedBullets = null;
+        savedEnemies = null;
+        savedBosses = null;
+        savedXpOrbs = null;
+        savedBreakableObjects = null;
+        savedHealingItems = null;
+        savedTreasureChests = null;
+        savedGameTime = 0f;
+        savedScore = 0;
+        savedPlayerWorldX = 0f;
+        savedPlayerWorldY = 0f;
+        savedIngameMusicStarted = false;
+        savedCurrentRound = 0;
     }
 
     /**
@@ -3267,8 +3291,16 @@ public class PlayScreen extends ScalableGameScreen {
         // Reset game state to PLAYING (important for Play Again button)
         gameStateManager.setCurrentState(GameState.PLAYING);
 
+        // CRITICAL: Clear all static saved state to prevent stale data
+        clearAllStaticState();
+
         // CRITICAL: Reset WinnerScreen state to prevent showing old win data
         WinnerScreen.resetState();
+
+        // CRITICAL: Reset victory transition state to prevent immediate winner screen
+        isVictoryTransition = false;
+        victoryTransitionTimer = 0f;
+        victoryFadeAlpha = 0f;
 
         // Reset score saved flag for new game
         scoreSaved = false;
@@ -3328,6 +3360,7 @@ public class PlayScreen extends ScalableGameScreen {
         cats = new ArrayList<>(); // Background cats for decoration
         zombieHands = new ArrayList<>(); // Background zombie hands for decoration
         bossesThatSpawnedChest.clear(); // Reset tracking set
+        lateWaveBosses.clear(); // Reset late wave boss tracking
 
         isLevelUpActive = false;
         isGachaActive = false;
@@ -3616,6 +3649,7 @@ public class PlayScreen extends ScalableGameScreen {
                     } else if (i == 1) {
                         // Back to Menu button
                         gameOverPendingAction = () -> {
+                            SoundManager.randomizeMenuMusic(); // Select new random menu music
                             GameApp.switchScreen("menu");
                         };
                     }
@@ -4016,6 +4050,7 @@ public class PlayScreen extends ScalableGameScreen {
                             if (soundManager != null) {
                                 soundManager.stopIngameMusic();
                             }
+                            SoundManager.randomizeMenuMusic(); // Select new random menu music
                             GameApp.switchScreen("menu");
                         };
                     }
