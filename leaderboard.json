@@ -1,6 +1,14 @@
 {
   "entries": [
     {
+      "username": "a",
+      "studentClass": "SP",
+      "groupNumber": "81",
+      "score": 904230,
+      "survivalTime": 566.4288,
+      "timestamp": 1768561815297
+    },
+    {
       "username": "hehe",
       "studentClass": "SP",
       "groupNumber": "85",

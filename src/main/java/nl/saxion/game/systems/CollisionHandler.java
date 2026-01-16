@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 // Handles all collision detection and cleanup
 public class CollisionHandler {
     private static final float DAMAGE_COOLDOWN_DURATION = 0.6f;
-    private static final float ENEMY_BASE_DAMAGE = 0.5f;  // Base damage for enemies (reduced - fast zombies should deal less)
+    private static final float ENEMY_BASE_DAMAGE = 0.4f;  // Base damage for enemies (reduced from 0.5 for visual balance)
     private static final int BOSS_BASE_DAMAGE = 3;   // Base damage for bosses (increased)
 
     private float playerDamageCooldown = 0f;

@@ -635,19 +635,22 @@ public class EnemySpawner {
     private void spawnCirclePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
         float minutes = gameTime / 60f;
         
-        // Massive zombie count with exponential scaling based on time
-        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Strong exponential after minute 4
-        int baseCount = 300 + (int)(Math.random() * 200); // 300-500 base (increased from 200-350)
+        // MASSIVE zombie count for spectacular visual effect
+        float expScale = (float) Math.pow(2.0f, Math.max(0, minutes - 4f)); // Very strong exponential
+        int baseCount = 500 + (int)(Math.random() * 300); // 500-800 base (much higher)
         
         // Additional multiplier for late game (after minute 6)
         if (minutes >= 6f) {
-            float lateGameBonus = 1f + (minutes - 6f) * 0.5f; // +50% per minute after 6
+            float lateGameBonus = 1f + (minutes - 6f) * 0.7f; // +70% per minute after 6
             baseCount = (int)(baseCount * lateGameBonus);
         }
         
         int zombieCount = (int)(baseCount * expScale);
-        zombieCount = Math.min(zombieCount, 1200); // Cap at 1200 (increased from 800)
-        float radius = 400f; // Spawn distance from player
+        zombieCount = Math.min(zombieCount, 2000); // Cap at 2000 (much higher for visual impact)
+        
+        // Multiple concentric circles for spectacular visual
+        int circleCount = 3; // 3 circles at different radii
+        float baseRadius = 500f; // Larger base radius to fill screen better
         
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
@@ -660,17 +663,31 @@ public class EnemySpawner {
         }
         float speed = enemyBaseSpeed * speedMult;
         
-        for (int i = 0; i < zombieCount; i++) {
-            float angle = (float)(i * 2 * Math.PI / zombieCount);
-            float spawnX = playerX + (float)Math.cos(angle) * radius;
-            float spawnY = playerY + (float)Math.sin(angle) * radius;
+        // Spawn zombies in multiple concentric circles for spectacular visual
+        int zombiesPerCircle = zombieCount / circleCount;
+        int totalSpawned = 0;
+        
+        for (int circle = 0; circle < circleCount; circle++) {
+            // Each circle has different radius (inner to outer)
+            float radius = baseRadius + (circle * 150f); // 500, 650, 800 pixels
+            int zombiesInThisCircle = (circle == circleCount - 1) ? 
+                (zombieCount - totalSpawned) : zombiesPerCircle;
             
-            int[] validTypes = {1, 3, 4};
-            int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
-            Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
-            enemies.add(enemy);
+            for (int i = 0; i < zombiesInThisCircle; i++) {
+                float angle = (float)(i * 2 * Math.PI / zombiesInThisCircle);
+                // Add slight randomness to radius for organic look
+                float radiusVariation = radius + GameApp.random(-30f, 30f);
+                float spawnX = playerX + (float)Math.cos(angle) * radiusVariation;
+                float spawnY = playerY + (float)Math.sin(angle) * radiusVariation;
+                
+                int[] validTypes = {1, 3, 4};
+                int zombieType = validTypes[(int)(Math.random() * validTypes.length)];
+                Enemy enemy = new Enemy(spawnX, spawnY, speed, health, zombieType);
+                enemies.add(enemy);
+                totalSpawned++;
+            }
         }
-        GameApp.log("Circle pattern spawned " + zombieCount + " zombies");
+        GameApp.log("Circle pattern spawned " + totalSpawned + " zombies in " + circleCount + " circles");
     }
     
     /**
