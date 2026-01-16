@@ -20,6 +20,14 @@
       "username": "a",
       "studentClass": "SP",
       "groupNumber": "81",
+      "score": 191112,
+      "survivalTime": 586.1358,
+      "timestamp": 1768564267915
+    },
+    {
+      "username": "a",
+      "studentClass": "SP",
+      "groupNumber": "81",
       "score": 114346,
       "survivalTime": 600.0,
       "timestamp": 1768513690050
