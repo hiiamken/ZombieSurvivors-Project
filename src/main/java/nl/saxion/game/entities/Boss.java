@@ -63,7 +63,7 @@ public class Boss {
         return facingRight;
     }
 
-    public void update(float delta, float playerX, float playerY, java.util.List<Boss> allBosses) {
+    public void update(float delta, float playerX, float playerY, java.util.List<Boss> allBosses, java.util.List<Enemy> allEnemies) {
         // Handle death state
         if (!isAlive || isDying) {
             state = BossState.DEATH;
@@ -184,13 +184,54 @@ public class Boss {
             x += separationX;
             y += separationY;
         }
+        
+        // ===== PUSH ZOMBIES: Boss pushes regular zombies aside =====
+        if (allEnemies != null) {
+            float bossCenterX = x + SPRITE_SIZE / 2f;
+            float bossCenterY = y + SPRITE_SIZE / 2f;
+            float pushRadius = 80f; // Radius to push zombies
+            
+            for (Enemy enemy : allEnemies) {
+                // Skip dead or dying enemies
+                if (enemy.isDead() || enemy.isDying()) {
+                    continue;
+                }
+                
+                float enemyCenterX = enemy.getX() + Enemy.SPRITE_SIZE / 2f;
+                float enemyCenterY = enemy.getY() + Enemy.SPRITE_SIZE / 2f;
+                
+                float distX = enemyCenterX - bossCenterX;
+                float distY = enemyCenterY - bossCenterY;
+                float dist = (float) Math.sqrt(distX * distX + distY * distY);
+                
+                // If zombie is within push radius, push it away
+                if (dist < pushRadius && dist > 0.001f) {
+                    float normX = distX / dist;
+                    float normY = distY / dist;
+                    
+                    // Strong push force (boss is powerful)
+                    float pushStrength = (pushRadius - dist) / pushRadius;
+                    float pushForce = pushStrength * 300f; // Strong push
+                    
+                    // Apply knockback to zombie
+                    enemy.applyKnockback(normX, normY, pushForce * delta * 0.1f);
+                }
+            }
+        }
     }
     
     /**
      * Legacy update method for backwards compatibility
      */
     public void update(float delta, float playerX, float playerY) {
-        update(delta, playerX, playerY, null);
+        update(delta, playerX, playerY, null, null);
+    }
+    
+    /**
+     * Update with boss separation only
+     */
+    public void update(float delta, float playerX, float playerY, java.util.List<Boss> allBosses) {
+        update(delta, playerX, playerY, allBosses, null);
     }
 
     public void takeDamage(int damage) {

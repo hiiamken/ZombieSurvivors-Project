@@ -26,7 +26,7 @@ public class Player {
     // Balanced for max level at minute 8-9 of 10-minute game
     private int currentLevel = 1;
     private int currentXP = 0;
-    private int xpToNextLevel = 75; // Formula: 50 + level * 25 = 75 at level 1
+    private int xpToNextLevel = 55; // Formula: 40 + 1 * 15 = 55 at level 1 (easier early game)
     private float xpMagnetRange = 100f;
     private float damageMultiplier = 1f;
     
@@ -639,38 +639,42 @@ public class Player {
 
     private void updateShootingDirection(float dirX, float dirY, float delta) {
         float length = (float) Math.sqrt(dirX * dirX + dirY * dirY);
+        
+        // Only update target direction if player is moving
+        // This preserves the last direction when standing still
         if (length > 0) {
             targetShootDirX = dirX / length;
             targetShootDirY = dirY / length;
-        }
 
-        if (dirY == 0 && dirX != 0) {
-            targetShootDirY = 0f;
-            targetShootDirX = (dirX > 0) ? 1f : -1f;
-        }
+            if (dirY == 0 && dirX != 0) {
+                targetShootDirY = 0f;
+                targetShootDirX = (dirX > 0) ? 1f : -1f;
+            }
 
-        if (dirX == 0 && dirY != 0) {
-            targetShootDirX = 0f;
-            targetShootDirY = (dirY > 0) ? 1f : -1f;
-        }
+            if (dirX == 0 && dirY != 0) {
+                targetShootDirX = 0f;
+                targetShootDirY = (dirY > 0) ? 1f : -1f;
+            }
 
-        if (targetShootDirY == 0f && targetShootDirX != 0f) {
-            smoothShootDirX = targetShootDirX;
-            smoothShootDirY = 0f;
-        } else if (targetShootDirX == 0f && targetShootDirY != 0f) {
-            smoothShootDirX  = 0f;
-            smoothShootDirY = targetShootDirY;
-        } else {
-            float lerpFactor = 1f - (float) Math.exp(-SHOOT_DIRECTION_SMOOTHING * delta);
-            smoothShootDirX = smoothShootDirX + (targetShootDirX - smoothShootDirX) * lerpFactor;
-            smoothShootDirY = smoothShootDirY + (targetShootDirY - smoothShootDirY) * lerpFactor;
-        }
+            if (targetShootDirY == 0f && targetShootDirX != 0f) {
+                smoothShootDirX = targetShootDirX;
+                smoothShootDirY = 0f;
+            } else if (targetShootDirX == 0f && targetShootDirY != 0f) {
+                smoothShootDirX  = 0f;
+                smoothShootDirY = targetShootDirY;
+            } else {
+                float lerpFactor = 1f - (float) Math.exp(-SHOOT_DIRECTION_SMOOTHING * delta);
+                smoothShootDirX = smoothShootDirX + (targetShootDirX - smoothShootDirX) * lerpFactor;
+                smoothShootDirY = smoothShootDirY + (targetShootDirY - smoothShootDirY) * lerpFactor;
+            }
 
-        float smoothedLength = (float) Math.sqrt(smoothShootDirX * smoothShootDirX + smoothShootDirY * smoothShootDirY);
-        if (smoothedLength > 0.001f) {
-            smoothShootDirX = smoothShootDirX / smoothedLength;
-            smoothShootDirY = smoothShootDirY / smoothedLength;
+            float smoothedLength = (float) Math.sqrt(smoothShootDirX * smoothShootDirX + smoothShootDirY * smoothShootDirY);
+            if (smoothedLength > 0.001f) {
+                smoothShootDirX = smoothShootDirX / smoothedLength;
+                smoothShootDirY = smoothShootDirY / smoothedLength;
+            }
         }
+        // If not moving (length == 0), keep current smoothShootDirX and smoothShootDirY unchanged
     }
 
 
@@ -693,9 +697,16 @@ public class Player {
     public void levelUp() {
         currentXP -= xpToNextLevel;
         currentLevel++;
-        // Balanced XP curve: player should max level at minute 8-9 of 10-minute game
-        // Formula: 50 + level * 25 (more gentle curve)
-        xpToNextLevel = 50 + currentLevel * 25;
+        // Balanced XP curve: player should max level at minute 7-8 of 10-minute game
+        // Early levels (1-5): Faster progression for easier start
+        // Later levels: Normal progression
+        if (currentLevel <= 5) {
+            // Levels 1-5: Much easier (40 + level * 15)
+            xpToNextLevel = 40 + currentLevel * 15;
+        } else {
+            // Levels 6+: Normal progression (70 + level * 30)
+            xpToNextLevel = 70 + currentLevel * 30;
+        }
     }
 
     public int getCurrentLevel() { return currentLevel; }

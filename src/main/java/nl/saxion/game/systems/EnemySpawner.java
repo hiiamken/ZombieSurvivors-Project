@@ -56,6 +56,9 @@ public class EnemySpawner {
     private static final float SPECIAL_PATTERN_MIN_COOLDOWN = 15f;
     private static final float SPECIAL_PATTERN_MAX_COOLDOWN = 30f;
     
+    // Circle pattern specific timing (more frequent late game)
+    private float nextCirclePatternTime = 0f;
+    
     // Pattern types
     private enum SpawnPattern {
         CIRCLE,      // Zombies spawn in circle around player
@@ -446,8 +449,12 @@ public class EnemySpawner {
     }
     
     private void spawnStampedeHorde(float playerX, float playerY, float gameTime) {
-        // Horde size: 25-40 zombies - MUCH denser horde!
-        int hordeSize = 25 + (int)(Math.random() * 16);
+        // Horde size: 250-400 zombies (10x increase) with exponential scaling
+        float minutes = gameTime / 60f;
+        float expScale = (float) Math.pow(1.3f, Math.max(0, minutes - 2f)); // Exponential after minute 2
+        int baseSize = 250 + (int)(Math.random() * 151); // 250-400 base
+        int hordeSize = (int)(baseSize * expScale);
+        hordeSize = Math.min(hordeSize, 800); // Cap at 800
         
         // Pick random direction toward player (8 directions: N, S, E, W, NE, NW, SE, SW)
         int dirType = (int)(Math.random() * 8);
@@ -501,12 +508,11 @@ public class EnemySpawner {
                 break;
         }
         
-        // Speed: 5x faster than normal zombies - EXTREMELY FAST! (was 2.5x, now 2x faster = 5x)
+        // Speed: 6x faster than normal zombies - EXTREMELY FAST!
         float speed = enemyBaseSpeed * 5f; // Very fast stampede zombies
-        // Stampede health - lower than normal zombies (they're fast obstacles)
-        float minutes = gameTime / 60f;
-        float healthExpMult = (float) Math.pow(1.05f, minutes); // 5% per minute (gentle)
-        int health = (int)((15 + minutes * 2f) * healthExpMult); // Base 15 HP, scales slowly
+        // Stampede health - MUCH lower than normal zombies (fast but fragile)
+        float healthExpMult = (float) Math.pow(1.03f, minutes); // 3% per minute (very gentle)
+        int health = (int)((8 + minutes * 1f) * healthExpMult); // Base 8 HP, scales very slowly
         
         // Spawn horde in TIGHT ellipse formation - compact and dense
         // Smaller ellipse = tighter pack of zombies rushing together
@@ -548,6 +554,30 @@ public class EnemySpawner {
     // ==========================================
     
     private void trySpawnSpecialPattern(float gameTime, float playerX, float playerY, List<Enemy> enemies) {
+        float minutes = gameTime / 60f;
+        
+        // CIRCLE PATTERN: Special frequent spawning after minute 6
+        if (minutes >= 6f && gameTime >= nextCirclePatternTime) {
+            // Dynamic cooldown based on time
+            float circleCooldown;
+            if (minutes >= 10f) {
+                circleCooldown = 1f; // Every 1 second after minute 10
+            } else if (minutes >= 9f) {
+                circleCooldown = 3f; // Every 3 seconds after minute 9
+            } else if (minutes >= 8f) {
+                circleCooldown = 5f; // Every 5 seconds after minute 8
+            } else if (minutes >= 7f) {
+                circleCooldown = 7f; // Every 7 seconds after minute 7
+            } else {
+                circleCooldown = 10f; // Every 10 seconds after minute 6
+            }
+            
+            nextCirclePatternTime = gameTime + circleCooldown;
+            spawnCirclePattern(playerX, playerY, gameTime, enemies);
+            return; // Circle pattern spawned, skip other patterns this frame
+        }
+        
+        // OTHER PATTERNS: Normal cooldown system
         // Check cooldown
         if (gameTime < nextSpecialPatternTime) {
             return;
@@ -570,7 +600,6 @@ public class EnemySpawner {
         // Pick random pattern based on game time
         // Earlier = simpler patterns, Later = more complex
         SpawnPattern pattern;
-        float minutes = gameTime / 60f;
         
         if (minutes < 6) {
             // Minutes 4-6: Circle, Wave only
@@ -604,13 +633,32 @@ public class EnemySpawner {
      * CIRCLE SPAWN - Zombies spawn in a circle around player, then close in
      */
     private void spawnCirclePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
-        int zombieCount = 20 + (int)(Math.random() * 15); // 20-35 zombies
+        float minutes = gameTime / 60f;
+        
+        // Massive zombie count with exponential scaling based on time
+        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Strong exponential after minute 4
+        int baseCount = 300 + (int)(Math.random() * 200); // 300-500 base (increased from 200-350)
+        
+        // Additional multiplier for late game (after minute 6)
+        if (minutes >= 6f) {
+            float lateGameBonus = 1f + (minutes - 6f) * 0.5f; // +50% per minute after 6
+            baseCount = (int)(baseCount * lateGameBonus);
+        }
+        
+        int zombieCount = (int)(baseCount * expScale);
+        zombieCount = Math.min(zombieCount, 1200); // Cap at 1200 (increased from 800)
         float radius = 400f; // Spawn distance from player
         
-        float minutes = gameTime / 60f;
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
-        float speed = enemyBaseSpeed * 1.2f; // Slightly faster
+        
+        // Late game speed boost: 2x-4x after minute 6
+        float speedMult = 1.2f;
+        if (minutes >= 6f) {
+            float lateGameMinutes = minutes - 6f;
+            speedMult = 2f + Math.min(2f, lateGameMinutes * 0.3f); // 2x to 4x speed
+        }
+        float speed = enemyBaseSpeed * speedMult;
         
         for (int i = 0; i < zombieCount; i++) {
             float angle = (float)(i * 2 * Math.PI / zombieCount);
@@ -629,13 +677,24 @@ public class EnemySpawner {
      * WAVE SPAWN - Zombies spawn in rows, wave after wave
      */
     private void spawnWavePattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
-        int waveCount = 3; // 3 rows
-        int zombiesPerWave = 10 + (int)(Math.random() * 8); // 10-18 per row
-        
         float minutes = gameTime / 60f;
+        
+        // Much larger waves with exponential scaling
+        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
+        int waveCount = (int)(5 * Math.min(4f, expScale)); // 5 to 20 rows (increased)
+        int zombiesPerWave = (int)((200 + (int)(Math.random() * 150)) * expScale); // 200-350 per row (doubled)
+        zombiesPerWave = Math.min(zombiesPerWave, 500); // Cap per wave (increased)
+        
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
-        float speed = enemyBaseSpeed * 1.3f;
+        
+        // Much faster speed - same as normal zombies to be visible
+        float speedMult = 1.5f; // Base faster
+        if (minutes >= 6f) {
+            float lateGameMinutes = minutes - 6f;
+            speedMult = 2.5f + Math.min(2f, lateGameMinutes * 0.4f); // 2.5x to 4.5x speed
+        }
+        float speed = enemyBaseSpeed * speedMult;
         
         // Pick random direction
         float angle = (float)(Math.random() * Math.PI * 2);
@@ -667,12 +726,23 @@ public class EnemySpawner {
      * SPIRAL SPAWN - Zombies spawn in spiral pattern around player
      */
     private void spawnSpiralPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
-        int zombieCount = 30 + (int)(Math.random() * 20); // 30-50 zombies
-        
         float minutes = gameTime / 60f;
+        
+        // Much denser spiral with exponential scaling
+        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
+        int zombieCount = (int)((500 + (int)(Math.random() * 300)) * expScale); // 500-800 base (increased)
+        zombieCount = Math.min(zombieCount, 1500); // Cap at 1500 (increased)
+        
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth + minutes * 3f) * healthMult);
-        float speed = enemyBaseSpeed * 1.1f;
+        
+        // Much faster speed to be visible
+        float speedMult = 1.8f; // Base faster
+        if (minutes >= 6f) {
+            float lateGameMinutes = minutes - 6f;
+            speedMult = 2.5f + Math.min(2f, lateGameMinutes * 0.4f); // 2.5x to 4.5x speed
+        }
+        float speed = enemyBaseSpeed * speedMult;
         
         float startAngle = (float)(Math.random() * Math.PI * 2);
         float spiralTurns = 2f; // 2 full rotations
@@ -697,12 +767,23 @@ public class EnemySpawner {
      * AMBUSH SPAWN - Sudden spawn very close to player (dangerous!)
      */
     private void spawnAmbushPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
-        int zombieCount = 8 + (int)(Math.random() * 6); // 8-14 zombies (smaller but dangerous)
-        
         float minutes = gameTime / 60f;
+        
+        // Much larger ambush with exponential scaling
+        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
+        int zombieCount = (int)((200 + (int)(Math.random() * 150)) * expScale); // 200-350 base (increased)
+        zombieCount = Math.min(zombieCount, 800); // Cap at 800 (doubled)
+        
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth * 0.7f + minutes * 2f) * healthMult); // Weaker but close
-        float speed = enemyBaseSpeed * 1.5f; // Fast!
+        
+        // Very fast for ambush - highly visible
+        float speedMult = 2.0f; // Base much faster
+        if (minutes >= 6f) {
+            float lateGameMinutes = minutes - 6f;
+            speedMult = 3.5f + Math.min(1.5f, lateGameMinutes * 0.3f); // 3.5x to 5x speed
+        }
+        float speed = enemyBaseSpeed * speedMult;
         
         // Spawn CLOSE to player (just outside immediate area)
         float minRadius = 150f;
@@ -727,12 +808,23 @@ public class EnemySpawner {
      * Note: This spawns regular enemies as escorts, boss is spawned separately in PlayScreen
      */
     private void spawnBossEscortPattern(float playerX, float playerY, float gameTime, List<Enemy> enemies) {
-        int escortCount = 15 + (int)(Math.random() * 10); // 15-25 escort zombies
-        
         float minutes = gameTime / 60f;
+        
+        // Much larger escort with exponential scaling
+        float expScale = (float) Math.pow(1.8f, Math.max(0, minutes - 4f)); // Stronger exponential
+        int escortCount = (int)((300 + (int)(Math.random() * 200)) * expScale); // 300-500 base (doubled)
+        escortCount = Math.min(escortCount, 1000); // Cap at 1000 (increased)
+        
         float healthMult = (float) Math.pow(1.05f, minutes);
         int health = (int)((enemyBaseHealth * 1.5f + minutes * 4f) * healthMult); // Tankier escorts
-        float speed = enemyBaseSpeed * 0.8f; // Slower, more menacing
+        
+        // Late game speed boost: 1.5x-3x after minute 6 (slower but still boosted)
+        float speedMult = 0.8f;
+        if (minutes >= 6f) {
+            float lateGameMinutes = minutes - 6f;
+            speedMult = 1.5f + Math.min(1.5f, lateGameMinutes * 0.25f); // 1.5x to 3x speed
+        }
+        float speed = enemyBaseSpeed * speedMult;
         
         // Pick spawn direction
         float angle = (float)(Math.random() * Math.PI * 2);

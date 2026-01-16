@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 // Handles all collision detection and cleanup
 public class CollisionHandler {
     private static final float DAMAGE_COOLDOWN_DURATION = 0.6f;
-    private static final int ENEMY_BASE_DAMAGE = 1;  // Base damage for enemies
+    private static final float ENEMY_BASE_DAMAGE = 0.5f;  // Base damage for enemies (reduced - fast zombies should deal less)
     private static final int BOSS_BASE_DAMAGE = 3;   // Base damage for bosses (increased)
 
     private float playerDamageCooldown = 0f;
@@ -37,7 +37,8 @@ public class CollisionHandler {
         float minutes = gameElapsedTime / 60f;
         float damageMultiplier = (float) Math.pow(1.1f, minutes);
         damageMultiplier = Math.min(damageMultiplier, 10f); // Cap at 10x damage
-        return Math.max(1, (int)(ENEMY_BASE_DAMAGE * damageMultiplier));
+        float scaledDamage = ENEMY_BASE_DAMAGE * damageMultiplier;
+        return Math.max(1, Math.round(scaledDamage));
     }
     
     /**

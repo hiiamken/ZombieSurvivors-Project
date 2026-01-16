@@ -1076,7 +1076,7 @@ public class PlayScreen extends ScalableGameScreen {
             e.update(delta, player.getX(), player.getY(), collisionChecker, enemies);
         }
         for (Boss boss : bosses) {
-            boss.update(delta, player.getX(), player.getY(), bosses); // Pass bosses list for separation collision
+            boss.update(delta, player.getX(), player.getY(), bosses, enemies); // Pass bosses and enemies for collision
         }
 
 
@@ -1706,9 +1706,11 @@ public class PlayScreen extends ScalableGameScreen {
                 float dist = (float)Math.sqrt(dx*dx + dy*dy);
                 
                 if (dist < playerRadius + 15f) { // Contact radius
-                    // Stampede zombie deals LESS damage than normal zombies
-                    int damage = 1; // Much less damage - just obstacle, not deadly
-                    player.takeDamage(damage);
+                    // Stampede zombie deals NO damage - just fast obstacles that push
+                    int damage = 0; // No damage - they're just fast obstacles
+                    if (damage > 0) {
+                        player.takeDamage(damage);
+                    }
                     
                     if (damageTextSystem != null) {
                         boolean isCrit = false;
@@ -3145,7 +3147,7 @@ public class PlayScreen extends ScalableGameScreen {
         } else if (option.isWeaponUpgrade()) {
             return option.description;
         } else if (option.isEvolution()) {
-            return "Transform your weapon into its ultimate form!";
+            return "Transform weapon into ultimate form!";
         }
         return option.description;
     }
